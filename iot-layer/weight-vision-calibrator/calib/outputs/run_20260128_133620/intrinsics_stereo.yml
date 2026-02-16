@@ -1,0 +1,34 @@
+%YAML:1.0
+---
+image_width: 2688
+image_height: 1520
+K_left: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 2096.6322536514913, 0., 1351.0572528377022, 0.,
+       2101.0455933033468, 787.388028706113, 0., 0., 1. ]
+dist_left: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ -0.74445587792548917, 0.80179968182966888,
+       -0.0011815329367749583, 0.00065230246265747332, 0. ]
+K_right: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 2654.3799237429562, 0., 1334.1073923623633, 0.,
+       2655.2065861294259, 762.21894370400571, 0., 0., 1. ]
+dist_right: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ -0.90674675049090192, 1.1499780663850361,
+       -0.0078726259452517253, 0.0076224959467680788, 0. ]
+charuco_squares_x: 10
+charuco_squares_y: 7
+charuco_square_mm: 40.
+charuco_marker_mm: 28.
+charuco_dict: DICT_6X6_250
+charuco_legacy: 1

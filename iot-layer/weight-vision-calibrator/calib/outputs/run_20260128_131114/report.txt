@@ -1,0 +1,15 @@
+CharucoSpec: squares=10x7 square=40.0mm marker=28.0mm dict=DICT_6X6_250 legacy=True
+
+rms_left=0.469403
+rms_right=2.003357
+rms_stereo=8.097187
+baseline=1911.172
+angle_deg=0.296
+min_charuco_corners=10
+min_common_ids=10
+alpha=0.0
+oobx=56.322% ooby=53.730%
+coverage_x=0.503 coverage_y=1.000
+roi_pct={'x0': 0.15, 'x1': 0.85, 'y0': 0.1, 'y1': 0.9}
+roi_pixels={'x0': 1636, 'x1': 2502, 'y0': 314, 'y1': 1233, 'width': 866, 'height': 919, 'image_width': 2688, 'image_height': 1520}
+rectified_safe_bbox={'x0': 1450, 'x1': 2688, 'y0': 199, 'y1': 1348, 'width': 1238, 'height': 1149, 'image_width': 2688, 'image_height': 1520}

@@ -1,0 +1,92 @@
+{
+  "timestamp": "2026-02-11T03:46:23.115087",
+  "image_id": "20260211_034623",
+  "detections": [],
+  "roi": {
+    "source": "board_reference",
+    "xyxy": [
+      1049,
+      322,
+      2047,
+      1167
+    ]
+  },
+  "scale": {
+    "port": "/dev/ttyUSB0",
+    "weight_kg": 0.2
+  },
+  "focus": {
+    "laplacian_var": 380.8748678226663,
+    "min_laplacian": 70.0
+  },
+  "roi_count": 0,
+  "stereo": {
+    "disparity": null,
+    "depth_mm": null
+  },
+  "height_estimation": {
+    "floor_depth_mm": 1368.8587863636365,
+    "object_height_mm": null
+  },
+  "camera": {
+    "focal_length_px": 2113.395695473735,
+    "baseline_mm": 113.99587395010728,
+    "maps_path": "/workspace/iot-layer/camera-config/calibration-camera/stereo_rectify_maps.yml"
+  },
+  "board_reference": {
+    "path": "/workspace/iot-layer/camera-config/Geometry-based/board_reference.yml",
+    "data": {
+      "board": {
+        "name": "blue_reference_board",
+        "color": "blue",
+        "size_mm": {
+          "width": 510,
+          "height": 540
+        }
+      },
+      "roi": {
+        "offset_mm": {
+          "x": 130,
+          "y": -10
+        },
+        "size_scale": {
+          "x": 1.25,
+          "y": 1
+        },
+        "padding_mm": {
+          "x": 0,
+          "y": 0
+        }
+      },
+      "camera": {
+        "distance_to_board_mm": 1350
+      },
+      "reference_plane": {
+        "axis": "Z",
+        "z_mm": 1350,
+        "normal": [
+          0,
+          0,
+          1
+        ]
+      },
+      "measurement": {
+        "unit": {
+          "length": "mm"
+        },
+        "usage": [
+          "pixel_to_mm_scale",
+          "object_width_height_estimation",
+          "object_height_from_depth"
+        ]
+      },
+      "metadata": {
+        "created_by": "weight-vision-calibrator",
+        "description": "Blue reference board with known dimensions used as a metric reference for stereo vision measurement (W, L, H).\n"
+      }
+    }
+  },
+  "calibration": {
+    "rms_stereo": 0.5495712071462711
+  }
+}

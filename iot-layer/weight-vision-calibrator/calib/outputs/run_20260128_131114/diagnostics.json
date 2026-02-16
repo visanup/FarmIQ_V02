@@ -1,0 +1,48 @@
+{
+  "charuco": {
+    "squares_x": 10,
+    "squares_y": 7,
+    "square_mm": 40.0,
+    "marker_mm": 28.0,
+    "dictionary": "DICT_6X6_250",
+    "legacy_pattern": true
+  },
+  "rms_left": 0.46940264758942946,
+  "rms_right": 2.003357364055315,
+  "rms_stereo": 8.097187201094705,
+  "baseline": 1911.171897805347,
+  "angle_deg": 0.2964810886864923,
+  "min_charuco_corners": 10,
+  "min_common_ids": 10,
+  "alpha": 0.0,
+  "oobx": 0.5632249569235589,
+  "ooby": 0.5372997924498747,
+  "coverage_x": 0.503358364637607,
+  "coverage_y": 1.0,
+  "roi_pct": {
+    "x0": 0.15,
+    "x1": 0.85,
+    "y0": 0.1,
+    "y1": 0.9
+  },
+  "roi_pixels": {
+    "x0": 1636,
+    "x1": 2502,
+    "y0": 314,
+    "y1": 1233,
+    "width": 866,
+    "height": 919,
+    "image_width": 2688,
+    "image_height": 1520
+  },
+  "rectified_safe_bbox": {
+    "x0": 1450,
+    "x1": 2688,
+    "y0": 199,
+    "y1": 1348,
+    "width": 1238,
+    "height": 1149,
+    "image_width": 2688,
+    "image_height": 1520
+  }
+}

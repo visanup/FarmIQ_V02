@@ -1,0 +1,17 @@
+{
+  "pair_index": 2,
+  "left_file": "D:\\Betagro\\FarmIQ_V02\\iot-layer\\weight-vision-calibrator\\calib\\samples\\left\\charuco_20260206_134440_181919.png",
+  "right_file": "D:\\Betagro\\FarmIQ_V02\\iot-layer\\weight-vision-calibrator\\calib\\samples\\right\\charuco_20260206_134440_181919.png",
+  "dt_ms": 1279.275000008056,
+  "left_shape": [
+    1520,
+    2688,
+    3
+  ],
+  "right_shape": [
+    1520,
+    2688,
+    3
+  ],
+  "timestamp_perf_counter": 89076.1923086
+}
