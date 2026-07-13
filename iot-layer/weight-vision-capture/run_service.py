@@ -30,6 +30,43 @@ def _open_capture(url: str) -> cv2.VideoCapture:
     return cap
 
 
+def _open_capture_pair_with_retry(
+    left_url: str,
+    right_url: str,
+    max_attempts: int,
+    retry_delay_seconds: float,
+) -> tuple[cv2.VideoCapture | None, cv2.VideoCapture | None]:
+    max_attempts = max(1, int(max_attempts))
+    retry_delay_seconds = max(0.0, float(retry_delay_seconds))
+
+    for attempt in range(1, max_attempts + 1):
+        cap_left = _open_capture(left_url)
+        cap_right = _open_capture(right_url)
+        left_open = cap_left.isOpened()
+        right_open = cap_right.isOpened()
+        if left_open and right_open:
+            if attempt > 1:
+                print(f"[INFO] RTSP streams opened successfully on attempt {attempt}/{max_attempts}")
+            return cap_left, cap_right
+
+        status_parts: list[str] = []
+        if not left_open:
+            status_parts.append("left")
+        if not right_open:
+            status_parts.append("right")
+        failed_streams = ", ".join(status_parts) if status_parts else "unknown"
+        print(
+            f"[WARN] Failed to open RTSP streams ({failed_streams}) "
+            f"on attempt {attempt}/{max_attempts}"
+        )
+        cap_left.release()
+        cap_right.release()
+        if attempt < max_attempts and retry_delay_seconds > 0.0:
+            time.sleep(retry_delay_seconds)
+
+    return None, None
+
+
 def _read_pair(cap_left: cv2.VideoCapture, cap_right: cv2.VideoCapture, retries: int = 3) -> tuple[bool, np.ndarray | None, np.ndarray | None]:
     for _ in range(max(1, retries)):
         ok_l, frame_l = cap_left.read()
@@ -640,6 +677,18 @@ def main() -> int:
     parser.add_argument("--block-size", type=int, default=None)
     parser.add_argument("--detect-every", type=int, default=1, help="Run live detection every N frames")
     parser.add_argument("--reconnect-after", type=int, default=30, help="Reconnect after N consecutive read failures")
+    parser.add_argument(
+        "--startup-open-attempts",
+        type=int,
+        default=int(os.getenv("RTSP_STARTUP_OPEN_ATTEMPTS", "12")),
+        help="Attempts to open both RTSP streams before exiting",
+    )
+    parser.add_argument(
+        "--startup-open-delay-seconds",
+        type=float,
+        default=float(os.getenv("RTSP_STARTUP_OPEN_DELAY_SECONDS", "2.0")),
+        help="Delay between RTSP open attempts during startup",
+    )
     parser.add_argument("--scale-enable", action="store_true", default=False, help="Enable auto-capture from USB scale")
     parser.add_argument("--scale-port", default="COM3")
     parser.add_argument("--scale-baud", type=int, default=9600)
@@ -703,6 +752,8 @@ def main() -> int:
 
     args.detect_every = max(1, int(args.detect_every))
     args.reconnect_after = max(1, int(args.reconnect_after))
+    args.startup_open_attempts = max(1, int(args.startup_open_attempts))
+    args.startup_open_delay_seconds = max(0.0, float(args.startup_open_delay_seconds))
     if args.capture_cooldown_seconds < 0.0:
         print(
             f"[WARN] Invalid auto capture cooldown {args.capture_cooldown_seconds:.1f}s; "
@@ -791,10 +842,18 @@ def main() -> int:
     left_url = _rtsp_url(args.left_ip, args.username, args.password, args.stream_path, args.port)
     right_url = _rtsp_url(args.right_ip, args.username, args.password, args.stream_path, args.port)
 
-    cap_left = _open_capture(left_url)
-    cap_right = _open_capture(right_url)
-    if not cap_left.isOpened() or not cap_right.isOpened():
-        print("Failed to open RTSP streams")
+    print(
+        f"[INFO] Opening RTSP streams with up to {args.startup_open_attempts} attempts "
+        f"({args.startup_open_delay_seconds:.1f}s delay)"
+    )
+    cap_left, cap_right = _open_capture_pair_with_retry(
+        left_url,
+        right_url,
+        max_attempts=args.startup_open_attempts,
+        retry_delay_seconds=args.startup_open_delay_seconds,
+    )
+    if cap_left is None or cap_right is None:
+        print("Failed to open RTSP streams after startup retries")
         return 1
 
     data_root = Path(__file__).resolve().parent / "data"

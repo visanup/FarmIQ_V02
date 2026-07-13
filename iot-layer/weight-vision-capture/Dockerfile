@@ -12,7 +12,7 @@ RUN apt-get update \
 WORKDIR /workspace/iot-layer/weight-vision-capture
 
 COPY weight-vision-capture/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir --retries 10 --timeout 300 -r /tmp/requirements.txt
 
 COPY weight-vision-capture /workspace/iot-layer/weight-vision-capture
 COPY camera-config /workspace/iot-layer/camera-config

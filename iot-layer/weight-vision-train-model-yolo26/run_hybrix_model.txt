@@ -1,0 +1,25 @@
+train จาก last.pt
+cd "D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26"
+python .\prepare_dataset.py --src "Chicken Segmentation.v4i.yolo26" --dest "data_v4_cks_boost_clean" --oversample-class "CK-S" --oversample-factor 3 --force
+python .\train.py --model "D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26\runs\train\20260629_130241\weights\best.pt" --data "data_v4_cks_boost_clean\dataset.yaml" --epochs 100 --device 0 --task segment --batch 8 --img-size 640 --workers 0 --skip-prepare --cls-pw 0.5 --copy-paste 0.3
+
+
+train ใหม่ทั้งหมด
+cd /d D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26
+python train.py --source "Chicken Segmentation.v4i.yolo26" --data "data_v4_cks_boost\dataset.yaml" --epochs 100 --device 0 --force-prepare --task segment --model yolo26n-seg.pt --batch 8 --img-size 640 --workers 0 --cls-pw 0.5 --copy-paste 0.3 --oversample-class "CK-S" --oversample-factor 3
+
+
+รันใหม่ pre_dataset และรันตาอจาก 20260629_130241\weights\best.pt
+cd "D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26"
+python .\prepare_dataset.py --src "Chicken Segmentation.v4i.yolo26" --dest "data_v4_cks_boost_clean_v2" --oversample-class "CK-S" --oversample-factor 3 --force
+python .\train.py --model "D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26\runs\train\20260629_130241\weights\best.pt" --data "data_v4_cks_boost_clean_v2\dataset.yaml" --epochs 100 --device 0 --task segment --batch 8 --img-size 640 --workers 0 --skip-prepare --cls-pw 0.5 --copy-paste 0.3
+
+
+
+
+
+pre-label รัน yolo อย่างเดียว
+
+cd "D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26"
+
+python .\hybrid_prelabel.py --source "D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26\Chicken Segmentation.v4i.yolo26\test" --yolo-model "D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\iot-layer\weight-vision-train-model-yolo26\runs\train\20260707_083300\weights\best.pt" --mask-source yolo --yolo-device 0 --output "runs\prelabel" --name "v4i_test_yolo26_20260707" --force --zip-output

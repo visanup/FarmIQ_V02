@@ -49,7 +49,22 @@ const finalizeSessionSchema = z.object({
   tenantId: z.string().min(1),
   eventId: z.string().min(1),
   occurredAt: z.string().datetime(),
+  finalWeightKg: z.number().finite().optional(),
+  payload: z.record(z.unknown()).optional(),
 })
+
+function parseFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    if (!normalized) return undefined
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
 
 export const createSession = async (req: Request, res: Response) => {
   const traceId = getTraceId(req, res)
@@ -171,8 +186,18 @@ export const finalizeSession = async (req: Request, res: Response) => {
   const { sessionId } = req.params
   try {
     const validated = finalizeSessionSchema.parse(req.body ?? {})
+    const payloadFinalWeight = validated.payload
+      ? parseFiniteNumber(
+          validated.payload['final_weight_kg'] ??
+            validated.payload['finalWeightKg'] ??
+            validated.payload['weight_kg'] ??
+            validated.payload['weightKg']
+        )
+      : undefined
+
     const session = await sessionService.finalizeSession(sessionId, {
       ...validated,
+      finalWeightKg: parseFiniteNumber(validated.finalWeightKg) ?? payloadFinalWeight,
       traceId,
     })
     return res.status(200).json(session)

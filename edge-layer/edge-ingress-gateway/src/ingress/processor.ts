@@ -39,6 +39,19 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    if (!normalized) return null
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
 /**
  *
  * @param params
@@ -374,8 +387,7 @@ export async function processIngressMessage(params: {
             payloadRecord['weight'] ??
             payloadRecord['value'])
           : null
-        const weightKg =
-          typeof weightCandidate === 'number' ? weightCandidate : null
+        const weightKg = toFiniteNumber(weightCandidate)
         if (typeof weightKg !== 'number') return null
         return {
           url: `${base}/api/v1/weighvision/sessions/${encodeURIComponent(sessionId)}/bind-weight`,
@@ -412,12 +424,20 @@ export async function processIngressMessage(params: {
         }
       }
       if (eventType === 'weighvision.session.finalized') {
+        const finalWeightCandidate = payloadRecord
+          ? (payloadRecord['finalWeightKg'] ??
+            payloadRecord['final_weight_kg'] ??
+            payloadRecord['weightKg'] ??
+            payloadRecord['weight_kg'])
+          : null
+        const finalWeightKg = toFiniteNumber(finalWeightCandidate)
         return {
           url: `${base}/api/v1/weighvision/sessions/${encodeURIComponent(sessionId)}/finalize`,
           body: {
             tenantId: envelope.tenant_id,
             eventId: envelope.event_id,
             occurredAt: envelope.ts,
+            finalWeightKg: typeof finalWeightKg === 'number' ? finalWeightKg : undefined,
           },
         }
       }

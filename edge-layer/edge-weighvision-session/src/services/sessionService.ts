@@ -243,6 +243,7 @@ export const finalizeSession = async (
     eventId: string
     occurredAt: string
     traceId: string
+    finalWeightKg?: number
   }
 ) => {
   const updatedSession = await prisma.$transaction(async (tx) => {
@@ -254,7 +255,10 @@ export const finalizeSession = async (
     if (!session) throw new Error('Session not found')
     if (session.status === 'finalized') return session
 
-    const finalWeight = session.weights[0]?.weightKg ?? session.initialWeightKg ?? 0
+    const finalWeight =
+      typeof data.finalWeightKg === 'number'
+        ? data.finalWeightKg
+        : (session.weights[0]?.weightKg ?? session.initialWeightKg ?? 0)
     const endTime = new Date()
 
     const updatedSession = await tx.weightSession.update({

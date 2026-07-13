@@ -1,0 +1,5 @@
+runs/
+data/
+*.pt
+data*_local.yaml
+Chicken Segmentation*.yolo26/

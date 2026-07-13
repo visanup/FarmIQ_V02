@@ -78,7 +78,7 @@ describe('processIngressMessage (weighvision)', () => {
     expect((global as any).fetch).toHaveBeenCalled()
   })
 
-  it('routes weighvision.weight.recorded, image.captured, session.finalized', async () => {
+  it('routes weighvision.weight.recorded, image.captured, session.finalized and forwards real weight values', async () => {
     const dedupe = new InMemoryDedupeStore()
     const makeTopic = (eventType: string): ParsedTopic => ({
       kind: 'weighvision',
@@ -89,20 +89,6 @@ describe('processIngressMessage (weighvision)', () => {
       sessionId: 's-1',
       eventType,
     })
-
-    const makeMessage = (event_type: string, event_id: string) =>
-      Buffer.from(
-        JSON.stringify({
-          schema_version: '1.0',
-          event_id,
-          trace_id: `trace-${event_id}`,
-          tenant_id: 't-1',
-          device_id: 'wv-1',
-          event_type,
-          ts: '2025-01-01T00:00:00Z',
-          payload: {},
-        })
-      )
 
     const deps = {
       dedupe,
@@ -125,7 +111,7 @@ describe('processIngressMessage (weighvision)', () => {
           device_id: 'wv-1',
           event_type: 'weighvision.weight.recorded',
           ts: '2025-01-01T00:00:00Z',
-          payload: { weightKg: 120.5 },
+          payload: { weight_kg: '120.5' },
         })
       ),
       deps,
@@ -154,10 +140,38 @@ describe('processIngressMessage (weighvision)', () => {
     const d3 = await processIngressMessage({
       topic: makeTopic('weighvision.session.finalized'),
       rawTopic: 'iot/weighvision/t-1/f-1/b-1/st-1/session/s-1/weighvision.session.finalized',
-      message: makeMessage('weighvision.session.finalized', 'e-4'),
+      message: Buffer.from(
+        JSON.stringify({
+          schema_version: '1.0',
+          event_id: 'e-4',
+          trace_id: 'trace-e-4',
+          tenant_id: 't-1',
+          device_id: 'wv-1',
+          event_type: 'weighvision.session.finalized',
+          ts: '2025-01-01T00:00:00Z',
+          payload: { final_weight_kg: '121.1' },
+        })
+      ),
       deps,
     })
     expect(d3.action).toBe('processed')
+
+    const fetchCalls = (global as any).fetch.mock.calls as Array<[string, { body?: string }]>
+    expect(fetchCalls.length).toBeGreaterThanOrEqual(3)
+
+    const bindWeightCall = fetchCalls.find(([url]) => url.includes('/bind-weight'))
+    expect(bindWeightCall).toBeDefined()
+    if (bindWeightCall) {
+      const body = JSON.parse(bindWeightCall[1].body ?? '{}')
+      expect(body.weightKg).toBe(120.5)
+    }
+
+    const finalizeCall = fetchCalls.find(([url]) => url.includes('/finalize'))
+    expect(finalizeCall).toBeDefined()
+    if (finalizeCall) {
+      const body = JSON.parse(finalizeCall[1].body ?? '{}')
+      expect(body.finalWeightKg).toBe(121.1)
+    }
   })
 
   it('drops when event_type does not match topic eventType', async () => {

@@ -129,10 +129,13 @@ secure/
 *.swp
 *.swo
 *.bak
+.codex
+.codex/
+**/.codex
 
 ####################
 # Repo-specific
 ####################
 boilerplates/
 docs/master_data/
-
+iot-layer/weight-vision-service/buffer/

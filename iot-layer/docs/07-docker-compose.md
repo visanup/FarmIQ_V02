@@ -36,6 +36,37 @@ API:
 docker compose --profile capture up --build
 ```
 
+## Capture Workflow
+ถ้าแก้เฉพาะโค้ด Python ใน `weight-vision-capture/`:
+```
+./scripts/capture-restart-code.sh
+```
+
+หรือใช้คำสั่งตรง:
+```
+docker compose --profile capture up -d --force-recreate weight-vision-capture
+```
+
+เหตุผล:
+- service นี้ bind mount โฟลเดอร์ `iot-layer/` เข้า container ที่ `/workspace/iot-layer`
+- ถ้าแก้เฉพาะไฟล์ Python เช่น `run_service.py` process ใหม่จะเห็นโค้ดล่าสุดทันที
+- ไม่ต้อง build image ใหม่ และไม่ต้องโหลด `torch`/dependency ซ้ำ
+
+ถ้าคุณแก้ `Dockerfile`, `requirements.txt` หรือเพิ่ม dependency ใหม่:
+```
+./scripts/capture-rebuild.sh
+```
+
+หรือใช้คำสั่งตรง:
+```
+docker compose --profile capture build weight-vision-capture
+docker compose --profile capture up -d --force-recreate weight-vision-capture
+```
+
+สรุปการเลือกใช้:
+- `code-only`: ใช้เมื่อแก้ logic/application code อย่างเดียว
+- `rebuild`: ใช้เมื่อ image เปลี่ยน
+
 ## RTSP Environment
 ตั้งค่ากล้องผ่าน environment variables โดยสร้างไฟล์ `iot-layer/rtsp.env` จากตัวอย่าง:
 ```
