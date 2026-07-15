@@ -293,6 +293,26 @@ class MQTTClient:
         self._last_status_sent_at = now
         return True
 
+    def shutdown(self) -> None:
+        if not self.client:
+            return
+        try:
+            if self.connected and self.status_config.enabled:
+                try:
+                    self.publish_status(force=True, online=False)
+                except Exception as exc:
+                    logger.warning("Failed to publish offline status during shutdown: %s", exc)
+            self.client.disconnect()
+        except Exception as exc:
+            logger.warning("MQTT disconnect failed: %s", exc)
+        finally:
+            if self._loop_started:
+                try:
+                    self.client.loop_stop()
+                except Exception as exc:
+                    logger.warning("MQTT loop stop failed: %s", exc)
+                self._loop_started = False
+
 
 def _parse_host_entry(entry: str, default_port: int) -> tuple[str, int]:
     if not entry:

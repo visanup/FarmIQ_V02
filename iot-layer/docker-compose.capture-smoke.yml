@@ -1,0 +1,25 @@
+services:
+  weight-vision-capture-smoke:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: weight-vision-capture/Dockerfile.smoke
+    working_dir: /workspace/repo/iot-layer/weight-vision-capture
+    volumes:
+      - ../:/workspace/repo
+    command:
+      [
+        "sh",
+        "-c",
+        "python run_service.py --model-config /workspace/repo/iot-layer/camera-config/model/runtime-config.yaml --list-model-profiles && python check_yolo_runtime_compat.py --model-config /workspace/repo/iot-layer/camera-config/model/runtime-config.yaml --output /workspace/repo/docs/iot-layer/evidence/batch3-yolo26-container-smoke.json && tail -f /dev/null"
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test -f /workspace/repo/docs/iot-layer/evidence/batch3-yolo26-container-smoke.json"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s

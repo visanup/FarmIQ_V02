@@ -2,6 +2,7 @@ export type EdgeContext = {
   tenantId: string
   farmId: string
   barnId: string
+  siteId?: string
 }
 
 export type PolicySyncConfig = {
@@ -30,9 +31,10 @@ function parseContextsFromEnv(): EdgeContext[] {
   const tenantId = process.env.EDGE_TENANT_ID
   const farmId = process.env.EDGE_FARM_ID
   const barnId = process.env.EDGE_BARN_ID
+  const siteId = process.env.EDGE_SITE_ID
 
   if (tenantId && farmId && barnId) {
-    return [{ tenantId, farmId, barnId }]
+    return [{ tenantId, farmId, barnId, siteId }]
   }
 
   return []

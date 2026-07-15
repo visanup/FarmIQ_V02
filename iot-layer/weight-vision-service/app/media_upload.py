@@ -122,6 +122,9 @@ class MediaUploader:
         self.config = config
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
+        # Media upload and presign traffic stays inside the FarmIQ control network.
+        # Ignore workstation proxy variables so local smoke and edge-host routing stay deterministic.
+        self.session.trust_env = False
 
     def request_presign(self, req: PresignRequest) -> Optional[PresignResponse]:
         url = f"{self.config.base_url}{self.config.presign_endpoint}"

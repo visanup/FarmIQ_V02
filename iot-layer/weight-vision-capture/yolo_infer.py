@@ -15,7 +15,7 @@ class Detection:
     track_id: Optional[int] = None
 
 
-class YoloV12Detector:
+class UltralyticsSegDetector:
     def __init__(
         self,
         model_path: str,
@@ -28,7 +28,7 @@ class YoloV12Detector:
             from ultralytics import YOLO
         except Exception as exc:
             raise RuntimeError(
-                "Ultralytics is required for YOLOv12 inference. Install `ultralytics`."
+                "Ultralytics is required for segmentation inference. Install `ultralytics`."
             ) from exc
 
         self.model = YOLO(model_path)
@@ -141,3 +141,7 @@ class YoloV12Detector:
             )
 
         return detections
+
+
+# Backward-compatible alias while the runtime docs and callers migrate away from the YOLOv12-specific name.
+YoloV12Detector = UltralyticsSegDetector

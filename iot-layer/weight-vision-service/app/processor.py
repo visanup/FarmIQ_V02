@@ -50,6 +50,31 @@ class CaptureProcessor:
             except Exception as exc:
                 logger.error("Failed to process %s: %s", path, exc)
 
+    def process_one_metadata(self, path: Path, force: bool = False) -> bool:
+        target = Path(path).expanduser()
+        candidates = [target]
+        if not target.is_absolute():
+            candidates.append(self.metadata_dir / target)
+            candidates.append(Path(self.config.capture.data_dir) / target)
+
+        resolved: Optional[Path] = None
+        for candidate in candidates:
+            if candidate.exists() and candidate.is_file():
+                resolved = candidate.resolve()
+                break
+
+        if resolved is None:
+            raise FileNotFoundError(f"Metadata file not found: {path}")
+
+        state_key = str(resolved)
+        if not force and self.state.is_processed(state_key):
+            logger.info("Skipping already processed metadata: %s", resolved)
+            return False
+
+        self._process_metadata(resolved)
+        self.state.mark_processed(state_key)
+        return True
+
     def _process_metadata(self, path: Path) -> None:
         logger.info("Processing metadata: %s", path)
         with open(path, "r", encoding="utf-8") as f:
@@ -281,6 +306,13 @@ class CaptureProcessor:
             "capture_id": image_id,
             "session_id": session_id,
             "media_ids": [media_id for _, media_id in uploaded_media],
+            "metadata_schema": {
+                "name": "farmiq.weighvision.capture-metadata",
+                "version": "1.0",
+            },
+            "feature_schema": {
+                "version": "1.0",
+            },
             # Send full capture metadata JSON to edge-layer.
             "metadata": metadata,
         }
@@ -301,9 +333,19 @@ class CaptureProcessor:
             {
                 "image_count": len(uploaded_media),
                 "capture_id": image_id,
+                "metadata_schema": {
+                    "name": "farmiq.weighvision.capture-metadata",
+                    "version": "1.0",
+                },
                 "finalized_at": now_utc_iso(),
             }
         )
+        if weight_kg is not None:
+            finalized_payload["final_weight_kg"] = weight_kg
+            finalized_payload["weight_kg"] = weight_kg
+            finalized_payload["scale_weight_kg"] = weight_kg
+            if isinstance(scale, dict) and scale.get("weight_source") is not None:
+                finalized_payload["weight_source"] = scale.get("weight_source")
         finalized_event = new_event(
             tenant_id=self.config.device.tenant_id,
             device_id=self.config.device.device_id,

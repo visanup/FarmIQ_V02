@@ -14,9 +14,10 @@ export interface WeighVisionServiceClient {
     to?: string
     limit?: number
     cursor?: string
+    headers?: Record<string, string>
   }): Promise<any>
 
-  getSessionById(tenantId: string, sessionId: string): Promise<any>
+  getSessionById(tenantId: string, sessionId: string, headers?: Record<string, string>): Promise<any>
 
   getAnalytics(params: {
     tenantId: string
@@ -26,6 +27,7 @@ export interface WeighVisionServiceClient {
     startDate: string
     endDate: string
     aggregation?: 'daily' | 'weekly' | 'monthly'
+    headers?: Record<string, string>
   }): Promise<any>
 
   getWeightAggregates(params: {
@@ -35,11 +37,24 @@ export interface WeighVisionServiceClient {
     batchId?: string
     start: string
     end: string
+    headers?: Record<string, string>
   }): Promise<any>
+
+  getDatasetContract(headers: Record<string, string>): Promise<any>
+  bootstrapBaseline(headers: Record<string, string>): Promise<any>
+  trainBaseline(body: unknown, headers: Record<string, string>): Promise<any>
+  upsertModelSubscription(siteId: string, body: unknown, headers: Record<string, string>): Promise<any>
+  getModelSubscription(siteId: string, headers: Record<string, string>): Promise<any>
+  resolveModelSubscription(siteId: string, headers: Record<string, string>): Promise<any>
+  ackModelSubscription(siteId: string, body: unknown, headers: Record<string, string>): Promise<any>
 }
 
 export function createWeighVisionServiceClient(): WeighVisionServiceClient {
-  const { weighvisionReadModelBaseUrl } = getServiceBaseUrls()
+  const {
+    weighvisionReadModelBaseUrl,
+    edgeWeighvisionSessionBaseUrl,
+    mlModelServiceBaseUrl,
+  } = getServiceBaseUrls()
 
   return {
     async getSessions(params) {
@@ -62,7 +77,7 @@ export function createWeighVisionServiceClient(): WeighVisionServiceClient {
 
       const options: DownstreamOptions = {
         method: 'GET',
-        headers: {},
+        headers: params.headers || {},
       }
 
       const result = await callDownstreamJson(url, options)
@@ -72,19 +87,37 @@ export function createWeighVisionServiceClient(): WeighVisionServiceClient {
       return result.data
     },
 
-    async getSessionById(tenantId, sessionId) {
-      const url = `${weighvisionReadModelBaseUrl}/api/v1/weighvision/sessions/${sessionId}?tenantId=${tenantId}`
+    async getSessionById(tenantId, sessionId, headers) {
+      const sessionUrl = `${weighvisionReadModelBaseUrl}/api/v1/weighvision/sessions/${sessionId}?tenantId=${tenantId}`
+      const captureMetadataUrl = `${edgeWeighvisionSessionBaseUrl}/api/v1/weighvision/sessions/${sessionId}/metadata`
 
       const options: DownstreamOptions = {
         method: 'GET',
-        headers: {},
+        headers: headers || {},
       }
 
-      const result = await callDownstreamJson(url, options)
-      if (!result.ok || !result.data) {
-        throw new Error(`Failed to fetch session: ${result.status}`)
+      const [sessionResult, captureMetadataResult] = await Promise.all([
+        callDownstreamJson<any>(sessionUrl, options),
+        callDownstreamJson<any>(captureMetadataUrl, options),
+      ])
+
+      if (!sessionResult.ok || !sessionResult.data) {
+        throw new Error(`Failed to fetch session: ${sessionResult.status}`)
       }
-      return result.data
+
+      const payload = sessionResult.data as Record<string, unknown>
+      const captureMetadataItems = Array.isArray(captureMetadataResult.data?.items)
+        ? captureMetadataResult.data.items
+        : Array.isArray(captureMetadataResult.data)
+          ? captureMetadataResult.data
+          : []
+
+      return captureMetadataItems.length > 0
+        ? {
+            ...payload,
+            captureMetadata: captureMetadataItems,
+          }
+        : payload
     },
 
     async getAnalytics(params) {
@@ -104,7 +137,7 @@ export function createWeighVisionServiceClient(): WeighVisionServiceClient {
 
       const options: DownstreamOptions = {
         method: 'GET',
-        headers: {},
+        headers: params.headers || {},
       }
 
       const result = await callDownstreamJson(url, options)
@@ -130,7 +163,7 @@ export function createWeighVisionServiceClient(): WeighVisionServiceClient {
 
       const options: DownstreamOptions = {
         method: 'GET',
-        headers: {},
+        headers: params.headers || {},
       }
 
       const result = await callDownstreamJson(url, options)
@@ -139,6 +172,82 @@ export function createWeighVisionServiceClient(): WeighVisionServiceClient {
       }
       return result.data
     },
+
+    async getDatasetContract(headers) {
+      const result = await callDownstreamJson(
+        `${mlModelServiceBaseUrl}/api/v1/ml/weighvision/dataset-contract`,
+        { method: 'GET', headers }
+      )
+      if (!result.ok || !result.data) {
+        throw new Error(`Failed to fetch dataset contract: ${result.status}`)
+      }
+      return result.data
+    },
+
+    async bootstrapBaseline(headers) {
+      const result = await callDownstreamJson(
+        `${mlModelServiceBaseUrl}/api/v1/ml/weighvision/bootstrap-baseline`,
+        { method: 'POST', headers }
+      )
+      if (!result.ok || !result.data) {
+        throw new Error(`Failed to bootstrap baseline: ${result.status}`)
+      }
+      return result.data
+    },
+
+    async trainBaseline(body, headers) {
+      const result = await callDownstreamJson(
+        `${mlModelServiceBaseUrl}/api/v1/ml/weighvision/train-baseline`,
+        { method: 'POST', headers, body }
+      )
+      if (!result.ok || !result.data) {
+        throw new Error(`Failed to train baseline: ${result.status}`)
+      }
+      return result.data
+    },
+
+    async upsertModelSubscription(siteId, body, headers) {
+      const result = await callDownstreamJson(
+        `${mlModelServiceBaseUrl}/api/v1/ml/weighvision/model-subscriptions/sites/${encodeURIComponent(siteId)}`,
+        { method: 'PUT', headers, body }
+      )
+      if (!result.ok || !result.data) {
+        throw new Error(`Failed to upsert model subscription: ${result.status}`)
+      }
+      return result.data
+    },
+
+    async getModelSubscription(siteId, headers) {
+      const result = await callDownstreamJson(
+        `${mlModelServiceBaseUrl}/api/v1/ml/weighvision/model-subscriptions/sites/${encodeURIComponent(siteId)}`,
+        { method: 'GET', headers }
+      )
+      if (!result.ok || !result.data) {
+        throw new Error(`Failed to fetch model subscription: ${result.status}`)
+      }
+      return result.data
+    },
+
+    async resolveModelSubscription(siteId, headers) {
+      const result = await callDownstreamJson(
+        `${mlModelServiceBaseUrl}/api/v1/ml/weighvision/model-subscriptions/sites/${encodeURIComponent(siteId)}/resolve`,
+        { method: 'GET', headers }
+      )
+      if (!result.ok || !result.data) {
+        throw new Error(`Failed to resolve model subscription: ${result.status}`)
+      }
+      return result.data
+    },
+
+    async ackModelSubscription(siteId, body, headers) {
+      const result = await callDownstreamJson(
+        `${mlModelServiceBaseUrl}/api/v1/ml/weighvision/model-subscriptions/sites/${encodeURIComponent(siteId)}/ack`,
+        { method: 'POST', headers, body }
+      )
+      if (!result.ok || !result.data) {
+        throw new Error(`Failed to acknowledge model subscription: ${result.status}`)
+      }
+      return result.data
+    },
   }
 }
-

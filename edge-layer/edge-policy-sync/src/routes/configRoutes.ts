@@ -60,5 +60,40 @@ export function createConfigRoutes(service: PolicySyncService): Router {
     })
   })
 
+  router.get('/model-subscription/effective', async (req: Request, res: Response) => {
+    const tenantId = req.query.tenantId as string | undefined
+    const siteId = req.query.siteId as string | undefined
+
+    if (!tenantId || !siteId) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'tenantId and siteId are required',
+        },
+      })
+    }
+
+    const cached = await service.getEffectiveModelSubscription(tenantId, siteId)
+    if (!cached) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Model subscription not found',
+        },
+      })
+    }
+
+    return res.json({
+      data: {
+        tenant_id: cached.tenant_id,
+        site_id: cached.site_id,
+        resolved_json: cached.resolved_json,
+        hash: cached.hash,
+        fetched_at: cached.fetched_at,
+        source_etag: cached.source_etag,
+      },
+    })
+  })
+
   return router
 }

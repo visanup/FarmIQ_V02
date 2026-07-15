@@ -5,6 +5,7 @@ const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://farmiq:farmiq_dev@rabbi
 
 let connection: amqp.Connection | null = null
 let channel: amqp.Channel | null = null
+let connectPromise: Promise<void> | null = null
 
 const WEIGHVISION_QUEUE_BINDINGS = [
   {
@@ -30,29 +31,86 @@ const WEIGHVISION_QUEUE_BINDINGS = [
   },
 ] as const
 
-export async function connectRabbitMQ() {
-  try {
-    const conn = await amqp.connect(RABBITMQ_URL) as any
-    connection = conn as amqp.Connection
-    if (!connection) {
-      throw new Error('Failed to establish RabbitMQ connection')
-    }
-    channel = await (connection as any).createChannel()
-    logger.info('Connected to RabbitMQ', { service: 'cloud-weighvision-readmodel' })
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
-    connection.on('error', (err: Error) => {
-      logger.error('RabbitMQ connection error', { error: err, service: 'cloud-weighvision-readmodel' })
-    })
-
-    connection.on('close', () => {
-      logger.warn('RabbitMQ connection closed', { service: 'cloud-weighvision-readmodel' })
-      connection = null
-      channel = null
-    })
-  } catch (error) {
-    logger.error('Failed to connect to RabbitMQ', { error, service: 'cloud-weighvision-readmodel' })
-    throw error
+export async function connectRabbitMQ(
+  maxRetries = 10,
+  initialDelayMs = 1000
+) {
+  if (connection && channel) {
+    return
   }
+
+  if (!connectPromise) {
+    connectPromise = (async () => {
+      let attempt = 0
+
+      while (attempt < maxRetries) {
+        try {
+          logger.info(
+            `Attempting to connect to RabbitMQ (attempt ${attempt + 1}/${maxRetries})...`,
+            { service: 'cloud-weighvision-readmodel' }
+          )
+
+          const conn = (await amqp.connect(RABBITMQ_URL)) as any
+          connection = conn as amqp.Connection
+          if (!connection) {
+            throw new Error('Failed to establish RabbitMQ connection')
+          }
+
+          channel = await (connection as any).createChannel()
+          logger.info('Connected to RabbitMQ', {
+            service: 'cloud-weighvision-readmodel',
+          })
+
+          connection.on('error', (err: Error) => {
+            logger.error('RabbitMQ connection error', {
+              error: err,
+              service: 'cloud-weighvision-readmodel',
+            })
+          })
+
+          connection.on('close', () => {
+            logger.warn('RabbitMQ connection closed', {
+              service: 'cloud-weighvision-readmodel',
+            })
+            connection = null
+            channel = null
+          })
+
+          return
+        } catch (error) {
+          connection = null
+          channel = null
+          attempt += 1
+
+          if (attempt >= maxRetries) {
+            logger.error('Failed to connect to RabbitMQ after maximum retries', {
+              error,
+              service: 'cloud-weighvision-readmodel',
+            })
+            throw error
+          }
+
+          const delayMs = Math.min(
+            initialDelayMs * Math.pow(2, attempt - 1),
+            30000
+          )
+          logger.warn(
+            `Failed to connect to RabbitMQ (attempt ${attempt}/${maxRetries}). Retrying in ${delayMs}ms...`,
+            { error, service: 'cloud-weighvision-readmodel' }
+          )
+          await sleep(delayMs)
+        }
+      }
+    })().finally(() => {
+      connectPromise = null
+    })
+  }
+
+  await connectPromise
 }
 
 export async function setupWeighVisionConsumer(
@@ -207,4 +265,3 @@ export async function publishWeightAggregateUpserted(
     })
   }
 }
-

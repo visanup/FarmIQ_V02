@@ -1,0 +1,38 @@
+active_model: yolo26_promoted_bestpt
+fallback_model: baseline_yolo12_backup_20260714
+models:
+  baseline_yolo12:
+    path: best.yolo12-backup-20260714.pt
+    family: ultralytics-seg
+    conf: 0.25
+    iou: 0.45
+    imgsz: 640
+    notes: Preserved backup of the original YOLO12-era deployed weights before YOLO26 promotion on 2026-07-14
+  baseline_yolo12_backup_20260714:
+    path: best.yolo12-backup-20260714.pt
+    family: ultralytics-seg
+    conf: 0.25
+    iou: 0.45
+    imgsz: 640
+    notes: Explicit rollback target preserved before overwriting camera-config/model/best.pt
+  yolo26_promoted_bestpt:
+    path: best.pt
+    family: ultralytics-seg
+    conf: 0.25
+    iou: 0.45
+    imgsz: 640
+    notes: Promoted YOLO26 candidate now copied into camera-config/model/best.pt on 2026-07-14
+  yolo26_family_base:
+    path: ../../weight-vision-train-model-yolo26/yolo26n-seg.pt
+    family: ultralytics-seg
+    conf: 0.25
+    iou: 0.45
+    imgsz: 640
+    notes: Ultralytics YOLO26 base segmentation weights for runtime compatibility checks
+  yolo26_candidate_local:
+    path: ../../weight-vision-train-model-yolo26/runs/train/20260707_083300/weights/best.pt
+    family: ultralytics-seg
+    conf: 0.25
+    iou: 0.45
+    imgsz: 640
+    notes: Local trained YOLO26 candidate used for benchmark and rollout evaluation

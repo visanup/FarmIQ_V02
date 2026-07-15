@@ -13,6 +13,7 @@ import { startWeighVisionConsumer } from './services/rabbitmqConsumer'
 const app = express()
 const port = process.env.APP_PORT || 3000
 const prisma = new PrismaClient()
+let isShuttingDown = false
 
 const allowedOrigins = ['http://localhost:3000']
 
@@ -113,6 +114,11 @@ process.on('exit', (code) => {
 
 // Graceful shutdown
 const gracefulShutdown = async (): Promise<void> => {
+  if (isShuttingDown) {
+    return
+  }
+
+  isShuttingDown = true
   logger.info(
     'Received shutdown signal. Graceful shutdown start',
     new Date().toISOString()
@@ -185,4 +191,3 @@ process.on('unhandledRejection', (reason, promise) => {
     logger.error('Error during unhandledRejection shutdown:', shutdownErr)
   })
 })
-

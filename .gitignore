@@ -139,3 +139,15 @@ secure/
 boilerplates/
 docs/master_data/
 iot-layer/weight-vision-service/buffer/
+.tmp_weight_vision_smoke/
+.tmp_pytest_weight_vision_service/
+pytest-cache-files-*/
+**/pytest-cache-files-*/
+cloud-layer/cloud-ml-model-service/artifacts/
+edge-layer/edge-vision-inference/runtime-model-cache/
+edge-layer/edge-vision-inference/runtime-model-cache-smoke/
+temp_write.js
+temp_script.ps1
+Untitled
+__dummy__
+.pnpm-store/

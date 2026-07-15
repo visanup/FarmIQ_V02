@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    libglib2.0-0 \
+    libgl1 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace/iot-layer/weight-vision-capture
+
+COPY weight-vision-capture/requirements.smoke.txt /tmp/requirements.smoke.txt
+RUN pip install --no-cache-dir --retries 10 --timeout 300 \
+    --index-url https://download.pytorch.org/whl/cpu \
+    --extra-index-url https://pypi.org/simple \
+    -r /tmp/requirements.smoke.txt
+
+COPY weight-vision-capture /workspace/iot-layer/weight-vision-capture
+COPY camera-config /workspace/iot-layer/camera-config
+COPY docs /workspace/iot-layer/docs
+
+CMD ["sh", "-c", "python run_service.py --model-config /workspace/iot-layer/camera-config/model/runtime-config.yaml --list-model-profiles && python check_yolo_runtime_compat.py --model-config /workspace/iot-layer/camera-config/model/runtime-config.yaml --output /workspace/iot-layer/docs/iot-layer/evidence/batch3-yolo26-container-smoke.json && tail -f /dev/null"]

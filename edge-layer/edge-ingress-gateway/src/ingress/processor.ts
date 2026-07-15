@@ -438,6 +438,43 @@ export async function processIngressMessage(params: {
             eventId: envelope.event_id,
             occurredAt: envelope.ts,
             finalWeightKg: typeof finalWeightKg === 'number' ? finalWeightKg : undefined,
+            payload: payloadRecord ?? undefined,
+          },
+        }
+      }
+      if (eventType === 'weighvision.inference.completed') {
+        const captureId =
+          payloadRecord && typeof payloadRecord['capture_id'] === 'string'
+            ? payloadRecord['capture_id']
+            : payloadRecord && typeof payloadRecord['captureId'] === 'string'
+              ? payloadRecord['captureId']
+              : null
+        const metadata =
+          payloadRecord && asRecord(payloadRecord['metadata'])
+            ? (payloadRecord['metadata'] as Record<string, unknown>)
+            : null
+        const mediaIds =
+          payloadRecord && Array.isArray(payloadRecord['media_ids'])
+            ? payloadRecord['media_ids']
+            : payloadRecord && Array.isArray(payloadRecord['mediaIds'])
+              ? payloadRecord['mediaIds']
+              : []
+        if (!metadata) return null
+        return {
+          url: `${base}/api/v1/weighvision/sessions/${encodeURIComponent(sessionId)}/metadata`,
+          body: {
+            tenantId: envelope.tenant_id,
+            farmId: topic.farmId,
+            barnId: topic.barnId,
+            deviceId: envelope.device_id,
+            stationId: topic.stationId,
+            eventId: envelope.event_id,
+            occurredAt: envelope.ts,
+            captureId: captureId ?? undefined,
+            mediaIds,
+            metadata,
+            eventSchemaVersion: envelope.schema_version,
+            sourceEventType: envelope.event_type,
           },
         }
       }

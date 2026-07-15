@@ -1,0 +1,175 @@
+﻿{
+    "generated_at":  "2026-07-15T09:55:36.7083152+07:00",
+    "session_id":  "sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a",
+    "trace_id":  "trace-iot-origin-674d4ad7013244b2bd2a6cb583aef24a",
+    "truth_weight_kg":  3.33,
+    "mock_capture":  {
+                         "source_metadata_path":  "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-capture\\data\\metadata\\20260210_073143.json",
+                         "source_image_id":  "20260210_073143",
+                         "generated_metadata_path":  "C:\\Users\\user\\AppData\\Local\\Temp\\farmiq-iot-origin-e2e-674d4ad7013244b2bd2a6cb583aef24a\\capture-data\\metadata\\sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a.json",
+                         "capture_root":  "C:\\Users\\user\\AppData\\Local\\Temp\\farmiq-iot-origin-e2e-674d4ad7013244b2bd2a6cb583aef24a\\capture-data",
+                         "copied_images":  [
+                                               "C:\\Users\\user\\AppData\\Local\\Temp\\farmiq-iot-origin-e2e-674d4ad7013244b2bd2a6cb583aef24a\\capture-data\\images\\sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a_left.jpg",
+                                               "C:\\Users\\user\\AppData\\Local\\Temp\\farmiq-iot-origin-e2e-674d4ad7013244b2bd2a6cb583aef24a\\capture-data\\images\\sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a_right.jpg",
+                                               "C:\\Users\\user\\AppData\\Local\\Temp\\farmiq-iot-origin-e2e-674d4ad7013244b2bd2a6cb583aef24a\\capture-data\\images\\sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a_vis.jpg"
+                                           ],
+                         "timestamp":  "2026-07-15T02:55:28.9779651Z"
+                     },
+    "ingress":  {
+                    "before":  {
+                                   "startedAt":  "2026-07-15T01:42:01.008Z",
+                                   "mqttConnected":  true,
+                                   "lastMessageAt":  "2026-07-15T02:50:56.174Z",
+                                   "counters":  {
+                                                    "messages_received_total":  37,
+                                                    "messages_invalid_total":  5,
+                                                    "messages_deduped_total":  2,
+                                                    "messages_valid_total":  32,
+                                                    "routed_edge_weighvision_session_total":  24,
+                                                    "routed_edge_weighvision_session_success_total":  24,
+                                                    "routed_edge_telemetry_timeseries_total":  8,
+                                                    "routed_edge_telemetry_timeseries_success_total":  8
+                                                },
+                                   "lastErrors":  {
+                                                      "routed_edge_weighvision_session":  null,
+                                                      "routed_edge_telemetry_timeseries":  null
+                                                  }
+                               },
+                    "after":  {
+                                  "startedAt":  "2026-07-15T01:42:01.008Z",
+                                  "mqttConnected":  true,
+                                  "lastMessageAt":  "2026-07-15T02:55:29.978Z",
+                                  "counters":  {
+                                                   "messages_received_total":  45,
+                                                   "messages_invalid_total":  5,
+                                                   "messages_deduped_total":  2,
+                                                   "messages_valid_total":  40,
+                                                   "routed_edge_weighvision_session_total":  30,
+                                                   "routed_edge_weighvision_session_success_total":  30,
+                                                   "routed_edge_telemetry_timeseries_total":  10,
+                                                   "routed_edge_telemetry_timeseries_success_total":  10
+                                               },
+                                  "lastErrors":  {
+                                                     "routed_edge_weighvision_session":  null,
+                                                     "routed_edge_telemetry_timeseries":  null
+                                                 }
+                              },
+                    "processed_delta":  8
+                },
+    "model_control":  {
+                          "dataset_contract_version":  "1.0.0",
+                          "trained_package_id":  "54398214c7974a6bb915bca6ecd68ec8",
+                          "trained_package_version":  "wv-shadow-iot-origin-20260715-095521",
+                          "subscription_error":  null,
+                          "policy_cache_package_id":  "54398214c7974a6bb915bca6ecd68ec8",
+                          "model_refresh":  {
+                                                "status":  "ready",
+                                                "activation_source":  "manifest",
+                                                "package_version":  "wv-shadow-iot-origin-20260715-095521",
+                                                "package_id":  "54398214c7974a6bb915bca6ecd68ec8"
+                                            }
+                      },
+    "edge":  {
+                 "session":  {
+                                 "session_id":  "sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a",
+                                 "status":  "finalized",
+                                 "initial_weight_kg":  "3.33",
+                                 "final_weight_kg":  "3.33",
+                                 "image_count":  2,
+                                 "inference_result_id":  null
+                             },
+                 "capture_metadata":  {
+                                          "count":  1,
+                                          "capture_id":  "sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a",
+                                          "media_id":  "cc6c7d03-fe3e-5dd6-8d15-7e57850b9b3b",
+                                          "media_ids":  [
+                                                            "cc6c7d03-fe3e-5dd6-8d15-7e57850b9b3b",
+                                                            "ace976a1-d583-501d-8e5f-1858bff0e943"
+                                                        ],
+                                          "source_event_type":  "weighvision.inference.completed",
+                                          "feature_schema_version":  "1.0",
+                                          "metadata_schema_version":  "1.0",
+                                          "normalized_features":  {
+                                                                      "bbox":  {
+                                                                                   "x1":  1134,
+                                                                                   "x2":  1406,
+                                                                                   "y1":  432,
+                                                                                   "y2":  958
+                                                                               },
+                                                                      "area_mm2":  32326.371517487096,
+                                                                      "roi_count":  1,
+                                                                      "capture_id":  "sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a",
+                                                                      "session_id":  "sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a",
+                                                                      "distance_mm":  1294.8250685007629,
+                                                                      "mask_area_px2":  86118.48853637092,
+                                                                      "detection_count":  1,
+                                                                      "median_depth_mm":  1294.8250685007629,
+                                                                      "object_width_mm":  96.8975754348734,
+                                                                      "scale_weight_kg":  3.33,
+                                                                      "average_depth_mm":  1294.8250685007629,
+                                                                      "confidence_score":  0.9232415556907654,
+                                                                      "object_height_mm":  74.03371786287357,
+                                                                      "object_length_mm":  309.4075800745037,
+                                                                      "selected_detection_index":  0
+                                                                  }
+                                      },
+                 "inference_job":  {
+                                       "job_id":  "553283dc-dfbc-4084-b102-5e98024879bd",
+                                       "status":  "completed",
+                                       "result_id":  "553283dc-dfbc-4084-b102-5e98024879bd",
+                                       "media_id":  "cc6c7d03-fe3e-5dd6-8d15-7e57850b9b3b"
+                                   },
+                 "inference_results":  {
+                                           "count":  1,
+                                           "first_result":  {
+                                                                "id":  "553283dc-dfbc-4084-b102-5e98024879bd",
+                                                                "predicted_weight_kg":  0.24,
+                                                                "confidence":  0.8111,
+                                                                "model_version":  "wv-shadow-iot-origin-20260715-095521",
+                                                                "prediction_mode":  "shadow",
+                                                                "package_version":  "wv-shadow-iot-origin-20260715-095521",
+                                                                "fallback_engaged":  false
+                                                            }
+                                       },
+                 "acked_prediction_event":  {
+                                                "status":  "acked",
+                                                "event_type":  "weighvision.inference.completed",
+                                                "id":  "553283dc-dfbc-4084-b102-5e98024879bd"
+                                            }
+             },
+    "cloud":  {
+                  "session_id":  "sess-iot-origin-674d4ad7013244b2bd2a6cb583aef24a",
+                  "status":  "FINALIZED",
+                  "finalized_measurement":  {
+                                                "id":  "c15606ba-1453-44db-a026-f176b10e3106:finalized",
+                                                "weight_kg":  3.33,
+                                                "source":  "finalized"
+                                            },
+                  "inference_count":  2,
+                  "shadow_prediction":  {
+                                            "id":  "553283dc-dfbc-4084-b102-5e98024879bd",
+                                            "predicted_weight_kg":  0.2444,
+                                            "prediction_mode":  "shadow",
+                                            "package_version":  "wv-shadow-iot-origin-20260715-095521",
+                                            "source_event_type":  "edge.shadow_prediction.completed"
+                                        }
+              },
+    "shadow_prediction":  {
+                              "id":  "553283dc-dfbc-4084-b102-5e98024879bd",
+                              "predicted_weight_kg":  0.2444,
+                              "prediction_mode":  "shadow",
+                              "package_version":  "wv-shadow-iot-origin-20260715-095521",
+                              "source_event_type":  "edge.shadow_prediction.completed"
+                          },
+    "assertions":  {
+                       "truth_path_preserved":  true,
+                       "prediction_synced_back":  true,
+                       "ingress_trace_confirmed":  true,
+                       "metadata_routed_via_mqtt":  true
+                   },
+    "artifacts":  {
+                      "html_report":  "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\docs\\iot-layer\\evidence\\iot-origin-e2e-20260715-095521.html",
+                      "json_report":  "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\docs\\iot-layer\\evidence\\iot-origin-e2e-20260715-095521.json",
+                      "service_log":  "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\docs\\iot-layer\\evidence\\iot-origin-e2e-20260715-095521.log"
+                  }
+}

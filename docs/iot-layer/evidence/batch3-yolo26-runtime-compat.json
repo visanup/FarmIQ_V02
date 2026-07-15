@@ -1,0 +1,89 @@
+{
+  "image": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-train-model-yolo26\\Chicken Segmentation.v4i.yolo26\\test\\images\\009801c5-dad2-41ef-97c1-d93359c657b5_jpg.rf.9b1ba6d33032c2a2fe8baeda5fe9b3f4.jpg",
+  "results": [
+    {
+      "model_id": "baseline_yolo12",
+      "path": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\camera-config\\model\\best.yolo12-backup-20260714.pt",
+      "source": "config",
+      "family": "ultralytics-seg",
+      "task": "segment",
+      "image": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-train-model-yolo26\\Chicken Segmentation.v4i.yolo26\\test\\images\\009801c5-dad2-41ef-97c1-d93359c657b5_jpg.rf.9b1ba6d33032c2a2fe8baeda5fe9b3f4.jpg",
+      "detections": 1,
+      "has_mask_xy": true,
+      "sample_detection": {
+        "xyxy": [
+          2512,
+          422,
+          2686,
+          753
+        ],
+        "conf": 0.3447154462337494,
+        "cls": 0,
+        "mask_points": 36
+      }
+    },
+    {
+      "model_id": "yolo26_promoted_bestpt",
+      "path": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\camera-config\\model\\best.pt",
+      "source": "config",
+      "family": "ultralytics-seg",
+      "task": "segment",
+      "image": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-train-model-yolo26\\Chicken Segmentation.v4i.yolo26\\test\\images\\009801c5-dad2-41ef-97c1-d93359c657b5_jpg.rf.9b1ba6d33032c2a2fe8baeda5fe9b3f4.jpg",
+      "detections": 26,
+      "has_mask_xy": true,
+      "sample_detection": {
+        "xyxy": [
+          1573,
+          445,
+          1902,
+          639
+        ],
+        "conf": 0.9678978323936462,
+        "cls": 0,
+        "mask_points": 76
+      }
+    },
+    {
+      "model_id": "yolo26_family_base",
+      "path": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-train-model-yolo26\\yolo26n-seg.pt",
+      "source": "config",
+      "family": "ultralytics-seg",
+      "task": "segment",
+      "image": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-train-model-yolo26\\Chicken Segmentation.v4i.yolo26\\test\\images\\009801c5-dad2-41ef-97c1-d93359c657b5_jpg.rf.9b1ba6d33032c2a2fe8baeda5fe9b3f4.jpg",
+      "detections": 1,
+      "has_mask_xy": true,
+      "sample_detection": {
+        "xyxy": [
+          2521,
+          435,
+          2687,
+          752
+        ],
+        "conf": 0.3003789484500885,
+        "cls": 49,
+        "mask_points": 42
+      }
+    },
+    {
+      "model_id": "yolo26_candidate_local",
+      "path": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-train-model-yolo26\\runs\\train\\20260707_083300\\weights\\best.pt",
+      "source": "config",
+      "family": "ultralytics-seg",
+      "task": "segment",
+      "image": "D:\\FarmIQ_RawData_to_TrainModel\\Code-Edge-PRD\\FarmIQ_V02\\iot-layer\\weight-vision-train-model-yolo26\\Chicken Segmentation.v4i.yolo26\\test\\images\\009801c5-dad2-41ef-97c1-d93359c657b5_jpg.rf.9b1ba6d33032c2a2fe8baeda5fe9b3f4.jpg",
+      "detections": 26,
+      "has_mask_xy": true,
+      "sample_detection": {
+        "xyxy": [
+          1573,
+          445,
+          1902,
+          639
+        ],
+        "conf": 0.9678978323936462,
+        "cls": 0,
+        "mask_points": 76
+      }
+    }
+  ]
+}

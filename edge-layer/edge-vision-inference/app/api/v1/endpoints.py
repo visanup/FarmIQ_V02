@@ -163,3 +163,15 @@ async def get_models(request: Request):
     except Exception as e:
         logger.error(f"Failed to get models: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/models/refresh", tags=["Inference"])
+async def refresh_models(request: Request):
+    """Refresh subscribed model package from local policy-sync cache."""
+    try:
+        inference_service: InferenceService = request.app.state.inference_service
+        await inference_service.ensure_subscription_activation()
+        return inference_service.get_model_info()
+    except Exception as e:
+        logger.error(f"Failed to refresh models: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

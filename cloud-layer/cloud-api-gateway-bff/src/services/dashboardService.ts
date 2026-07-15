@@ -7,6 +7,8 @@ export interface ServiceBaseUrls {
   telemetryBaseUrl: string
   analyticsBaseUrl: string
   weighvisionReadModelBaseUrl: string
+  edgeWeighvisionSessionBaseUrl: string
+  mlModelServiceBaseUrl: string
   standardsBaseUrl: string
   configRulesBaseUrl: string
   auditLogBaseUrl: string
@@ -40,6 +42,16 @@ export function getServiceBaseUrls(): ServiceBaseUrls {
   const weighvisionReadModelBaseUrl =
     process.env.WEIGHVISION_READMODEL_BASE_URL ||
     'http://cloud-weighvision-readmodel:5132'
+
+  const edgeWeighvisionSessionBaseUrl =
+    process.env.EDGE_WEIGHVISION_SESSION_BASE_URL ||
+    process.env.EDGE_SESSION_BASE_URL ||
+    'http://farmiq-edge-weighvision-session:3000'
+
+  const mlModelServiceBaseUrl =
+    process.env.ML_MODEL_SERVICE_BASE_URL ||
+    process.env.ML_MODEL_BASE_URL ||
+    'http://cloud-ml-model-service:8000'
 
   const standardsBaseUrl =
     process.env.STANDARDS_SERVICE_URL ||
@@ -81,6 +93,8 @@ export function getServiceBaseUrls(): ServiceBaseUrls {
     telemetryBaseUrl,
     analyticsBaseUrl,
     weighvisionReadModelBaseUrl,
+    edgeWeighvisionSessionBaseUrl,
+    mlModelServiceBaseUrl,
     standardsBaseUrl,
     configRulesBaseUrl,
     auditLogBaseUrl,
@@ -474,4 +488,3 @@ export async function fetchAlerts(params: {
     analyticsAvailable: analytics.ok,
   }
 }
-

@@ -1,11 +1,30 @@
 """Database connection and schema management."""
-import asyncpg
 import logging
 from typing import Optional, List, Dict, Any
 from app.config import Config
 import json
 
+try:
+    import asyncpg
+except ModuleNotFoundError:  # pragma: no cover - local unit-test fallback
+    asyncpg = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
+
+
+def _normalize_json_field(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _row_to_dict(row: Any) -> Dict[str, Any]:
+    payload = dict(row)
+    payload["metadata"] = _normalize_json_field(payload.get("metadata"))
+    return payload
 
 
 class InferenceDb:
@@ -17,6 +36,8 @@ class InferenceDb:
     
     async def connect(self):
         """Create connection pool."""
+        if asyncpg is None:
+            raise RuntimeError("asyncpg is required to connect to the inference database")
         try:
             self.pool = await asyncpg.create_pool(
                 self.database_url,
@@ -82,6 +103,57 @@ class InferenceDb:
                 CREATE INDEX IF NOT EXISTS idx_inference_results_tenant_device_occurred 
                 ON inference_results(tenant_id, device_id, occurred_at DESC)
             """)
+
+            # Shared outbox used by downstream edge-sync-forwarder and local smoke flows.
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS sync_outbox (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    tenant_id TEXT NOT NULL,
+                    farm_id TEXT,
+                    barn_id TEXT,
+                    device_id TEXT,
+                    session_id TEXT,
+                    event_type TEXT NOT NULL,
+                    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    trace_id TEXT,
+                    payload_json JSONB NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    attempt_count INTEGER NOT NULL DEFAULT 0,
+                    last_attempt_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    payload_size_bytes INTEGER,
+                    priority INTEGER NOT NULL DEFAULT 0,
+                    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    claimed_by TEXT,
+                    claimed_at TIMESTAMPTZ,
+                    lease_expires_at TIMESTAMPTZ,
+                    last_error_code TEXT,
+                    last_error_message TEXT,
+                    failed_at TIMESTAMPTZ,
+                    dlq_reason TEXT
+                )
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sync_outbox_status_next
+                ON sync_outbox(status, next_attempt_at ASC)
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sync_outbox_lease
+                ON sync_outbox(lease_expires_at ASC)
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sync_outbox_tenant_created
+                ON sync_outbox(tenant_id, created_at ASC)
+            """)
+
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_sync_outbox_status_next_attempt_occurred
+                ON sync_outbox(status, next_attempt_at, occurred_at)
+            """)
             
             logger.info("Database schema ensured")
     
@@ -133,7 +205,7 @@ class InferenceDb:
                 SELECT * FROM inference_results WHERE id = $1
             """, result_id)
             if row:
-                return dict(row)
+                return _row_to_dict(row)
             return None
     
     async def get_inference_results_by_session(
@@ -147,7 +219,7 @@ class InferenceDb:
                 ORDER BY occurred_at DESC 
                 LIMIT $2
             """, session_id, limit)
-            return [dict(row) for row in rows]
+            return [_row_to_dict(row) for row in rows]
 
     async def get_inference_results_count(self, tenant_id: Optional[str]) -> int:
         """Get total inference results count (tenant-scoped)."""

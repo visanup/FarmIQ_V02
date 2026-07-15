@@ -6,9 +6,11 @@ import {
 } from 'express'
 import * as sessionController from '../controllers/sessionController'
 
-const router = Router()
-
 type AsyncHandler = (req: Request, res: Response) => Promise<unknown>
+type RouteRegistrar = {
+  get: (path: string, ...handlers: RequestHandler[]) => unknown
+  post: (path: string, ...handlers: RequestHandler[]) => unknown
+}
 
 const wrapAsync = (fn: AsyncHandler): RequestHandler => {
   return (req, res, next) => {
@@ -16,34 +18,73 @@ const wrapAsync = (fn: AsyncHandler): RequestHandler => {
   }
 }
 
-// Health/Ready
-router.get('/health', wrapAsync(sessionController.getHealth))
-router.get('/ready', wrapAsync(sessionController.getReady))
+function normalizeBasePath(basePath?: string): string {
+  if (!basePath) {
+    return ''
+  }
 
-// Sessions
-router.post(
-  '/v1/weighvision/sessions',
-  wrapAsync(sessionController.createSession)
-)
-router.get(
-  '/v1/weighvision/sessions/:sessionId',
-  wrapAsync(sessionController.getSession)
-)
-router.post(
-  '/v1/weighvision/sessions/:sessionId/bind-weight',
-  wrapAsync(sessionController.bindWeight)
-)
-router.post(
-  '/v1/weighvision/sessions/:sessionId/bind-media',
-  wrapAsync(sessionController.bindMedia)
-)
-router.post(
-  '/v1/weighvision/sessions/:sessionId/attach',
-  wrapAsync(sessionController.attach)
-)
-router.post(
-  '/v1/weighvision/sessions/:sessionId/finalize',
-  wrapAsync(sessionController.finalizeSession)
-)
+  if (basePath === '/') {
+    return ''
+  }
+
+  return basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+}
+
+export function registerSessionRoutes(
+  target: RouteRegistrar,
+  basePath?: string
+): void {
+  const prefix = normalizeBasePath(basePath)
+  const sessionBasePath = `${prefix}/v1/weighvision/sessions`
+
+  // Health/Ready
+  target.get(`${prefix}/health`, wrapAsync(sessionController.getHealth))
+  target.get(`${prefix}/ready`, wrapAsync(sessionController.getReady))
+
+  // Sessions
+  target.post(
+    sessionBasePath,
+    wrapAsync(sessionController.createSession)
+  )
+
+  // Register metadata endpoints before the generic session route so the
+  // runtime path matcher cannot shadow the more specific branch.
+  target.get(
+    `${sessionBasePath}/:sessionId/metadata`,
+    wrapAsync(sessionController.getSessionCaptureMetadata)
+  )
+  target.post(
+    `${sessionBasePath}/:sessionId/metadata`,
+    wrapAsync(sessionController.upsertCaptureMetadata)
+  )
+
+  target.get(
+    `${sessionBasePath}/:sessionId`,
+    wrapAsync(sessionController.getSession)
+  )
+  target.post(
+    `${sessionBasePath}/:sessionId/bind-weight`,
+    wrapAsync(sessionController.bindWeight)
+  )
+  target.post(
+    `${sessionBasePath}/:sessionId/bind-media`,
+    wrapAsync(sessionController.bindMedia)
+  )
+  target.post(
+    `${sessionBasePath}/:sessionId/attach`,
+    wrapAsync(sessionController.attach)
+  )
+  target.post(
+    `${sessionBasePath}/:sessionId/inference-outcome`,
+    wrapAsync(sessionController.publishInferenceOutcome)
+  )
+  target.post(
+    `${sessionBasePath}/:sessionId/finalize`,
+    wrapAsync(sessionController.finalizeSession)
+  )
+}
+
+const router = Router()
+registerSessionRoutes(router)
 
 export default router

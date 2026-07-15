@@ -8,7 +8,7 @@
     "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
     "start": "nyc ts-node src/index.ts",
     "build": "tsc && npm run copy-openapi",
-    "copy-openapi": "cp openapi.yaml dist/",
+    "copy-openapi": "node -e \"require('fs').mkdirSync('dist',{recursive:true});require('fs').copyFileSync('openapi.yaml','dist/openapi.yaml')\"",
     "db:migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/seed.ts",
     "serve": "node dist/src/index.js"

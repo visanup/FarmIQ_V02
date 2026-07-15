@@ -53,6 +53,8 @@ def main() -> None:
                 logging.error("One-shot metadata processing failed: %s", target)
         except Exception as exc:
             logging.error("One-shot metadata processing error for %s: %s", target, exc)
+        finally:
+            mqtt_client.shutdown()
         return
 
     logging.info("Weight Vision Service started. Polling for metadata...")

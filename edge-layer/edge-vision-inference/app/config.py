@@ -31,8 +31,26 @@ class Config:
     # Model Configuration
     MODEL_PATH: str = os.getenv("MODEL_PATH", "")
     MODEL_VERSION: str = os.getenv("MODEL_VERSION", "v1.0.0")
+    MODEL_MANIFEST_PATH: str = os.getenv("MODEL_MANIFEST_PATH", "")
+    FALLBACK_MODEL_MANIFEST_PATH: str = os.getenv("FALLBACK_MODEL_MANIFEST_PATH", "")
+    MODEL_CACHE_DIR: str = os.getenv(
+        "MODEL_CACHE_DIR",
+        str(Path(__file__).parent.parent / "runtime-model-cache"),
+    )
     CONFIDENCE_THRESHOLD: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
     NMS_THRESHOLD: float = float(os.getenv("NMS_THRESHOLD", "0.4"))
+    MODEL_SYNC_ENABLED: bool = os.getenv("MODEL_SYNC_ENABLED", "true").lower() == "true"
+
+    # Local policy-sync and Cloud control-plane access
+    POLICY_SYNC_URL: str = os.getenv(
+        "POLICY_SYNC_URL",
+        "http://edge-policy-sync:3000/api/v1/edge-config",
+    )
+    EDGE_TENANT_ID: str = os.getenv("EDGE_TENANT_ID", "")
+    EDGE_SITE_ID: str = os.getenv("EDGE_SITE_ID", "")
+    MODEL_CONTROL_BFF_URL: str = os.getenv("MODEL_CONTROL_BFF_URL", "")
+    MODEL_CONTROL_TOKEN: str = os.getenv("MODEL_CONTROL_TOKEN", "")
+    MODEL_CONTROL_TIMEOUT_SECONDS: int = int(os.getenv("MODEL_CONTROL_TIMEOUT_SECONDS", "15"))
     
     # Service URLs
     WEIGHVISION_SESSION_URL: str = os.getenv(

@@ -16,7 +16,13 @@ import numpy as np
 import yaml
 
 from geometry import depth_from_disparity, disparity_at_point, height_from_depth, pick_point
-from yolo_infer import Detection, YoloV12Detector
+from model_runtime import (
+    list_model_profiles,
+    resolve_fallback_profile,
+    resolve_model_profile,
+    resolve_setting,
+)
+from yolo_infer import Detection, UltralyticsSegDetector
 
 
 def _rtsp_url(ip: str, username: str, password: str, stream_path: str, port: int) -> str:
@@ -120,11 +126,6 @@ def _default_maps_path(base_dir: Path) -> Path | None:
     if camera_config.exists():
         return camera_config
     return _find_latest_maps(base_dir)
-
-
-def _default_model_path() -> Path | None:
-    model_path = _camera_config_dir() / "model" / "best.pt"
-    return model_path if model_path.exists() else None
 
 
 def _read_yaml_mat(fs: cv2.FileStorage, key: str):
@@ -658,8 +659,11 @@ class ScaleReader:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="YOLOv12 stereo height service (left rectified).")
-    parser.add_argument("--model", default=None, help="Path to YOLOv12 model")
+    parser = argparse.ArgumentParser(description="Ultralytics segmentation stereo height service (left rectified).")
+    parser.add_argument("--model", default=None, help="Explicit path to a model weights file (.pt)")
+    parser.add_argument("--model-id", default=None, help="Model profile ID from camera-config/model/runtime-config.yaml")
+    parser.add_argument("--model-config", default=None, help="Optional runtime-config.yaml path")
+    parser.add_argument("--list-model-profiles", action="store_true", default=False, help="List configured model profiles and exit")
     parser.add_argument("--left-ip", default="192.168.1.199")
     parser.add_argument("--right-ip", default="192.168.1.200")
     parser.add_argument("--username", default="admin")
@@ -736,8 +740,8 @@ def main() -> int:
         action="store_false",
         help="Disable scene-change gating for auto-capture",
     )
-    parser.add_argument("--conf", type=float, default=0.25)
-    parser.add_argument("--iou", type=float, default=0.45)
+    parser.add_argument("--conf", type=float, default=None)
+    parser.add_argument("--iou", type=float, default=None)
     parser.add_argument("--imgsz", type=int, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--display-scale", type=float, default=0.9)
@@ -745,6 +749,17 @@ def main() -> int:
     parser.add_argument("--fullscreen", action="store_true", default=True)
     parser.add_argument("--window-name", default="Weight Vision Capture")
     args = parser.parse_args()
+    if args.list_model_profiles:
+        profiles = list_model_profiles(Path(args.model_config).resolve() if args.model_config else None)
+        if not profiles:
+            print("No model profiles configured.")
+            return 0
+        for profile in profiles:
+            print(
+                f"{profile.model_id}: path={profile.path} family={profile.family} "
+                f"conf={profile.conf} iou={profile.iou} imgsz={profile.imgsz} device={profile.device}"
+            )
+        return 0
     display_enabled = not args.no_display
     if display_enabled and not os.getenv("DISPLAY"):
         print("[WARN] DISPLAY is not set; running in headless mode (--no-display).")
@@ -824,20 +839,70 @@ def main() -> int:
     if z_floor is None:
         z_floor = _extract_board_reference_z(board_ref)
 
-    model_path = Path(args.model) if args.model else _default_model_path()
-    if model_path is None or not model_path.exists():
-        print("Model .pt not found. Provide --model or place it in camera-config/.")
+    try:
+        requested_model_profile = resolve_model_profile(
+            model=args.model,
+            model_id=args.model_id,
+            model_config=args.model_config,
+        )
+    except (FileNotFoundError, KeyError) as exc:
+        print(str(exc))
         return 1
 
-    model_path = model_path
+    fallback_profile = None
+    if args.model is None and args.model_id is None:
+        try:
+            fallback_profile = resolve_fallback_profile(args.model_config)
+        except KeyError as exc:
+            print(str(exc))
+            return 1
 
-    detector = YoloV12Detector(
-        model_path=str(model_path),
-        conf=args.conf,
-        iou=args.iou,
-        imgsz=args.imgsz,
-        device=args.device,
+    model_profile = requested_model_profile
+    resolved_conf = float(resolve_setting(args.conf, model_profile.conf, 0.25))
+    resolved_iou = float(resolve_setting(args.iou, model_profile.iou, 0.45))
+    resolved_imgsz = resolve_setting(args.imgsz, model_profile.imgsz, None)
+    resolved_device = resolve_setting(args.device, model_profile.device, None)
+
+    print(
+        f"[INFO] Using model profile '{model_profile.model_id}' from {model_profile.source}: "
+        f"{model_profile.path}"
     )
+    try:
+        detector = UltralyticsSegDetector(
+            model_path=str(model_profile.path),
+            conf=resolved_conf,
+            iou=resolved_iou,
+            imgsz=resolved_imgsz,
+            device=resolved_device,
+        )
+    except Exception as exc:
+        if (
+            fallback_profile is None
+            or fallback_profile.path.resolve() == model_profile.path.resolve()
+        ):
+            print(f"[ERROR] Failed to initialize model '{model_profile.model_id}': {exc}")
+            return 1
+
+        model_profile = fallback_profile
+        resolved_conf = float(resolve_setting(args.conf, model_profile.conf, 0.25))
+        resolved_iou = float(resolve_setting(args.iou, model_profile.iou, 0.45))
+        resolved_imgsz = resolve_setting(args.imgsz, model_profile.imgsz, None)
+        resolved_device = resolve_setting(args.device, model_profile.device, None)
+
+        print(
+            f"[WARN] Failed to initialize active model '{requested_model_profile.model_id}': {exc}"
+        )
+        print(
+            f"[WARN] Falling back to configured model '{model_profile.model_id}': "
+            f"{model_profile.path}"
+        )
+        detector = UltralyticsSegDetector(
+            model_path=str(model_profile.path),
+            conf=resolved_conf,
+            iou=resolved_iou,
+            imgsz=resolved_imgsz,
+            device=resolved_device,
+        )
 
     left_url = _rtsp_url(args.left_ip, args.username, args.password, args.stream_path, args.port)
     right_url = _rtsp_url(args.right_ip, args.username, args.password, args.stream_path, args.port)

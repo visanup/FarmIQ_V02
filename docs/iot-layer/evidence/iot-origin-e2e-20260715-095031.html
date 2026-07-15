@@ -1,0 +1,235 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FarmIQ IoT-Origin E2E Report</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --line: #d3c8b8;
+      --ink: #1b2421;
+      --muted: #5b655f;
+      --accent: #275d4f;
+      --accent-soft: #dbe8e2;
+      --ok: #0e6b46;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 32px;
+      background: linear-gradient(180deg, #f4f1ea 0%, #ebe3d5 100%);
+      color: var(--ink);
+      font: 14px/1.5 "Segoe UI", "Noto Sans Thai", sans-serif;
+    }
+    h1, h2 { margin: 0 0 12px; line-height: 1.2; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 18px; margin-top: 28px; }
+    .hero, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 12px 40px rgba(36, 48, 42, 0.08);
+    }
+    .hero { padding: 28px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .card { padding: 18px; }
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      background: var(--panel);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      width: 240px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    tr:last-child th, tr:last-child td { border-bottom: 0; }
+    pre {
+      margin: 0;
+      padding: 16px;
+      background: #17201d;
+      color: #ecf3ef;
+      border-radius: 16px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .ok { color: var(--ok); font-weight: 700; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <span class="badge">IoT-Origin E2E</span>
+    <h1>FarmIQ WeighVision End-to-End Verification</h1>
+    <p class="muted">Report generated at 2026-07-15T09:50:32.1249122+07:00</p>
+    <p><span class="ok">PASS</span> IoT-layer mock capture delivered image + weight into Edge, metadata routed through MQTT/ingress, shadow prediction executed on Edge, and outcome synced back to Cloud.</p>
+  </section>
+
+  <section class="grid">
+    <article class="card">
+      <h2>Run Summary</h2>
+      <table>
+        <tr><th>Session ID</th><td>sess-iot-origin-487a2fa73ec34f08a48cc087d98629a9</td></tr>
+        <tr><th>Truth Weight (kg)</th><td>3.33</td></tr>
+        <tr><th>Shadow Prediction (kg)</th><td>0.2444</td></tr>
+        <tr><th>Model Package</th><td>wv-shadow-iot-origin-20260715-094612</td></tr>
+        <tr><th>Metadata Source Event</th><td>weighvision.inference.completed</td></tr>
+      </table>
+    </article>
+
+    <article class="card">
+      <h2>Trace Gate</h2>
+      <table>
+        <tr><th>Edge Metadata Items</th><td>1</td></tr>
+        <tr><th>Cloud Inferences</th><td>2</td></tr>
+        <tr><th>Truth Path Preserved</th><td>True</td></tr>
+        <tr><th>Prediction Synced Back</th><td>True</td></tr>
+        <tr><th>Metadata Routed via MQTT</th><td>True</td></tr>
+      </table>
+    </article>
+  </section>
+
+  <section>
+    <h2>Ingress Snapshot</h2>
+    <pre>{
+    &quot;mqtt_connected&quot;:  true,
+    &quot;counters&quot;:  {
+                     &quot;messages_received_total&quot;:  29,
+                     &quot;messages_invalid_total&quot;:  5,
+                     &quot;messages_deduped_total&quot;:  2,
+                     &quot;messages_valid_total&quot;:  24,
+                     &quot;routed_edge_weighvision_session_total&quot;:  18,
+                     &quot;routed_edge_weighvision_session_success_total&quot;:  18,
+                     &quot;routed_edge_telemetry_timeseries_total&quot;:  6,
+                     &quot;routed_edge_telemetry_timeseries_success_total&quot;:  6
+                 },
+    &quot;last_message_at&quot;:  &quot;2026-07-15T02:46:24.340Z&quot;
+}</pre>
+  </section>
+
+  <section>
+    <h2>Edge Verification</h2>
+    <pre>{
+    &quot;session&quot;:  {
+                    &quot;session_id&quot;:  &quot;sess-iot-origin-487a2fa73ec34f08a48cc087d98629a9&quot;,
+                    &quot;status&quot;:  &quot;finalized&quot;,
+                    &quot;initial_weight_kg&quot;:  &quot;3.33&quot;,
+                    &quot;final_weight_kg&quot;:  &quot;3.33&quot;,
+                    &quot;image_count&quot;:  2,
+                    &quot;inference_result_id&quot;:  &quot;c94eefd2-eef6-42f8-b1b2-c36b1bbdc57b&quot;
+                },
+    &quot;capture_metadata&quot;:  {
+                             &quot;count&quot;:  1,
+                             &quot;capture_id&quot;:  &quot;sess-iot-origin-487a2fa73ec34f08a48cc087d98629a9&quot;,
+                             &quot;media_ids&quot;:  [
+                                               &quot;3d3c49bb-ef57-5d60-857e-22bf5a72c1b6&quot;,
+                                               &quot;b89bb94e-5111-517f-a14e-51784f952a32&quot;
+                                           ],
+                             &quot;source_event_type&quot;:  &quot;weighvision.inference.completed&quot;,
+                             &quot;metadata_schema_version&quot;:  &quot;1.0&quot;,
+                             &quot;feature_schema_version&quot;:  &quot;1.0&quot;,
+                             &quot;normalized_features&quot;:  {
+                                                         &quot;bbox&quot;:  {
+                                                                      &quot;x1&quot;:  1134,
+                                                                      &quot;x2&quot;:  1406,
+                                                                      &quot;y1&quot;:  432,
+                                                                      &quot;y2&quot;:  958
+                                                                  },
+                                                         &quot;area_mm2&quot;:  32326.371517487096,
+                                                         &quot;roi_count&quot;:  1,
+                                                         &quot;capture_id&quot;:  &quot;sess-iot-origin-487a2fa73ec34f08a48cc087d98629a9&quot;,
+                                                         &quot;session_id&quot;:  &quot;sess-iot-origin-487a2fa73ec34f08a48cc087d98629a9&quot;,
+                                                         &quot;distance_mm&quot;:  1294.8250685007629,
+                                                         &quot;mask_area_px2&quot;:  86118.48853637092,
+                                                         &quot;detection_count&quot;:  1,
+                                                         &quot;median_depth_mm&quot;:  1294.8250685007629,
+                                                         &quot;object_width_mm&quot;:  96.8975754348734,
+                                                         &quot;scale_weight_kg&quot;:  3.33,
+                                                         &quot;average_depth_mm&quot;:  1294.8250685007629,
+                                                         &quot;confidence_score&quot;:  0.9232415556907654,
+                                                         &quot;object_height_mm&quot;:  74.03371786287357,
+                                                         &quot;object_length_mm&quot;:  309.4075800745037,
+                                                         &quot;selected_detection_index&quot;:  0
+                                                     }
+                         },
+    &quot;inference_results&quot;:  {
+                              &quot;count&quot;:  1,
+                              &quot;first_result&quot;:  {
+                                                   &quot;id&quot;:  &quot;c94eefd2-eef6-42f8-b1b2-c36b1bbdc57b&quot;,
+                                                   &quot;predicted_weight_kg&quot;:  0.24,
+                                                   &quot;confidence&quot;:  0.8111,
+                                                   &quot;model_version&quot;:  &quot;wv-shadow-iot-origin-20260715-094612&quot;,
+                                                   &quot;package_version&quot;:  &quot;wv-shadow-iot-origin-20260715-094612&quot;,
+                                                   &quot;prediction_mode&quot;:  &quot;shadow&quot;
+                                               }
+                          }
+}</pre>
+  </section>
+
+  <section>
+    <h2>Cloud Verification</h2>
+    <pre>{
+    &quot;session_id&quot;:  &quot;sess-iot-origin-487a2fa73ec34f08a48cc087d98629a9&quot;,
+    &quot;status&quot;:  &quot;FINALIZED&quot;,
+    &quot;finalized_measurement&quot;:  {
+                                  &quot;id&quot;:  &quot;a94d6945-a944-47b6-96c3-1f78d56a6fc8:finalized&quot;,
+                                  &quot;weight_kg&quot;:  3.33,
+                                  &quot;source&quot;:  &quot;finalized&quot;
+                              },
+    &quot;inference_count&quot;:  2,
+    &quot;shadow_prediction&quot;:  {
+                              &quot;id&quot;:  &quot;c94eefd2-eef6-42f8-b1b2-c36b1bbdc57b&quot;,
+                              &quot;predicted_weight_kg&quot;:  0.2444,
+                              &quot;prediction_mode&quot;:  &quot;shadow&quot;,
+                              &quot;package_version&quot;:  &quot;wv-shadow-iot-origin-20260715-094612&quot;,
+                              &quot;source_event_type&quot;:  &quot;edge.shadow_prediction.completed&quot;
+                          }
+}</pre>
+  </section>
+
+  <section>
+    <h2>Outbox Evidence</h2>
+    <pre>{
+    &quot;id&quot;:  &quot;c94eefd2-eef6-42f8-b1b2-c36b1bbdc57b&quot;,
+    &quot;event_type&quot;:  &quot;weighvision.inference.completed&quot;,
+    &quot;status&quot;:  &quot;acked&quot;,
+    &quot;trace_id&quot;:  &quot;trace-iot-origin-487a2fa73ec34f08a48cc087d98629a9&quot;
+}</pre>
+  </section>
+
+  <section>
+    <h2>Service Log</h2>
+    <pre>2026-07-15 09:46:23,776 INFO app.mqtt_client - MQTT connected: 127.0.0.1:5100
+2026-07-15 09:46:23,783 INFO app.processor - Processing metadata: C:\Users\user\AppData\Local\Temp\farmiq-iot-origin-e2e-487a2fa73ec34f08a48cc087d98629a9\capture-data\metadata\sess-iot-origin-487a2fa73ec34f08a48cc087d98629a9.json
+2026-07-15 09:46:24,294 WARNING app.mqtt_client - MQTT disconnected: Normal disconnection</pre>
+  </section>
+</body>
+</html>

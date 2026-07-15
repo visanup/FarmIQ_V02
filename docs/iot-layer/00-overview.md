@@ -1,7 +1,7 @@
-Purpose: Provide an overview of the FarmIQ IoT-layer agents and their responsibilities.  
-Scope: IoT-agent roles, communication patterns with edge, and implementation starting points.  
-Owner: FarmIQ Architecture Team  
-Last updated: 2025-12-17  
+Purpose: Provide an overview of the FarmIQ IoT-layer agents and their responsibilities.
+Scope: IoT-agent roles, communication patterns with edge, and implementation starting points.
+Owner: FarmIQ Architecture Team
+Last updated: 2026-07-14
 
 ---
 
@@ -21,6 +21,63 @@ Key characteristics:
 - Stateless where possible; no long-term persistence beyond the required offline outbox/buffer.
 - Resilient to extended connectivity loss via **store-and-forward buffering that persists across reboot** (multi-hour windows; see offline rules).
 - Use authenticated connections (e.g., mutual TLS or token-based auth) to the edge.
+
+### Current Batch 1 status
+
+Batch 1 metadata traceability is completed and locally verified for the WeighVision path:
+
+- canonical capture metadata contract defined
+- inference metadata routed into Edge session persistence
+- raw metadata and normalized features persisted on Edge
+- one reference session verified from `JSON -> Edge -> Cloud`
+- SQL query pack and local runbook available for repeatable checks
+
+### Current Batch 2 status
+
+Batch 2 weight anomaly investigation is completed at the audit and code-path level:
+
+- field metadata audit dataset generated from `129` captures
+- root cause categories separated into sensor, timing, finalize path, segmentation, and depth
+- finalize path hardened to read nested `scale.weight_kg` and emit explicit `final_weight_kg`
+- next rerun baseline parameters defined for controlled field validation
+
+### Current Batch 2.1 status
+
+Batch 2.1 local end-to-end proof for `final_weight_kg` is completed:
+
+- one rerun session verified from nested Edge finalize payload through Cloud readmodel
+- Cloud readmodel startup hardened for local pre-seeded database flow
+- Cloud readmodel finalization path hardened against `session.created` and `session.finalized` race conditions
+- SQL query pack and repeatable runbook added for future regression checks
+
+### Current Batch 3 status
+
+Batch 3 YOLO26 upgrade hardening is completed at the local runtime and benchmark level:
+
+- capture runtime supports model-profile based selection through runtime config
+- active runtime path now resolves to `iot-layer/camera-config/model/best.pt`
+- the active `best.pt` file has been overwritten with the promoted YOLO26 candidate
+- YOLO26 compatibility smoke completed for configured profiles
+- container smoke proof completed for `weight-vision-capture` without live hardware dependency
+- YOLO12 vs YOLO26 benchmark completed on one frozen subset with `16` images
+- runtime startup fallback to baseline profile is now supported through config
+- rollout and rollback guidance documented for controlled field promotion
+
+### Current Batch 4 status
+
+Batch 4 Cloud-Edge AI control-plane work is now implemented and locally verified through Docker Compose smoke:
+
+- Cloud training dataset contract is published through `cloud-ml-model-service`
+- Cloud model package registry and site subscription APIs are implemented
+- `cloud-api-gateway-bff` now proxies the WeighVision model-control endpoints
+- `edge-policy-sync` can resolve and cache the effective subscribed package per site
+- `edge-vision-inference` can read active and fallback package manifests plus activation policy metadata
+- local verification now covers Cloud API tests, Edge inference tests, BFF TypeScript build, `edge-policy-sync` TypeScript build, and full Docker-backed mock-data smoke
+
+Current limitation:
+
+- the current baseline package is valid for control-plane and shadow-path proof, but its validation metrics are not yet strong enough for production promotion
+- the next delivery step is model-quality improvement and promotion gating, not control-plane plumbing
 
 ---
 
@@ -183,4 +240,15 @@ Storage options (device dependent):
 - `iot-layer/01-iot-sensor-agent.md`
 - `iot-layer/02-iot-weighvision-agent.md`
 - `iot-layer/03-mqtt-topic-map.md`
+- `iot-layer/04-field-deployment-enhancement-plan.md`
+- `iot-layer/05-field-deployment-ticket-backlog.md`
+- `iot-layer/06-metadata-verification-pack.md`
+- `iot-layer/07-local-traceability-runbook.md`
+- `iot-layer/08-weight-estimation-audit-pack.md`
+- `iot-layer/09-final-weight-local-smoke-runbook.md`
+- `iot-layer/10-yolo26-upgrade-pack.md`
+- `iot-layer/11-weight-vision-capture-container-smoke-runbook.md`
+- `iot-layer/12-cloud-edge-ai-control-plane-pack.md`
+- `iot-layer/13-cloud-edge-ai-control-plane-runbook.md`
+- `iot-layer/work-orders/README.md`
 - `shared/01-api-standards.md`

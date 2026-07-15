@@ -1,7 +1,14 @@
 import { PrismaClient } from '@prisma/client'
 import { logger } from '../utils/logger'
+import {
+  buildWeighVisionInferenceSyncEnvelope,
+  buildWeighVisionPredictionOutcomeSyncEnvelope,
+  normalizeWeighVisionMetadata,
+} from '../utils/weighvisionMetadata'
+import { ensureWeighVisionSchema } from '../db/ensureSchema'
 
 const prisma = new PrismaClient()
+let schemaEnsurePromise: Promise<void> | null = null
 
 type CreateSessionParams = {
   sessionId: string
@@ -32,15 +39,53 @@ type BindMediaParams = {
   traceId: string
 }
 
+type UpsertCaptureMetadataParams = {
+  tenantId: string
+  farmId: string
+  barnId: string
+  deviceId: string
+  stationId: string
+  eventId: string
+  traceId: string
+  occurredAt: string
+  captureId?: string
+  mediaIds?: string[]
+  metadata: Record<string, unknown>
+  eventSchemaVersion?: string
+  sourceEventType?: string
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function toJsonString(value: unknown): string {
+  return JSON.stringify(value ?? null)
+}
+
+function toNullableNumber(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+async function ensureSchemaReady(): Promise<void> {
+  if (!schemaEnsurePromise) {
+    schemaEnsurePromise = ensureWeighVisionSchema(prisma).catch((error) => {
+      schemaEnsurePromise = null
+      throw error
+    })
+  }
+
+  await schemaEnsurePromise
+}
+
 export const pingDb = async () => {
+  await ensureSchemaReady()
   await prisma.$queryRaw`SELECT 1`
 }
 
 export const createSession = async (data: CreateSessionParams) => {
+  await ensureSchemaReady()
+
   const {
     sessionId,
     eventId,
@@ -158,7 +203,9 @@ export const createSession = async (data: CreateSessionParams) => {
 }
 
 export const getSession = async (sessionId: string) => {
-  return await prisma.weightSession.findUnique({
+  await ensureSchemaReady()
+
+  const session = await prisma.weightSession.findUnique({
     where: { sessionId },
     include: {
       weights: {
@@ -166,9 +213,21 @@ export const getSession = async (sessionId: string) => {
       },
     },
   })
+
+  if (!session) {
+    return null
+  }
+
+  const captureMetadata = await getSessionCaptureMetadata(sessionId)
+  return {
+    ...session,
+    captureMetadata,
+  }
 }
 
 export const bindWeight = async (sessionId: string, data: BindWeightParams) => {
+  await ensureSchemaReady()
+
   const { tenantId, weightKg, occurredAt, eventId, traceId } = data
 
   return await prisma.$transaction(async (tx) => {
@@ -200,6 +259,8 @@ export const bindWeight = async (sessionId: string, data: BindWeightParams) => {
 }
 
 export const bindMedia = async (sessionId: string, data: BindMediaParams) => {
+  await ensureSchemaReady()
+
   const { tenantId, mediaObjectId, occurredAt, eventId, traceId } = data
 
   return await prisma.$transaction(async (tx) => {
@@ -244,8 +305,11 @@ export const finalizeSession = async (
     occurredAt: string
     traceId: string
     finalWeightKg?: number
+    payload?: Record<string, unknown>
   }
 ) => {
+  await ensureSchemaReady()
+
   const updatedSession = await prisma.$transaction(async (tx) => {
     const session = await tx.weightSession.findUnique({
       where: { sessionId },
@@ -305,6 +369,7 @@ export const finalizeSession = async (
         final_weight_kg: updatedSession.finalWeightKg,
         image_count: updatedSession.imageCount,
         end_at: updatedSession.endAt?.toISOString(),
+        payload: data.payload ?? undefined,
       })
     )
   } catch (error: unknown) {
@@ -379,4 +444,354 @@ export const attach = async (
       media_binding: mediaBinding,
     }
   })
+}
+
+export const upsertCaptureMetadata = async (
+  sessionId: string,
+  data: UpsertCaptureMetadataParams
+) => {
+  await ensureSchemaReady()
+
+  const existingSession = await prisma.weightSession.findUnique({
+    where: { sessionId },
+  })
+
+  if (existingSession && existingSession.tenantId !== data.tenantId) {
+    throw new Error('TENANT_MISMATCH')
+  }
+
+  const canonical = normalizeWeighVisionMetadata({
+    sessionId,
+    metadata: data.metadata,
+    captureId: data.captureId,
+  })
+
+  await prisma.$executeRawUnsafe(
+    `
+    INSERT INTO session_capture_metadata (
+      id, session_id, tenant_id, capture_id, event_id, trace_id, source_event_type,
+      metadata_schema_version, feature_schema_version, occurred_at, media_ids,
+      raw_metadata, normalized_features, selected_detection_index, detection_count, roi_count,
+      area_mm2, mask_area_px2, bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+      object_height_mm, object_width_mm, object_length_mm,
+      average_depth_mm, median_depth_mm, distance_mm, confidence_score, scale_weight_kg,
+      created_at, updated_at
+    ) VALUES (
+      gen_random_uuid(), $1::text, $2::text, $3::text, $4::text, $5::text, $6::text,
+      $7::text, $8::text, $9::timestamptz, $10::jsonb,
+      $11::jsonb, $12::jsonb, $13::integer, $14::integer, $15::integer,
+      $16::numeric, $17::numeric, $18::integer, $19::integer, $20::integer, $21::integer,
+      $22::numeric, $23::numeric, $24::numeric,
+      $25::numeric, $26::numeric, $27::numeric, $28::numeric, $29::numeric,
+      NOW(), NOW()
+    )
+    ON CONFLICT (tenant_id, event_id) DO UPDATE SET
+      capture_id = EXCLUDED.capture_id,
+      trace_id = EXCLUDED.trace_id,
+      source_event_type = EXCLUDED.source_event_type,
+      metadata_schema_version = EXCLUDED.metadata_schema_version,
+      feature_schema_version = EXCLUDED.feature_schema_version,
+      occurred_at = EXCLUDED.occurred_at,
+      media_ids = EXCLUDED.media_ids,
+      raw_metadata = EXCLUDED.raw_metadata,
+      normalized_features = EXCLUDED.normalized_features,
+      selected_detection_index = EXCLUDED.selected_detection_index,
+      detection_count = EXCLUDED.detection_count,
+      roi_count = EXCLUDED.roi_count,
+      area_mm2 = EXCLUDED.area_mm2,
+      mask_area_px2 = EXCLUDED.mask_area_px2,
+      bbox_x1 = EXCLUDED.bbox_x1,
+      bbox_y1 = EXCLUDED.bbox_y1,
+      bbox_x2 = EXCLUDED.bbox_x2,
+      bbox_y2 = EXCLUDED.bbox_y2,
+      object_height_mm = EXCLUDED.object_height_mm,
+      object_width_mm = EXCLUDED.object_width_mm,
+      object_length_mm = EXCLUDED.object_length_mm,
+      average_depth_mm = EXCLUDED.average_depth_mm,
+      median_depth_mm = EXCLUDED.median_depth_mm,
+      distance_mm = EXCLUDED.distance_mm,
+      confidence_score = EXCLUDED.confidence_score,
+      scale_weight_kg = EXCLUDED.scale_weight_kg,
+      updated_at = NOW()
+    `,
+    sessionId,
+    data.tenantId,
+    canonical.captureId,
+    data.eventId,
+    data.traceId,
+    data.sourceEventType ?? 'weighvision.inference.completed',
+    canonical.metadataSchema.version,
+    canonical.featureSchema.version,
+    new Date(data.occurredAt),
+    toJsonString(data.mediaIds ?? []),
+    toJsonString(canonical.rawMetadata),
+    toJsonString(canonical.normalizedFeatures),
+    canonical.selectedDetectionIndex,
+    canonical.detectionCount,
+    canonical.normalizedFeatures.roi_count,
+    toNullableNumber(canonical.normalizedFeatures.area_mm2),
+    toNullableNumber(canonical.normalizedFeatures.mask_area_px2),
+    canonical.normalizedFeatures.bbox.x1,
+    canonical.normalizedFeatures.bbox.y1,
+    canonical.normalizedFeatures.bbox.x2,
+    canonical.normalizedFeatures.bbox.y2,
+    toNullableNumber(canonical.normalizedFeatures.object_height_mm),
+    toNullableNumber(canonical.normalizedFeatures.object_width_mm),
+    toNullableNumber(canonical.normalizedFeatures.object_length_mm),
+    toNullableNumber(canonical.normalizedFeatures.average_depth_mm),
+    toNullableNumber(canonical.normalizedFeatures.median_depth_mm),
+    toNullableNumber(canonical.normalizedFeatures.distance_mm),
+    toNullableNumber(canonical.normalizedFeatures.confidence_score),
+    toNullableNumber(canonical.normalizedFeatures.scale_weight_kg)
+  )
+
+  const syncEnvelope = buildWeighVisionInferenceSyncEnvelope({
+    eventId: data.eventId,
+    tenantId: data.tenantId,
+    farmId: existingSession?.farmId ?? data.farmId,
+    barnId: existingSession?.barnId ?? data.barnId,
+    deviceId: existingSession?.deviceId ?? data.deviceId,
+    stationId: existingSession?.stationId ?? data.stationId,
+    sessionId,
+    occurredAt: data.occurredAt,
+    traceId: data.traceId,
+    schemaVersion: data.eventSchemaVersion,
+    mediaIds: data.mediaIds ?? [],
+    canonical,
+  })
+
+  try {
+    await prisma.$executeRawUnsafe(
+      `
+      INSERT INTO sync_outbox (
+        id, tenant_id, farm_id, barn_id, device_id, session_id,
+        event_type, occurred_at, trace_id, payload_json,
+        status, next_attempt_at, priority, attempt_count, created_at, updated_at
+      ) VALUES (
+        $1::uuid, $2::text, $3::text, $4::text, $5::text, $6::text,
+        'weighvision.inference.completed', $7::timestamptz, $8::text, $9::jsonb,
+        'pending', NOW(), 0, 0, NOW(), NOW()
+      )
+      ON CONFLICT (id) DO NOTHING
+      `,
+      data.eventId,
+      data.tenantId,
+      existingSession?.farmId ?? data.farmId,
+      existingSession?.barnId ?? data.barnId,
+      existingSession?.deviceId ?? data.deviceId,
+      sessionId,
+      new Date(data.occurredAt),
+      data.traceId || null,
+      JSON.stringify(syncEnvelope)
+    )
+  } catch (error: unknown) {
+    logger.error('Failed to write sync_outbox weighvision.inference.completed', {
+      error: errorMessage(error),
+      eventId: data.eventId,
+      traceId: data.traceId,
+    })
+  }
+
+  return {
+    sessionId,
+    captureId: canonical.captureId,
+    metadataSchema: canonical.metadataSchema,
+    featureSchema: canonical.featureSchema,
+    normalizedFeatures: canonical.normalizedFeatures,
+  }
+}
+
+export const getSessionCaptureMetadata = async (sessionId: string) => {
+  await ensureSchemaReady()
+
+  const rows = (await prisma.$queryRawUnsafe(
+    `
+    SELECT
+      session_id,
+      tenant_id,
+      capture_id,
+      event_id,
+      trace_id,
+      source_event_type,
+      metadata_schema_version,
+      feature_schema_version,
+      occurred_at,
+      media_ids,
+      raw_metadata,
+      normalized_features,
+      selected_detection_index,
+      detection_count,
+      roi_count,
+      area_mm2,
+      mask_area_px2,
+      bbox_x1,
+      bbox_y1,
+      bbox_x2,
+      bbox_y2,
+      object_height_mm,
+      object_width_mm,
+      object_length_mm,
+      average_depth_mm,
+      median_depth_mm,
+      distance_mm,
+      confidence_score,
+      scale_weight_kg,
+      created_at,
+      updated_at
+    FROM session_capture_metadata
+    WHERE session_id = $1
+    ORDER BY occurred_at ASC, created_at ASC
+    `,
+    sessionId
+  )) as Array<Record<string, unknown>>
+
+  return rows.map((row) => ({
+    sessionId: row.session_id,
+    tenantId: row.tenant_id,
+    captureId: row.capture_id,
+    eventId: row.event_id,
+    traceId: row.trace_id,
+    sourceEventType: row.source_event_type,
+    metadataSchemaVersion: row.metadata_schema_version,
+    featureSchemaVersion: row.feature_schema_version,
+    occurredAt:
+      row.occurred_at instanceof Date
+        ? row.occurred_at.toISOString()
+        : row.occurred_at,
+    mediaIds: row.media_ids,
+    rawMetadata: row.raw_metadata,
+    normalizedFeatures: row.normalized_features,
+    selectedDetectionIndex: row.selected_detection_index,
+    detectionCount: row.detection_count,
+    roiCount: row.roi_count,
+    areaMm2: row.area_mm2,
+    maskAreaPx2: row.mask_area_px2,
+    bbox: {
+      x1: row.bbox_x1,
+      y1: row.bbox_y1,
+      x2: row.bbox_x2,
+      y2: row.bbox_y2,
+    },
+    objectHeightMm: row.object_height_mm,
+    objectWidthMm: row.object_width_mm,
+    objectLengthMm: row.object_length_mm,
+    averageDepthMm: row.average_depth_mm,
+    medianDepthMm: row.median_depth_mm,
+    distanceMm: row.distance_mm,
+    confidenceScore: row.confidence_score,
+    scaleWeightKg: row.scale_weight_kg,
+    createdAt:
+      row.created_at instanceof Date
+        ? row.created_at.toISOString()
+        : row.created_at,
+    updatedAt:
+      row.updated_at instanceof Date
+        ? row.updated_at.toISOString()
+        : row.updated_at,
+  }))
+}
+
+export const publishInferenceOutcome = async (
+  sessionId: string,
+  data: {
+    tenantId: string
+    farmId?: string
+    barnId?: string
+    deviceId?: string
+    stationId?: string
+    eventId: string
+    occurredAt: string
+    traceId: string
+    inferenceResultId?: string
+    mediaId?: string
+    captureMetadataId?: string
+    predictedWeightKg?: number
+    confidence?: number
+    modelVersion: string
+    packageId?: string
+    packageVersion?: string
+    featureSchemaVersion?: string
+    activationSource?: string
+    fallbackEngaged?: boolean
+    predictionMode?: string
+    featuresUsed?: Record<string, unknown>
+    eventSchemaVersion?: string
+    sourceEventType?: string
+  }
+) => {
+  await ensureSchemaReady()
+
+  const session = await prisma.weightSession.findUnique({
+    where: { sessionId },
+  })
+
+  if (!session) throw new Error('Session not found')
+  if (session.tenantId !== data.tenantId) throw new Error('TENANT_MISMATCH')
+
+  if (data.inferenceResultId) {
+    await prisma.weightSession.update({
+      where: { sessionId },
+      data: { inferenceResultId: data.inferenceResultId },
+    })
+  }
+
+  const syncEnvelope = buildWeighVisionPredictionOutcomeSyncEnvelope({
+    eventId: data.eventId,
+    tenantId: data.tenantId,
+    farmId: session.farmId ?? data.farmId ?? '',
+    barnId: session.barnId ?? data.barnId ?? '',
+    deviceId: session.deviceId ?? data.deviceId ?? '',
+    stationId: session.stationId ?? data.stationId ?? '',
+    sessionId,
+    occurredAt: data.occurredAt,
+    traceId: data.traceId,
+    schemaVersion: data.eventSchemaVersion,
+    inferenceResultId: data.inferenceResultId,
+    mediaId: data.mediaId,
+    captureMetadataId: data.captureMetadataId,
+    predictedWeightKg: data.predictedWeightKg,
+    confidence: data.confidence,
+    modelVersion: data.modelVersion,
+    packageId: data.packageId,
+    packageVersion: data.packageVersion,
+    featureSchemaVersion: data.featureSchemaVersion,
+    activationSource: data.activationSource,
+    fallbackEngaged: data.fallbackEngaged,
+    predictionMode: data.predictionMode,
+    featuresUsed: data.featuresUsed,
+    sourceEventType: data.sourceEventType,
+  })
+
+  await prisma.$executeRawUnsafe(
+    `
+    INSERT INTO sync_outbox (
+      id, tenant_id, farm_id, barn_id, device_id, session_id,
+      event_type, occurred_at, trace_id, payload_json,
+      status, next_attempt_at, priority, attempt_count, created_at, updated_at
+    ) VALUES (
+      $1::uuid, $2::text, $3::text, $4::text, $5::text, $6::text,
+      'weighvision.inference.completed', $7::timestamptz, $8::text, $9::jsonb,
+      'pending', NOW(), 0, 0, NOW(), NOW()
+    )
+    ON CONFLICT (id) DO NOTHING
+    `,
+    data.eventId,
+    data.tenantId,
+    session.farmId ?? data.farmId ?? null,
+    session.barnId ?? data.barnId ?? null,
+    session.deviceId ?? data.deviceId ?? null,
+    sessionId,
+    new Date(data.occurredAt),
+    data.traceId || null,
+    JSON.stringify(syncEnvelope)
+  )
+
+  return {
+    sessionId,
+    eventId: data.eventId,
+    inferenceResultId: data.inferenceResultId,
+    modelVersion: data.modelVersion,
+    predictionMode: data.predictionMode ?? null,
+    published: true,
+  }
 }

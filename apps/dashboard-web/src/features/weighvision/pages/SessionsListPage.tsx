@@ -15,18 +15,58 @@ import { useNavigate } from 'react-router-dom';
 import type { components } from '@farmiq/api-client';
 
 type Session = components['schemas']['WeighvisionSession'];
+type SessionRow = Session & {
+    predicted_weight_kg?: number | null;
+    prediction_mode?: string | null;
+    prediction_confidence?: number | null;
+};
+
 const UUID_V4_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function toWeighVisionDeviceIdFromStation(stationId: unknown): string | null {
     if (typeof stationId !== 'string' || stationId.trim().length === 0) return null;
-    const m = stationId.trim().match(/^st-(\d+)$/i);
-    if (!m) return null;
-    const seq = Number(m[1]);
+    const match = stationId.trim().match(/^st-(\d+)$/i);
+    if (!match) return null;
+    const seq = Number(match[1]);
     if (!Number.isFinite(seq) || seq < 0) return null;
     return `wv-${String(Math.trunc(seq)).padStart(3, '0')}`;
 }
 
-function normalizeSession(item: any): Session {
+function toFiniteNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim().length > 0) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+}
+
+function getLatestPrediction(item: any) {
+    const inferences = Array.isArray(item?.inferences) ? item.inferences : [];
+    const prediction =
+        inferences.find((entry: any) =>
+            toFiniteNumber(entry?.predicted_weight_kg ?? entry?.predictedWeightKg) !== null &&
+            (entry?.prediction_mode ?? entry?.predictionMode) === 'shadow'
+        ) ??
+        inferences.find((entry: any) =>
+            toFiniteNumber(entry?.predicted_weight_kg ?? entry?.predictedWeightKg) !== null
+        );
+
+    return {
+        predictedWeightKg: toFiniteNumber(
+            prediction?.predicted_weight_kg ?? prediction?.predictedWeightKg
+        ),
+        predictionMode:
+            typeof (prediction?.prediction_mode ?? prediction?.predictionMode) === 'string'
+                ? (prediction?.prediction_mode ?? prediction?.predictionMode)
+                : null,
+        confidence: toFiniteNumber(
+            prediction?.confidence ?? prediction?.confidence_score ?? prediction?.confidenceScore
+        ),
+    };
+}
+
+function normalizeSession(item: any): SessionRow {
     const sessionId = item?.session_id ?? item?.sessionId ?? item?.sessionID ?? item?.id;
     const stationId = item?.station_id ?? item?.stationId;
     const deviceId =
@@ -52,20 +92,19 @@ function normalizeSession(item: any): Session {
         item?.finalWeightKg ??
         item?.weightKg ??
         latestMeasurementWeight;
-    const finalWeightKg =
-        typeof finalWeightRaw === 'number'
-            ? finalWeightRaw
-            : typeof finalWeightRaw === 'string'
-                ? Number(finalWeightRaw)
-                : null;
+    const finalWeightKg = toFiniteNumber(finalWeightRaw);
+    const prediction = getLatestPrediction(item);
 
     return {
-        ...(item as Session),
+        ...(item as SessionRow),
         session_id: sessionId as any,
         device_id: deviceId as any,
         start_at: startAt as any,
         image_count: (typeof imageCount === 'number' ? imageCount : 0) as any,
-        final_weight_kg: (typeof finalWeightKg === 'number' && Number.isFinite(finalWeightKg) ? finalWeightKg : null) as any,
+        final_weight_kg: finalWeightKg as any,
+        predicted_weight_kg: prediction.predictedWeightKg as any,
+        prediction_mode: prediction.predictionMode as any,
+        prediction_confidence: prediction.confidence as any,
     };
 }
 
@@ -75,7 +114,7 @@ const COLUMNS: any[] = [
         label: 'Session ID',
         format: (v: string) => (
             <Typography variant="caption" fontWeight="600" sx={{ opacity: 0.7 }}>
-                {typeof v === 'string' && v.length > 0 ? `${v.split('-')[0]}...` : '—'}
+                {typeof v === 'string' && v.length > 0 ? `${v.split('-')[0]}...` : 'N/A'}
             </Typography>
         ),
     },
@@ -84,142 +123,182 @@ const COLUMNS: any[] = [
         label: 'Device ID',
         format: (v: string) => (
             <Typography variant="body2" fontWeight="600">
-                {typeof v === 'string' && v.length > 0 ? v : '—'}
+                {typeof v === 'string' && v.length > 0 ? v : 'N/A'}
             </Typography>
         ),
     },
-    { id: 'start_at', label: 'Start Time', format: (v: string) => v ? new Date(v).toLocaleString() : '—' },
-    { id: 'image_count', label: 'Images', align: 'right', format: (v: number) => <Typography variant="body2" fontWeight="700" color="primary">{Number.isFinite(v) ? v : 0}</Typography> },
-    { id: 'final_weight_kg', label: 'Final Weight', align: 'right', format: (v: number) => <strong>{typeof v === 'number' ? `${v.toFixed(2)} kg` : '—'}</strong> },
-    { 
-        id: 'status', 
+    {
+        id: 'start_at',
+        label: 'Start Time',
+        format: (v: string) => (v ? new Date(v).toLocaleString() : 'N/A'),
+    },
+    {
+        id: 'image_count',
+        label: 'Images',
+        align: 'right',
+        format: (v: number) => (
+            <Typography variant="body2" fontWeight="700" color="primary">
+                {Number.isFinite(v) ? v : 0}
+            </Typography>
+        ),
+    },
+    {
+        id: 'predicted_weight_kg',
+        label: 'Predicted Weight',
+        align: 'right',
+        format: (_: number, row: SessionRow) => {
+            const predictedWeight = toFiniteNumber(row?.predicted_weight_kg);
+            const confidence = toFiniteNumber(row?.prediction_confidence);
+            const predictionMode = typeof row?.prediction_mode === 'string' ? row.prediction_mode : null;
+
+            if (predictedWeight === null) {
+                return 'N/A';
+            }
+
+            return (
+                <Box sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2" fontWeight="700" color="secondary.main">
+                        {`${predictedWeight.toFixed(2)} kg`}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        {predictionMode ? predictionMode.toUpperCase() : 'PRED'}
+                        {confidence !== null ? ` | ${(confidence * 100).toFixed(0)}%` : ''}
+                    </Typography>
+                </Box>
+            );
+        },
+    },
+    {
+        id: 'final_weight_kg',
+        label: 'Final Weight',
+        align: 'right',
+        format: (v: number) => (
+            <strong>{typeof v === 'number' ? `${v.toFixed(2)} kg` : 'N/A'}</strong>
+        ),
+    },
+    {
+        id: 'status',
         label: 'Status',
         format: (v: string) => (
             <StatusChip
                 status={v === 'completed' ? 'success' : v === 'active' ? 'info' : 'info'}
                 label={typeof v === 'string' && v.length > 0 ? v.toUpperCase() : 'UNKNOWN'}
             />
-        )
+        ),
     },
 ];
 
 export const SessionsListPage: React.FC = () => {
-  const { tenantId, farmId, barnId, batchId, timeRange } = useActiveContext();
-  const navigate = useNavigate();
-  const { data: sessions = [], isLoading: loading, error } = useQuery<Session[]>({
-      queryKey: ['sessions', tenantId, farmId, barnId, batchId, timeRange.start, timeRange.end],
-      queryFn: async () => {
-             if (!tenantId) return [];
-             let resolvedFarmId = farmId || undefined;
-             let resolvedBarnId = barnId || undefined;
+    const { tenantId, farmId, barnId, batchId, timeRange } = useActiveContext();
+    const navigate = useNavigate();
+    const { data: sessions = [], isLoading: loading, error } = useQuery<SessionRow[]>({
+        queryKey: ['sessions', tenantId, farmId, barnId, batchId, timeRange.start, timeRange.end],
+        queryFn: async () => {
+            if (!tenantId) return [];
+            let resolvedFarmId = farmId || undefined;
+            let resolvedBarnId = barnId || undefined;
 
-             // WeighVision readmodel still uses short IDs like f-001 / b-001 in some datasets.
-             // Resolve context UUIDs to short IDs for compatibility.
-             if (resolvedFarmId && UUID_V4_LIKE.test(resolvedFarmId)) {
-                 try {
-                     const farmsResp = await api.farms.list({ tenantId, page: 1, pageSize: 200 });
-                     const farms = unwrapApiResponse<any[]>(farmsResp) || [];
-                     const selectedFarm = farms.find((f) => (f?.id || f?.farm_id) === resolvedFarmId);
-                     const shortFarmId = selectedFarm?.name || selectedFarm?.farm_id;
-                     if (typeof shortFarmId === 'string' && shortFarmId.length > 0 && !UUID_V4_LIKE.test(shortFarmId)) {
-                         resolvedFarmId = shortFarmId;
-                     }
-                 } catch {
-                     // Keep original filter if lookup fails.
-                 }
-             }
+            if (resolvedFarmId && UUID_V4_LIKE.test(resolvedFarmId)) {
+                try {
+                    const farmsResp = await api.farms.list({ tenantId, page: 1, pageSize: 200 });
+                    const farms = unwrapApiResponse<any[]>(farmsResp) || [];
+                    const selectedFarm = farms.find((f) => (f?.id || f?.farm_id) === resolvedFarmId);
+                    const shortFarmId = selectedFarm?.name || selectedFarm?.farm_id;
+                    if (typeof shortFarmId === 'string' && shortFarmId.length > 0 && !UUID_V4_LIKE.test(shortFarmId)) {
+                        resolvedFarmId = shortFarmId;
+                    }
+                } catch {
+                }
+            }
 
-             if (resolvedBarnId && UUID_V4_LIKE.test(resolvedBarnId)) {
-                 try {
-                     const barnsResp = await api.barns.list({
-                         tenantId,
-                         farmId: farmId || undefined,
-                         page: 1,
-                         pageSize: 500,
-                     });
-                     const barns = unwrapApiResponse<any[]>(barnsResp) || [];
-                     const selectedBarn = barns.find((b) => (b?.id || b?.barn_id) === resolvedBarnId);
-                     const shortBarnId = selectedBarn?.name || selectedBarn?.barn_id;
-                     if (typeof shortBarnId === 'string' && shortBarnId.length > 0 && !UUID_V4_LIKE.test(shortBarnId)) {
-                         resolvedBarnId = shortBarnId;
-                     }
-                 } catch {
-                     // Keep original filter if lookup fails.
-                 }
-             }
+            if (resolvedBarnId && UUID_V4_LIKE.test(resolvedBarnId)) {
+                try {
+                    const barnsResp = await api.barns.list({
+                        tenantId,
+                        farmId: farmId || undefined,
+                        page: 1,
+                        pageSize: 500,
+                    });
+                    const barns = unwrapApiResponse<any[]>(barnsResp) || [];
+                    const selectedBarn = barns.find((b) => (b?.id || b?.barn_id) === resolvedBarnId);
+                    const shortBarnId = selectedBarn?.name || selectedBarn?.barn_id;
+                    if (typeof shortBarnId === 'string' && shortBarnId.length > 0 && !UUID_V4_LIKE.test(shortBarnId)) {
+                        resolvedBarnId = shortBarnId;
+                    }
+                } catch {
+                }
+            }
 
-             const from = timeRange.start.toISOString();
-             const to = timeRange.end.toISOString();
-             
-             const response = await api.weighvision.sessions({
-                 tenantId,
-                 farmId: resolvedFarmId,
-                 barnId: resolvedBarnId,
-                 batchId: batchId || undefined,
-                 from,
-                 to,
-                 limit: 100,
-             });
-             
-             // Handle response format: { items: Session[], nextCursor, hasMore }
-             const data = unwrapApiResponse<any>(response);
-             if (data?.items && Array.isArray(data.items)) {
-                 return data.items.map(normalizeSession);
-             }
-             // Fallback: if response is direct array
-             if (Array.isArray(data)) {
-                 return data.map(normalizeSession);
-             }
-             return [];
-      },
-      enabled: !!tenantId,
-      initialData: []
-  });
+            const from = timeRange.start.toISOString();
+            const to = timeRange.end.toISOString();
 
-  if (error) {
-      return <ErrorState title="Failed to load sessions" message={error.message} />;
-  }
+            const response = await api.weighvision.sessions({
+                tenantId,
+                farmId: resolvedFarmId,
+                barnId: resolvedBarnId,
+                batchId: batchId || undefined,
+                from,
+                to,
+                limit: 100,
+            });
 
-  if (loading) {
-      return (
-          <Box>
-              <PageHeader title="WeighVision Sessions" subtitle="Historical log of AI-powered weighing sessions and inference capture results" />
-              <LoadingCard title="Loading sessions" lines={3} />
-          </Box>
-      );
-  }
+            const data = unwrapApiResponse<any>(response);
+            if (data?.items && Array.isArray(data.items)) {
+                return data.items.map(normalizeSession);
+            }
+            if (Array.isArray(data)) {
+                return data.map(normalizeSession);
+            }
+            return [];
+        },
+        enabled: !!tenantId,
+        initialData: [],
+    });
 
-  if (!loading && sessions.length === 0) {
-      return (
-          <Box sx={{ animation: 'fadeIn 0.6s ease-out' }}>
-            <PageHeader title="WeighVision Sessions" />
-            <PremiumCard>
-                <EmptyState 
-                    icon={<Camera size={32} />}
-                    title="No Sessions Found"
-                    description="No scanning sessions are currently active for the selected context."
-                    size="sm"
+    if (error) {
+        return <ErrorState title="Failed to load sessions" message={error.message} />;
+    }
+
+    if (loading) {
+        return (
+            <Box>
+                <PageHeader title="WeighVision Sessions" subtitle="Historical log of AI-powered weighing sessions and inference capture results" />
+                <LoadingCard title="Loading sessions" lines={3} />
+            </Box>
+        );
+    }
+
+    if (!loading && sessions.length === 0) {
+        return (
+            <Box sx={{ animation: 'fadeIn 0.6s ease-out' }}>
+                <PageHeader title="WeighVision Sessions" />
+                <PremiumCard>
+                    <EmptyState
+                        icon={<Camera size={32} />}
+                        title="No Sessions Found"
+                        description="No scanning sessions are currently active for the selected context."
+                        size="sm"
+                    />
+                </PremiumCard>
+            </Box>
+        );
+    }
+
+    return (
+        <Box sx={{ animation: 'fadeIn 0.6s ease-out' }}>
+            <PageHeader
+                title="WeighVision Sessions"
+                subtitle="Historical log of AI-powered weighing sessions and inference capture results"
+            />
+            <PremiumCard noPadding>
+                <BasicTable
+                    columns={COLUMNS}
+                    data={sessions}
+                    loading={loading}
+                    rowKey="session_id"
+                    onRowClick={(row) => navigate(`/weighvision/sessions/${row.session_id}`)}
                 />
             </PremiumCard>
-          </Box>
-      );
-  }
-
-  return (
-    <Box sx={{ animation: 'fadeIn 0.6s ease-out' }}>
-      <PageHeader 
-        title="WeighVision Sessions" 
-        subtitle="Historical log of AI-powered weighing sessions and inference capture results" 
-      />
-      <PremiumCard noPadding>
-        <BasicTable
-          columns={COLUMNS}
-          data={sessions}
-          loading={loading}
-          rowKey="session_id"
-          onRowClick={(row) => navigate(`/weighvision/sessions/${row.session_id}`)}
-        />
-      </PremiumCard>
-    </Box>
-  );
+        </Box>
+    );
 };

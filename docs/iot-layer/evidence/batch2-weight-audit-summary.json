@@ -1,0 +1,85 @@
+{
+  "dataset_scope": {
+    "total_metadata_files": 129,
+    "flagged_rows": 129,
+    "metadata_dir": "iot-layer/weight-vision-capture/data/metadata"
+  },
+  "observed_counts": {
+    "weight_present": 108,
+    "weight_missing": 21,
+    "post_capture_window_rows": 0,
+    "unit_mismatch_candidates_ge_20kg": 37,
+    "multi_detection_rows": 10,
+    "low_confidence_rows": 43,
+    "depth_outlier_rows": 10,
+    "negative_height_rows": 36,
+    "finalize_path_payload_gap_rows": 108
+  },
+  "derived": {
+    "depth_iqr_low_mm": 525.72,
+    "depth_iqr_high_mm": 1712.69,
+    "weight_source_distribution": {
+      "None": 29,
+      "instant": 85,
+      "unstable": 15
+    },
+    "dominant_root_cause_distribution": {
+      "finalize_path_fallback_risk": 71,
+      "sensor_or_timing_gap": 21,
+      "sensor_unit_mismatch": 37
+    }
+  },
+  "representative_examples": {
+    "sensor_unit_mismatch": [
+      {
+        "metadata_file": "20260514_215734.json",
+        "weight_kg": 26.65
+      },
+      {
+        "metadata_file": "20260514_221658.json",
+        "weight_kg": 25.55
+      },
+      {
+        "metadata_file": "20260514_222817.json",
+        "weight_kg": 28.9
+      },
+      {
+        "metadata_file": "20260514_225646.json",
+        "weight_kg": 28.0
+      },
+      {
+        "metadata_file": "20260514_234947.json",
+        "weight_kg": 24.4
+      }
+    ],
+    "sensor_or_timing_gap": [
+      {
+        "metadata_file": "20260211_132751.json",
+        "weight_source": null,
+        "weight_kg": null
+      },
+      {
+        "metadata_file": "20260211_141727.json",
+        "weight_source": null,
+        "weight_kg": null
+      },
+      {
+        "metadata_file": "20260211_145807.json",
+        "weight_source": null,
+        "weight_kg": null
+      },
+      {
+        "metadata_file": "20260211_150354.json",
+        "weight_source": null,
+        "weight_kg": null
+      },
+      {
+        "metadata_file": "20260211_150732.json",
+        "weight_source": null,
+        "weight_kg": null
+      }
+    ],
+    "depth_geometry_outlier": [],
+    "segmentation_selection_risk": []
+  }
+}

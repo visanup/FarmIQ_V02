@@ -601,7 +601,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/api/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -793,6 +793,7 @@ services:
       - TELEMETRY_BASE_URL=http://cloud-telemetry-service:3000
       - ANALYTICS_BASE_URL=http://cloud-analytics-service:8000
       - WEIGHVISION_READMODEL_BASE_URL=http://cloud-weighvision-readmodel:3000
+      - EDGE_WEIGHVISION_SESSION_BASE_URL=http://host.docker.internal:5105
       - STANDARDS_SERVICE_URL=http://cloud-standards-service:3000
       - CLOUD_STANDARDS_SERVICE_URL=http://cloud-standards-service:3000
       - CONFIG_RULES_BASE_URL=http://cloud-config-rules-service:3000
@@ -843,7 +844,7 @@ services:
       dockerfile: apps/dashboard-web/Dockerfile
     container_name: farmiq-dashboard-web
     ports:
-      - "5142:80"
+      - "5142:8080"
     environment:
       - VITE_API_BASE_URL=http://cloud-api-gateway-bff:3000
       - VITE_AUTH_URL=http://cloud-identity-access:3000

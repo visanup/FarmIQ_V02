@@ -65,6 +65,8 @@
 - `weighvision.session.finalized`
   - ส่งหลัง publish `image.captured` ครบขั้นต่ำ
   - `payload.image_count` นับจากจำนวนรูปที่อัปโหลด
+  - เมื่อมีค่าน้ำหนักจาก scale ต้องส่ง `payload.final_weight_kg` และ `payload.scale_weight_kg` แบบ explicit
+  - ควรคง `payload.weight_source` จาก capture metadata เพื่อ audit ความนิ่งและ timing ของน้ำหนัก
 
 **Session/Id Correlation**
 - `sessionId` ต้องผูกกับ 1 capture (1 metadata) หรือ 1 burst ที่มาจากการกด Save ครั้งเดียว
