@@ -14,7 +14,7 @@ const router = express.Router()
 router.post(
   '/jobs',
   jwtAuthMiddleware,
-  requireRole('tenant_admin', 'farm_manager'),
+  requireRole('platform_admin', 'tenant_admin', 'farm_manager'),
   validateReportJobCreate,
   createReportJobHandler
 )
@@ -22,21 +22,21 @@ router.post(
 router.get(
   '/jobs/:jobId',
   jwtAuthMiddleware,
-  requireRole('tenant_admin', 'farm_manager', 'house_operator', 'viewer'),
+  requireRole('platform_admin', 'tenant_admin', 'farm_manager', 'house_operator', 'viewer'),
   getReportJobHandler
 )
 
 router.get(
   '/jobs',
   jwtAuthMiddleware,
-  requireRole('tenant_admin', 'farm_manager', 'house_operator', 'viewer'),
+  requireRole('platform_admin', 'tenant_admin', 'farm_manager', 'house_operator', 'viewer'),
   listReportJobsHandler
 )
 
 router.get(
   '/jobs/:jobId/download',
   jwtAuthMiddleware,
-  requireRole('tenant_admin', 'farm_manager', 'house_operator', 'viewer'),
+  requireRole('platform_admin', 'tenant_admin', 'farm_manager', 'house_operator', 'viewer'),
   getReportJobDownloadHandler
 )
 

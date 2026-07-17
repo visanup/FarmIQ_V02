@@ -1,14 +1,14 @@
 import { test } from '@playwright/test';
+import { buildContextPath, expectPostLoginRoute, loginAndWaitForSession } from './support/session';
 
 test.describe('Evidence Collection', () => {
   test('capture screenshots of key pages', async ({ page }) => {
-    await page.goto('/login');
+    await page.goto(buildContextPath('/login'), { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1000);
     await page.screenshot({ path: 'evidence/ui/01-login.png' });
 
-    await page.getByLabel('Email address').fill('admin@farmiq.com');
-    await page.getByLabel('Password').fill('password123');
-    await page.getByRole('button', { name: 'Sign In' }).click();
+    await loginAndWaitForSession(page);
+    await expectPostLoginRoute(page);
 
     if (page.url().includes('/select-tenant')) {
       const tenantCards = page.getByRole('button', { name: /enter workspace/i });
@@ -22,7 +22,7 @@ test.describe('Evidence Collection', () => {
       }
     }
 
-    await page.waitForURL(/\/overview|\/select-farm|\/select-context/);
+    await page.waitForURL(/\/select-tenant|\/overview|\/select-farm|\/select-context/, { timeout: 20000 });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'evidence/ui/02-overview.png' });
 
@@ -37,7 +37,7 @@ test.describe('Evidence Collection', () => {
     ] as const;
 
     for (const [path, filename] of paths) {
-      await page.goto(path);
+      await page.goto(buildContextPath(path), { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(1000);
       await page.screenshot({ path: `evidence/ui/${filename}` });
     }

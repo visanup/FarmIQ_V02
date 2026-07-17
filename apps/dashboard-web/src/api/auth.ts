@@ -12,6 +12,11 @@ type StoredTokenPair = {
   expiresAt?: number;
 };
 
+type StoredUserProfile = {
+  tenantId?: string;
+  tenantIds?: string[];
+};
+
 export type AuthResult = { ok: true };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -42,6 +47,27 @@ const writeTokenPair = (pair: StoredTokenPair) => {
   } catch {
     // ignore storage errors
   }
+};
+
+const readStoredUserProfile = (): StoredUserProfile | null => {
+  try {
+    const userStr = sessionStorage.getItem(USER_STORAGE_KEY) || localStorage.getItem(USER_STORAGE_KEY);
+    if (!userStr) return null;
+    return JSON.parse(userStr) as StoredUserProfile;
+  } catch {
+    return null;
+  }
+};
+
+const getAccessibleTenantIds = (user: StoredUserProfile | null): string[] => {
+  const tenantIds = new Set<string>();
+  if (user?.tenantId) {
+    tenantIds.add(user.tenantId);
+  }
+  if (Array.isArray(user?.tenantIds)) {
+    user.tenantIds.filter(Boolean).forEach((tenantId) => tenantIds.add(tenantId));
+  }
+  return Array.from(tenantIds);
 };
 
 export const getAccessToken = (): string | null => {
@@ -75,13 +101,20 @@ export const clearSession = () => {
 };
 
 export const getTenantId = (): string | null => {
+  const storedUser = readStoredUserProfile();
+  const accessibleTenantIds = getAccessibleTenantIds(storedUser);
+
   // Primary (dev-friendly) source: URL query params managed by ActiveContextProvider.
   // The app uses `tenant_id` (snake_case) in the browser URL, while APIs expect `tenantId`.
   if (typeof window !== 'undefined') {
     try {
       const params = new URLSearchParams(window.location.search);
       const urlTenantId = params.get('tenant_id') || params.get('tenantId');
-      if (urlTenantId) return urlTenantId;
+      if (urlTenantId) {
+        if (accessibleTenantIds.length === 0 || accessibleTenantIds.includes(urlTenantId)) {
+          return urlTenantId;
+        }
+      }
     } catch {
       // ignore URL parsing errors
     }
@@ -98,9 +131,8 @@ export const getTenantId = (): string | null => {
   }
 
   try {
-    const userStr = sessionStorage.getItem(USER_STORAGE_KEY) || localStorage.getItem(USER_STORAGE_KEY);
-    if (!userStr) return null;
-    const user = JSON.parse(userStr) as { tenantId?: string; tenantIds?: string[] };
+    const user = storedUser;
+    if (!user) return null;
     if (user?.tenantId) return user.tenantId;
     if (Array.isArray(user?.tenantIds) && user.tenantIds.length > 0) return user.tenantIds[0];
   } catch {

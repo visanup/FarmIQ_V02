@@ -113,3 +113,4 @@ The execution log is written under:
 - local deploy: `docs/iot-layer/14-deployment-runbook.md`
 - production-template deploy: `docs/iot-layer/15-production-template-runbook.md`
 - full Cloud-Edge rerun: `docs/iot-layer/13-cloud-edge-ai-control-plane-runbook.md`
+- production-like local rerun with `.env` real business identifiers: `docs/iot-layer/17-prodlike-t001-e2e-runbook.md`

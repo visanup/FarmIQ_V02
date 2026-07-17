@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 
+const devServerPort = Number(process.env.PORT || process.env.VITE_DEV_SERVER_PORT || 5135);
+
 // #region agent log
 const logPath = '/app/.cursor/debug.log';
 const logToFile = (data: any) => {
@@ -37,7 +39,7 @@ export default defineConfig({
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json'],
   },
   server: {
-    port: 5135,
+    port: devServerPort,
     host: '0.0.0.0',
     headers: {
       // Security headers for dev server

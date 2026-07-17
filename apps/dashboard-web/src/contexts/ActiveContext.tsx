@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from './AuthContext';
 
 export type TimeRangePreset = '24h' | '7d' | '30d' | '90d' | 'custom';
 
@@ -105,9 +106,25 @@ const saveContextToStorage = (context: Partial<ActiveContextType>) => {
   }
 };
 
+const getAccessibleTenantIds = (user: { tenantId?: string; tenantIds?: string[] } | null) => {
+  const tenantIds = new Set<string>();
+  if (user?.tenantId) {
+    tenantIds.add(user.tenantId);
+  }
+  if (Array.isArray(user?.tenantIds)) {
+    user.tenantIds.filter(Boolean).forEach((tenantId) => tenantIds.add(tenantId));
+  }
+  return Array.from(tenantIds);
+};
+
 
 export const ActiveContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
+  const [tenantViolation, setTenantViolation] = useState<string | null>(null);
+  const accessibleTenantIds = useMemo(() => getAccessibleTenantIds(user), [user]);
 
   // Migration: Clean up old localStorage data with hardcoded context IDs
   useEffect(() => {
@@ -145,9 +162,17 @@ export const ActiveContextProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const defaultTenantId = import.meta.env.DEV ? import.meta.env.VITE_DEFAULT_TENANT_ID : undefined;
 
+  const canAccessTenant = useCallback((candidateTenantId: string | null) => {
+    if (!candidateTenantId) return true;
+    if (!isAuthenticated || accessibleTenantIds.length === 0) return true;
+    return accessibleTenantIds.includes(candidateTenantId);
+  }, [accessibleTenantIds, isAuthenticated]);
+
 
   // Sync state to URL params when context changes
   useEffect(() => {
+    if (location.pathname === '/403') return;
+
     const params = new URLSearchParams(searchParams);
     
     const currentTenant = params.get('tenant_id');
@@ -197,7 +222,7 @@ export const ActiveContextProvider: React.FC<{ children: React.ReactNode }> = ({
     if (hasChanges) {
       setSearchParams(params, { replace: true });
     }
-  }, [tenantId, farmId, barnId, batchId, setSearchParams]); // Removed searchParams from deps to prevent loop
+  }, [tenantId, farmId, barnId, batchId, location.pathname, searchParams, setSearchParams]);
 
   // Sync URL params to state on mount or when URL changes externally (e.g., browser back/forward)
   useEffect(() => {
@@ -209,7 +234,14 @@ export const ActiveContextProvider: React.FC<{ children: React.ReactNode }> = ({
     // Only update state if URL param exists and differs from current state
     // This handles browser navigation (back/forward) without causing loops
     if (urlTenant !== null && urlTenant !== tenantId) {
-      setTenantIdState(urlTenant);
+      if (canAccessTenant(urlTenant)) {
+        setTenantViolation(null);
+        setTenantIdState(urlTenant);
+      } else {
+        setTenantViolation(urlTenant);
+      }
+    } else if (urlTenant === null && tenantViolation) {
+      setTenantViolation(null);
     }
     if (urlFarm !== null && urlFarm !== farmId) {
       setFarmIdState(urlFarm);
@@ -221,7 +253,34 @@ export const ActiveContextProvider: React.FC<{ children: React.ReactNode }> = ({
       setBatchIdState(urlBatch);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]); // Only depend on searchParams, not state values
+  }, [canAccessTenant, farmId, barnId, batchId, searchParams, tenantId, tenantViolation]);
+
+  useEffect(() => {
+    if (!tenantViolation || !isAuthenticated || location.pathname === '/403') {
+      return;
+    }
+
+    console.error('Blocked unauthorized tenant override', {
+      attemptedTenantId: tenantViolation,
+      accessibleTenantIds,
+      pathname: location.pathname,
+    });
+
+    navigate('/403', {
+      replace: true,
+      state: {
+        from: `${location.pathname}${location.search}`,
+        attemptedTenantId: tenantViolation,
+      },
+    });
+  }, [
+    accessibleTenantIds,
+    isAuthenticated,
+    location.pathname,
+    location.search,
+    navigate,
+    tenantViolation,
+  ]);
 
   // Persist to localStorage
   useEffect(() => {

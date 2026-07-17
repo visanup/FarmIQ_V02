@@ -27,6 +27,8 @@ This directory contains the local device-side services and operator tooling for 
   - Production-template runbook for field or production-intent deploy usage.
 - `../docs/iot-layer/16-mock-capture-injection-runbook.md`
   - Mock capture replay runbook.
+- `../docs/iot-layer/17-prodlike-t001-e2e-runbook.md`
+  - Production-like local E2E runbook using the real non-IP parameters from `weight-vision-service/.env`.
 
 ## Quick start
 

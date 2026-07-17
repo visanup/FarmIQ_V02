@@ -13,6 +13,62 @@ const normalizeBaseUrl = (value: string): string => {
 };
 
 export const API_BASE_URL = normalizeBaseUrl(RAW_BASE_URL);
+const USER_STORAGE_KEY = 'farmiq_user_profile';
+let refreshRequest: Promise<{ accessToken: string; refreshToken: string }> | null = null;
+
+const readStoredUserProfile = () => {
+    try {
+        const rawUser =
+            sessionStorage.getItem(USER_STORAGE_KEY) ||
+            localStorage.getItem(USER_STORAGE_KEY);
+        return rawUser ? JSON.parse(rawUser) : {};
+    } catch {
+        return {};
+    }
+};
+
+const refreshAccessToken = async () => {
+    if (refreshRequest) {
+        return refreshRequest;
+    }
+
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+        throw new Error('No refresh token available');
+    }
+
+    refreshRequest = (async () => {
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+            refresh_token: refreshToken,
+        });
+
+        const {
+            access_token: nextAccessToken,
+            refresh_token: rotatedRefreshToken,
+        } = response.data as {
+            access_token?: string;
+            refresh_token?: string;
+        };
+
+        if (!nextAccessToken) {
+            throw new Error('Refresh response did not include access_token');
+        }
+
+        const nextRefreshToken = rotatedRefreshToken || refreshToken;
+        setSession(nextAccessToken, nextRefreshToken, readStoredUserProfile());
+
+        return {
+            accessToken: nextAccessToken,
+            refreshToken: nextRefreshToken,
+        };
+    })();
+
+    try {
+        return await refreshRequest;
+    } finally {
+        refreshRequest = null;
+    }
+};
 
 // Create axios instance
 const httpClient: AxiosInstance = axios.create({
@@ -119,21 +175,7 @@ httpClient.interceptors.response.use(
             originalRequest._retry = true;
 
             try {
-                const refreshToken = getRefreshToken();
-                if (!refreshToken) {
-                    throw new Error('No refresh token available');
-                }
-
-                // Attempt token refresh
-                const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-                    refreshToken,
-                });
-
-                const { accessToken: newAccessToken, refreshToken: newRefreshToken } = response.data;
-
-                // Update session
-                const user = JSON.parse(localStorage.getItem('user') || '{}');
-                setSession(newAccessToken, newRefreshToken, user);
+                const { accessToken: newAccessToken } = await refreshAccessToken();
 
                 // Retry original request with new token
                 if (originalRequest.headers) {
