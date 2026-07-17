@@ -1329,6 +1329,6 @@ async def ack_weighvision_site_subscription(
         ackType=ack_row["ack_type"],
         status=ack_row["status"],
         detail=ack_row.get("detail"),
-        payload=ack_row.get("payload") or {},
+        payload=json_object_from_row(ack_row.get("payload")),
         createdAt=ack_row["created_at"],
     )

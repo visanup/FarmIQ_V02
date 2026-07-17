@@ -154,4 +154,4 @@ flowchart LR
 
 ## Related Docs
 - `iot-layer/docs/06-application.md` (UI application spec + implementation notes)
-- `iot-layer/docs/07-docker-compose.md` (Runbook for docker compose)
+- `docs/iot-layer/14-deployment-runbook.md` (Canonical local deploy runbook)

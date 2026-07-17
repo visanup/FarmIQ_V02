@@ -8,9 +8,17 @@ from typing import Dict, List, Optional, Tuple
 
 from .config import ServiceConfig
 from .events import new_event
+from .inference_client import InferenceClient, CreateInferenceJobRequest
 from .media_upload import MediaUploader, PresignRequest, CompleteRequest
 from .mqtt_client import MQTTClient
-from .session_client import SessionClient, CreateSessionRequest, BindWeightRequest, BindMediaRequest, FinalizeSessionRequest
+from .session_client import (
+    SessionClient,
+    CreateSessionRequest,
+    BindWeightRequest,
+    BindMediaRequest,
+    FinalizeSessionRequest,
+    UpsertCaptureMetadataRequest,
+)
 from .state_store import StateStore
 from .utils import guess_content_type, normalize_ts, now_utc_iso, sha256_file
 
@@ -25,12 +33,14 @@ class CaptureProcessor:
         uploader: MediaUploader,
         state: StateStore,
         session_client: SessionClient,
+        inference_client: InferenceClient,
     ):
         self.config = config
         self.mqtt = mqtt
         self.uploader = uploader
         self.state = state
         self.session_client = session_client
+        self.inference_client = inference_client
 
         self.metadata_dir = Path(self.config.capture.data_dir) / "metadata"
         self.images_dir = Path(self.config.capture.data_dir) / "images"
@@ -118,6 +128,57 @@ class CaptureProcessor:
         events = self._build_events(
             metadata, image_id, session_id, trace_id, captured_at, uploaded_media
         )
+        inference_event = next(
+            (
+                event
+                for _, event in events
+                if event.event_type == "weighvision.inference.completed"
+            ),
+            None,
+        )
+
+        if (
+            inference_event
+            and self.config.persist_capture_metadata_direct
+            and not self.config.dry_run
+        ):
+            req = UpsertCaptureMetadataRequest(
+                tenant_id=self.config.device.tenant_id,
+                farm_id=self.config.device.farm_id,
+                barn_id=self.config.device.barn_id,
+                device_id=self.config.device.device_id,
+                station_id=self.config.device.station_id,
+                event_id=inference_event.event_id,
+                occurred_at=inference_event.ts,
+                capture_id=image_id,
+                media_ids=[media_id for _, media_id in uploaded_media],
+                metadata=metadata,
+                event_schema_version=inference_event.schema_version,
+                source_event_type=inference_event.event_type,
+            )
+            ok = self.session_client.upsert_capture_metadata(
+                session_id, req, trace_id
+            )
+            if not ok:
+                logger.warning("Persist capture metadata failed for %s", session_id)
+
+        if self.config.trigger_edge_inference_direct and not self.config.dry_run:
+            preferred_media_id = self._pick_inference_media_id(uploaded_media, image_id)
+            if preferred_media_id:
+                job_req = CreateInferenceJobRequest(
+                    tenant_id=self.config.device.tenant_id,
+                    farm_id=self.config.device.farm_id,
+                    barn_id=self.config.device.barn_id,
+                    device_id=self.config.device.device_id,
+                    station_id=self.config.device.station_id,
+                    session_id=session_id,
+                    media_id=preferred_media_id,
+                    trace_id=trace_id,
+                )
+                ok = self.inference_client.create_job(job_req, trace_id)
+                if not ok:
+                    logger.warning("Trigger edge inference failed for %s", session_id)
+
         for topic, event in events:
             if self.config.dry_run:
                 logger.info("DRY_RUN publish %s: %s", topic, event.event_type)
@@ -130,6 +191,15 @@ class CaptureProcessor:
         if not files:
             files = sorted(self.images_dir.glob(f"{image_id}_*.png"))
         return [p for p in files if not p.stem.endswith("_right")]
+
+    def _pick_inference_media_id(
+        self, uploaded_media: List[Tuple[Path, str]], image_id: str
+    ) -> Optional[str]:
+        for image_path, media_id in uploaded_media:
+            role = image_path.stem.replace(f"{image_id}_", "")
+            if role == "vis":
+                return media_id
+        return uploaded_media[0][1] if uploaded_media else None
 
     def _upload_image(self, image_path: Path, session_id: str, trace_id: str, captured_at: str) -> str:
         content_type = guess_content_type(str(image_path))

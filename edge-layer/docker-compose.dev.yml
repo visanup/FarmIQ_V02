@@ -195,6 +195,8 @@ services:
       - MEDIA_REGION=${MEDIA_REGION:-us-east-1}
       - MEDIA_BUCKET=${MEDIA_BUCKET:-farmiq-media}
       - MEDIA_BUCKET_AUTO_CREATE=true
+      - TRIGGER_INFERENCE_ON_COMPLETE=true
+      - EDGE_VISION_INFERENCE_URL=http://edge-vision-inference:8000
     networks:
       - farmiq-net
 
@@ -208,8 +210,16 @@ services:
       - ./edge-vision-inference/app:/app/app:ro
     environment:
       - LOG_LEVEL=DEBUG
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/edge_vision_inference
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/${POSTGRES_DB:-farmiq}
       - MEDIA_STORE_URL=http://edge-media-store:3000
+      - POLICY_SYNC_URL=http://edge-policy-sync:3000/api/v1/edge-config
+      - EDGE_TENANT_ID=${EDGE_TENANT_ID:-tenant-batch5-e2e}
+      - EDGE_SITE_ID=${EDGE_SITE_ID:-site-batch5-e2e}
+      - MODEL_CONTROL_BFF_URL=${MODEL_CONTROL_BFF_URL:-http://host.docker.internal:5125}
+      - MODEL_CONTROL_TOKEN=${MODEL_CONTROL_TOKEN:-tenant-batch5-e2e}
+      - MODEL_CONTROL_TIMEOUT_SECONDS=${MODEL_CONTROL_TIMEOUT_SECONDS:-15}
+      - MODEL_SYNC_ENABLED=${MODEL_SYNC_ENABLED:-true}
+      - WEIGHVISION_SESSION_URL=http://edge-weighvision-session:3000
     networks:
       - farmiq-net
 
@@ -300,13 +310,14 @@ services:
       context: ./edge-retention-janitor
       dockerfile: Dockerfile.dev
     ports:
-      - "5115:3000"
+      - "5114:3000"
     volumes:
       - ./edge-retention-janitor/src:/usr/src/app/src:ro
       - ./edge-retention-janitor/prisma:/usr/src/app/prisma:ro
       - ./edge-retention-janitor/package.json:/usr/src/app/package.json:ro
       - ./edge-retention-janitor/tsconfig.json:/usr/src/app/tsconfig.json:ro
       - ./edge-retention-janitor/openapi.yaml:/usr/src/app/openapi.yaml:ro
+      - ./data/edge-media:/data/media
     environment:
       - NODE_ENV=development
       # Prevent a single ts-node process from consuming all memory and getting OOM-killed under WSL/Docker Desktop.
@@ -314,6 +325,11 @@ services:
       - LOG_LEVEL=debug
       - APP_PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/${POSTGRES_DB:-farmiq}
+      - MEDIA_BASE_PATH=/data/media
+      - MEDIA_RETENTION_DAYS=${MEDIA_RETENTION_DAYS:-7}
+      - MIN_FREE_DISK_GB=${MIN_FREE_DISK_GB:-5}
+      - JANITOR_INTERVAL_SECONDS=${JANITOR_INTERVAL_SECONDS:-21600}
+      - JANITOR_DRY_RUN=${JANITOR_DRY_RUN:-true}
     networks:
       - farmiq-net
 
@@ -346,23 +362,28 @@ services:
     # `docker compose ... up --build edge-ops-web` in restricted-network environments.
     depends_on: []
 
-  # NOTE: Some developer workspaces do not have ./edge-feed-intake checked out.
-  # Mark as optional so `docker compose up` won't try to build it.
   edge-feed-intake:
-    profiles: ["feed-intake"]
     build:
       context: ./edge-feed-intake
       dockerfile: Dockerfile.dev
-    # container_name: farmiq-edge-feed-intake
     ports:
-      - "5116:5109"
+      - "5112:5109"
+    volumes:
+      - ./edge-feed-intake/src:/usr/src/app/src:ro
+      - ./edge-feed-intake/prisma:/usr/src/app/prisma:ro
+      - ./edge-feed-intake/package.json:/usr/src/app/package.json:ro
+      - ./edge-feed-intake/tsconfig.json:/usr/src/app/tsconfig.json:ro
+      - ./edge-feed-intake/tsconfig.build.json:/usr/src/app/tsconfig.build.json:ro
+      - ./edge-feed-intake/openapi.yaml:/usr/src/app/openapi.yaml:ro
     environment:
       - NODE_ENV=development
+      - NODE_OPTIONS=--max-old-space-size=256
       - LOG_LEVEL=debug
       - APP_PORT=5109
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/${POSTGRES_DB:-farmiq}
       - MQTT_BROKER_URL=mqtt://edge-mqtt-broker:1883
       - MQTT_CLIENT_ID=edge-feed-intake
+      - EDGE_SYNC_FORWARDER_URL=http://edge-sync-forwarder:3000
       - DD_SERVICE=edge-feed-intake
       - DD_ENV=development
     networks:
@@ -372,6 +393,8 @@ services:
         condition: service_healthy
       edge-mqtt-broker:
         condition: service_started
+      edge-sync-forwarder:
+        condition: service_healthy
 
 networks:
   farmiq-net:
@@ -379,7 +402,5 @@ networks:
 
 volumes:
   edge_postgres_data:
-  edge_mqtt_data:
-  edge_mqtt_log:
   edge_minio_data:
   edge_pgadmin_data:

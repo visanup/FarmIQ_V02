@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ============================================
   # CLOUD INFRASTRUCTURE
@@ -583,11 +581,17 @@ services:
     container_name: farmiq-cloud-ml-model-service
     ports:
       - "5135:8000"
+    volumes:
+      - ../docs:/workspace-docs:ro
+      - ./cloud-ml-model-service/artifacts:/app/artifacts
     environment:
       - LOG_LEVEL=INFO
       - PORT=8000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_ml_model
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-farmiq}:${RABBITMQ_PASS:-farmiq_dev}@rabbitmq:5672
+      - WEIGHVISION_ARTIFACT_BASE_URL=http://host.docker.internal:5135
+      - WEIGHVISION_BASELINE_DATASET_PATH=/workspace-docs/iot-layer/evidence/batch2-weight-audit-dataset.csv
+      - WEIGHVISION_ARTIFACT_ROOT_DIR=/app/artifacts/weighvision
       - DD_ENV=${DD_ENV:-prod}
       - DD_SERVICE=cloud-ml-model-service
       - DD_VERSION=${DD_VERSION:-local}

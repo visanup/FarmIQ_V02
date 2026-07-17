@@ -1,4 +1,5 @@
-version: '3.8'
+# Common edge service definitions.
+# Use together with an environment-specific override such as docker-compose.dev.yml.
 
 services:
   # ============================================
@@ -143,6 +144,8 @@ services:
       - APP_PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/edge_media_store
       - MEDIA_STORAGE_PATH=/data/media
+      - TRIGGER_INFERENCE_ON_COMPLETE=true
+      - EDGE_VISION_INFERENCE_URL=http://edge-vision-inference:8000
       - DD_SERVICE=edge-media-store
       - DD_ENV=production
     volumes:
@@ -198,7 +201,7 @@ services:
       - NODE_ENV=production
       - APP_PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/edge_sync_forwarder
-      - CLOUD_INGESTION_URL=http://cloud-ingestion-mock:3000/api/v1/edge/batch
+      - CLOUD_INGESTION_URL=${CLOUD_INGESTION_URL:-http://edge-cloud-ingestion-mock:3000/api/v1/edge/batch}
       - CLOUD_INGESTION_URL_REQUIRED=true
       - CLOUD_AUTH_MODE=${CLOUD_AUTH_MODE:-api_key}
       - CLOUD_API_KEY=${CLOUD_API_KEY:-edge-local-key}
@@ -361,7 +364,7 @@ services:
       - edge-weighvision-session
       - edge-media-store
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -373,7 +376,3 @@ networks:
 volumes:
   mqtt_data:
   mqtt_log:
-  edge_postgres_data:
-  edge_mqtt_data:
-  edge_mqtt_log:
-  edge_minio_data:

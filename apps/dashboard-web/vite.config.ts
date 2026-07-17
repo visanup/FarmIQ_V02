@@ -38,6 +38,7 @@ export default defineConfig({
   },
   server: {
     port: 5135,
+    host: '0.0.0.0',
     headers: {
       // Security headers for dev server
       'X-Content-Type-Options': 'nosniff',
@@ -51,7 +52,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5125',
+        target: process.env.VITE_DEV_API_PROXY_TARGET || 'http://localhost:5125',
         changeOrigin: true,
         secure: false,
         configure: (proxy, _options) => {
@@ -64,7 +65,7 @@ export default defineConfig({
         }
       },
       '/edge-sync': {
-        target: 'http://localhost:5108',
+        target: process.env.VITE_DEV_EDGE_SYNC_PROXY_TARGET || 'http://localhost:5108',
         changeOrigin: true,
         secure: false,
       },

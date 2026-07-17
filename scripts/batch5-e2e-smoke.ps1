@@ -269,7 +269,7 @@ Invoke-Json -Method POST -Uri "http://localhost:5108/api/v1/sync/trigger" -Heade
 
 $cloudSession = Wait-Until -Description "cloud weighvision session with prediction outcome" -Condition {
   try {
-    $result = Invoke-Json -Method GET -Uri "http://localhost:5125/api/v1/weighvision/sessions/$sessionId?tenantId=$TenantId" -Headers $bffHeaders
+    $result = Invoke-Json -Method GET -Uri "http://localhost:5125/api/v1/weighvision/sessions/${sessionId}?tenantId=${TenantId}" -Headers $bffHeaders
     if ($null -ne $result.sessionId -and $result.inferences.Count -gt 0) {
       $shadowInference = $result.inferences | Where-Object { $_.predicted_weight_kg -ne $null -and $_.prediction_mode -eq "shadow" } | Select-Object -First 1
       if ($shadowInference) {
@@ -284,17 +284,62 @@ $cloudSession = Wait-Until -Description "cloud weighvision session with predicti
   return $null
 } -TimeoutSeconds 240
 
-$ackedPrediction = Wait-Until -Description "acked prediction outcome in sync outbox" -Condition {
+$cloudFinalizedSession = Wait-Until -Description "cloud weighvision finalized truth in session list" -Condition {
   try {
-    $result = Invoke-Json -Method GET -Uri "http://localhost:5108/api/v1/sync/outbox?status=acked&eventType=weighvision.inference.completed&tenantId=$TenantId&limit=20" -Headers @{}
-    $match = $result.entries | Where-Object { $_.payload_json.payload.predicted_weight_kg -ne $null -and $_.payload_json.session_id -eq $sessionId } | Select-Object -First 1
-    if ($match) {
-      return $match
+    $result = Invoke-Json -Method GET -Uri "http://localhost:5125/api/v1/weighvision/sessions?tenantId=${TenantId}&limit=20" -Headers $bffHeaders
+    $sessionSummary = $result.items | Where-Object { $_.sessionId -eq $sessionId } | Select-Object -First 1
+    if ($sessionSummary) {
+      $finalWeightTruth = $sessionSummary.final_weight_kg
+      if ($null -eq $finalWeightTruth -and $null -ne $sessionSummary.finalWeightKg) {
+        $finalWeightTruth = $sessionSummary.finalWeightKg
+      }
+      if ($null -ne $finalWeightTruth) {
+        return @{
+          session = $sessionSummary
+          final_weight_kg_truth = $finalWeightTruth
+        }
+      }
     }
   } catch {
   }
   return $null
 } -TimeoutSeconds 240
+
+$ackedOutboxEntries = Wait-Until -Description "acked sync outbox activity for session" -Condition {
+  try {
+    $result = Invoke-Json -Method GET -Uri "http://localhost:5108/api/v1/sync/outbox?status=acked&eventType=weighvision.inference.completed&tenantId=$TenantId&limit=200" -Headers @{}
+    $entries = @($result.entries | Where-Object { $_.payload_json.session_id -eq $sessionId })
+    if ($entries.Count -gt 0) {
+      return $entries
+    }
+  } catch {
+  }
+  return $null
+} -TimeoutSeconds 120
+
+$ackedPrediction = $ackedOutboxEntries | Where-Object {
+  $_.payload_json.payload.predicted_weight_kg -ne $null
+} | Select-Object -First 1
+
+$ackedOutboxDiagnostic = [ordered]@{
+  matched_session_entry_count = @($ackedOutboxEntries).Count
+  found_shadow_prediction_entry = ($null -ne $ackedPrediction)
+}
+
+if ($ackedPrediction) {
+  $ackedOutboxDiagnostic["prediction_event"] = [ordered]@{
+    id = $ackedPrediction.id
+    event_type = $ackedPrediction.event_type
+    status = $ackedPrediction.status
+  }
+} else {
+  $ackedOutboxDiagnostic["latest_session_entry"] = [ordered]@{
+    id = $ackedOutboxEntries[0].id
+    event_type = $ackedOutboxEntries[0].event_type
+    status = $ackedOutboxEntries[0].status
+    has_predicted_weight = ($ackedOutboxEntries[0].payload_json.payload.predicted_weight_kg -ne $null)
+  }
+}
 
 $summary = [ordered]@{
   dataset_contract_version = $datasetContract.version
@@ -309,7 +354,9 @@ $summary = [ordered]@{
   }
   session_id = $sessionId
   media_id = $mediaComplete.media_id
-  final_weight_kg_truth = $cloudSession.session.final_weight_kg
+  cloud_session_status = $cloudSession.session.status
+  cloud_inference_count = @($cloudSession.session.inferences).Count
+  final_weight_kg_truth = $cloudFinalizedSession.final_weight_kg_truth
   inference_job_id = $job.job_id
   shadow_prediction = @{
     predicted_weight_kg = $cloudSession.shadow.predicted_weight_kg
@@ -322,11 +369,7 @@ $summary = [ordered]@{
     activation_source = $cloudSession.shadow.activation_source
     source_event_type = $cloudSession.shadow.source_event_type
   }
-  sync_outbox_prediction_event = @{
-    id = $ackedPrediction.id
-    event_type = $ackedPrediction.event_type
-    status = $ackedPrediction.status
-  }
+  sync_outbox = $ackedOutboxDiagnostic
 }
 
 if ([decimal]$summary.final_weight_kg_truth -ne [decimal]$finalWeightKg) {

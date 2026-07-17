@@ -21,8 +21,6 @@ type SessionRow = Session & {
     prediction_confidence?: number | null;
 };
 
-const UUID_V4_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 function toWeighVisionDeviceIdFromStation(stationId: unknown): string | null {
     if (typeof stationId !== 'string' || stationId.trim().length === 0) return null;
     const match = stationId.trim().match(/^st-(\d+)$/i);
@@ -195,47 +193,13 @@ export const SessionsListPage: React.FC = () => {
         queryKey: ['sessions', tenantId, farmId, barnId, batchId, timeRange.start, timeRange.end],
         queryFn: async () => {
             if (!tenantId) return [];
-            let resolvedFarmId = farmId || undefined;
-            let resolvedBarnId = barnId || undefined;
-
-            if (resolvedFarmId && UUID_V4_LIKE.test(resolvedFarmId)) {
-                try {
-                    const farmsResp = await api.farms.list({ tenantId, page: 1, pageSize: 200 });
-                    const farms = unwrapApiResponse<any[]>(farmsResp) || [];
-                    const selectedFarm = farms.find((f) => (f?.id || f?.farm_id) === resolvedFarmId);
-                    const shortFarmId = selectedFarm?.name || selectedFarm?.farm_id;
-                    if (typeof shortFarmId === 'string' && shortFarmId.length > 0 && !UUID_V4_LIKE.test(shortFarmId)) {
-                        resolvedFarmId = shortFarmId;
-                    }
-                } catch {
-                }
-            }
-
-            if (resolvedBarnId && UUID_V4_LIKE.test(resolvedBarnId)) {
-                try {
-                    const barnsResp = await api.barns.list({
-                        tenantId,
-                        farmId: farmId || undefined,
-                        page: 1,
-                        pageSize: 500,
-                    });
-                    const barns = unwrapApiResponse<any[]>(barnsResp) || [];
-                    const selectedBarn = barns.find((b) => (b?.id || b?.barn_id) === resolvedBarnId);
-                    const shortBarnId = selectedBarn?.name || selectedBarn?.barn_id;
-                    if (typeof shortBarnId === 'string' && shortBarnId.length > 0 && !UUID_V4_LIKE.test(shortBarnId)) {
-                        resolvedBarnId = shortBarnId;
-                    }
-                } catch {
-                }
-            }
-
             const from = timeRange.start.toISOString();
             const to = timeRange.end.toISOString();
 
             const response = await api.weighvision.sessions({
                 tenantId,
-                farmId: resolvedFarmId,
-                barnId: resolvedBarnId,
+                farmId: farmId || undefined,
+                barnId: barnId || undefined,
                 batchId: batchId || undefined,
                 from,
                 to,

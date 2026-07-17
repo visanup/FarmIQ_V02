@@ -1,7 +1,7 @@
 Purpose: Standard rebuild and verification runbook for `weight-vision-capture` container smoke with promoted YOLO26.  
 Scope: Local/container proof only. This path does not require live RTSP cameras or serial scale hardware.  
 Owner: FarmIQ Edge and IoT Architecture  
-Last updated: 2026-07-14  
+Last updated: 2026-07-16  
 
 ---
 
@@ -16,6 +16,15 @@ Last updated: 2026-07-14
 ---
 
 ## Rebuild and start
+
+Preferred entrypoint:
+
+```powershell
+cd .\iot-layer
+.\scripts\deploy.ps1 -Action smoke
+```
+
+Direct compose equivalent:
 
 Run from `iot-layer/`:
 
@@ -63,6 +72,15 @@ Expected proof:
 ---
 
 ## Cleanup
+
+Preferred entrypoint:
+
+```powershell
+cd .\iot-layer
+.\scripts\deploy.ps1 -Action down
+```
+
+Direct compose equivalent:
 
 ```powershell
 docker compose `

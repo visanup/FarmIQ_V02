@@ -10,7 +10,6 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-!rtsp.env.example
 
 # Python
 __pycache__/
@@ -47,6 +46,7 @@ tmp/
 
 # Project generated data/artifacts
 weight-vision-capture/data/images/
+weight-vision-capture/data/live/
 weight-vision-capture/data/masks/
 weight-vision-capture/data/metadata/
 weight-vision-calibrator/capture_metadata/

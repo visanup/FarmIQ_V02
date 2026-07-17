@@ -86,6 +86,43 @@ class FinalizeSessionRequest:
         return data
 
 
+@dataclass
+class UpsertCaptureMetadataRequest:
+    tenant_id: str
+    farm_id: str
+    barn_id: str
+    device_id: str
+    station_id: str
+    event_id: str
+    occurred_at: str
+    metadata: Dict[str, Any]
+    capture_id: Optional[str] = None
+    media_ids: Optional[list[str]] = None
+    event_schema_version: Optional[str] = None
+    source_event_type: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        data = {
+            "tenantId": self.tenant_id,
+            "farmId": self.farm_id,
+            "barnId": self.barn_id,
+            "deviceId": self.device_id,
+            "stationId": self.station_id,
+            "eventId": self.event_id,
+            "occurredAt": self.occurred_at,
+            "metadata": self.metadata,
+        }
+        if self.capture_id:
+            data["captureId"] = self.capture_id
+        if self.media_ids:
+            data["mediaIds"] = self.media_ids
+        if self.event_schema_version:
+            data["eventSchemaVersion"] = self.event_schema_version
+        if self.source_event_type:
+            data["sourceEventType"] = self.source_event_type
+        return data
+
+
 class SessionClient:
     def __init__(self, base_url: str, timeout_seconds: int = 10, max_retries: int = 3):
         self.base_url = base_url.rstrip("/")
@@ -108,6 +145,15 @@ class SessionClient:
 
     def finalize_session(self, session_id: str, req: FinalizeSessionRequest, trace_id: Optional[str]) -> bool:
         url = f"{self.base_url}/api/v1/weighvision/sessions/{session_id}/finalize"
+        return self._post(url, req.to_dict(), trace_id)
+
+    def upsert_capture_metadata(
+        self,
+        session_id: str,
+        req: UpsertCaptureMetadataRequest,
+        trace_id: Optional[str],
+    ) -> bool:
+        url = f"{self.base_url}/api/v1/weighvision/sessions/{session_id}/metadata"
         return self._post(url, req.to_dict(), trace_id)
 
     def _post(self, url: str, payload: dict, trace_id: Optional[str]) -> bool:

@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from .config import get_config
+from .inference_client import InferenceClient
 from .media_upload import MediaUploader
 from .mqtt_client import MQTTClient
 from .processor import CaptureProcessor
@@ -42,8 +43,16 @@ def main() -> None:
 
     uploader = MediaUploader(config.media_store)
     session_client = SessionClient(config.session_base_url)
+    inference_client = InferenceClient(config.vision_inference_base_url)
     state = StateStore(config.state_dir)
-    processor = CaptureProcessor(config, mqtt_client, uploader, state, session_client)
+    processor = CaptureProcessor(
+        config,
+        mqtt_client,
+        uploader,
+        state,
+        session_client,
+        inference_client,
+    )
 
     if config.metadata_file_once:
         target = Path(config.metadata_file_once)

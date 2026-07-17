@@ -13,7 +13,8 @@ The Data Pipeline Service provides:
 
 ## Port
 
-- **HTTP**: 5141
+- **HTTP**: 5147
+- **Health**: `GET /api/health`
 
 ## Architecture
 

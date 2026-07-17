@@ -21,6 +21,7 @@ class CreateJobRequest(BaseModel):
     farm_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("farm_id", "farmId"))
     barn_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("barn_id", "barnId"))
     device_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("device_id", "deviceId"))
+    station_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("station_id", "stationId"))
     session_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("session_id", "sessionId"))
     media_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("media_id", "mediaId"))
     object_key: Optional[str] = Field(default=None, validation_alias=AliasChoices("object_key", "objectKey"))
@@ -72,6 +73,7 @@ async def create_job(request: Request, job_request: CreateJobRequest):
             farm_id=job_request.farm_id or "",
             barn_id=job_request.barn_id or "",
             device_id=job_request.device_id or "",
+            station_id=job_request.station_id or "",
             media_id=job_request.media_id,
             object_key=job_request.object_key,
             session_id=job_request.session_id,

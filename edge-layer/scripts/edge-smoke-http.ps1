@@ -37,7 +37,7 @@ if (-not $FramePath) { $FramePath = Join-Path $RootDir "tmp\\smoke-frame.jpg" }
 New-Item -ItemType Directory -Force -Path (Split-Path $FramePath) | Out-Null
 
 if ($Up) {
-  docker compose -f $ComposeBase -f $ComposeDev up -d --build postgres minio cloud-ingestion-mock `
+  docker compose -f $ComposeBase -f $ComposeDev up -d --build postgres minio edge-cloud-ingestion-mock `
     edge-media-store edge-vision-inference edge-weighvision-session edge-sync-forwarder | Out-Null
 }
 

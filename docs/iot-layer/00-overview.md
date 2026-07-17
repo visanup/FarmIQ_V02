@@ -1,7 +1,7 @@
 Purpose: Provide an overview of the FarmIQ IoT-layer agents and their responsibilities.
 Scope: IoT-agent roles, communication patterns with edge, and implementation starting points.
 Owner: FarmIQ Architecture Team
-Last updated: 2026-07-14
+Last updated: 2026-07-16
 
 ---
 
@@ -250,5 +250,8 @@ Storage options (device dependent):
 - `iot-layer/11-weight-vision-capture-container-smoke-runbook.md`
 - `iot-layer/12-cloud-edge-ai-control-plane-pack.md`
 - `iot-layer/13-cloud-edge-ai-control-plane-runbook.md`
+- `iot-layer/14-deployment-runbook.md`
+- `iot-layer/15-production-template-runbook.md`
+- `iot-layer/16-mock-capture-injection-runbook.md`
 - `iot-layer/work-orders/README.md`
 - `shared/01-api-standards.md`

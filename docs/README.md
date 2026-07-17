@@ -1,6 +1,6 @@
 # FarmIQ Documentation
 
-**Last Updated**: 2026-07-14
+**Last Updated**: 2026-07-16
 
 Welcome to the FarmIQ platform documentation. This directory contains comprehensive documentation for all layers of the system.
 
@@ -13,6 +13,20 @@ Welcome to the FarmIQ platform documentation. This directory contains comprehens
 - **Progress Tracking** → [progress/](progress/)
 
 ## 📋 Recent Updates
+
+### 2026-07-16
+- Cloud-layer and apps deployment flow standardized
+  - canonical cloud deploy entrypoints added: `cloud-layer/scripts/deploy.ps1` and `cloud-layer/scripts/deploy.sh`
+  - canonical apps deploy entrypoints added: `apps/scripts/deploy.ps1` and `apps/scripts/deploy.sh`
+  - new deployment runbooks added for cloud-layer and apps
+  - unused deploy helper files removed where they had no repo references
+  - See: [cloud-layer/05-deployment-runbook.md](cloud-layer/05-deployment-runbook.md)
+  - See: [apps/01-deployment-runbook.md](apps/01-deployment-runbook.md)
+- IoT-layer deployment flow standardized
+  - canonical local deploy runbook added
+  - standard PowerShell and Bash deploy entrypoints added under `iot-layer/scripts/`
+  - duplicate deploy-specific instructions removed from the legacy `iot-layer/docs` path
+  - See: [iot-layer/14-deployment-runbook.md](iot-layer/14-deployment-runbook.md)
 
 ### 2026-07-13
 - IoT-layer WeighVision post-deployment enhancement plan added
@@ -96,6 +110,7 @@ Welcome to the FarmIQ platform documentation. This directory contains comprehens
 - [cloud-layer/](cloud-layer/) - Cloud services documentation
 - [edge-layer/](edge-layer/) - Edge services documentation
 - [iot-layer/](iot-layer/) - IoT layer documentation
+- [apps/](apps/) - Frontend deployment and local development
 
 ### Contracts & APIs
 - [contracts/](contracts/) - Service contracts and interfaces
@@ -159,6 +174,7 @@ All service-specific documentation is in [progress/](progress/):
 - Final-weight local smoke runbook: [iot-layer/09-final-weight-local-smoke-runbook.md](iot-layer/09-final-weight-local-smoke-runbook.md)
 - Cloud-Edge AI control-plane pack: [iot-layer/12-cloud-edge-ai-control-plane-pack.md](iot-layer/12-cloud-edge-ai-control-plane-pack.md)
 - Cloud-Edge AI control-plane runbook: [iot-layer/13-cloud-edge-ai-control-plane-runbook.md](iot-layer/13-cloud-edge-ai-control-plane-runbook.md)
+- Local deployment runbook: [iot-layer/14-deployment-runbook.md](iot-layer/14-deployment-runbook.md)
 - Work orders: [iot-layer/work-orders/README.md](iot-layer/work-orders/README.md)
 
 ## 📊 Service Status

@@ -630,9 +630,9 @@ curl http://localhost:5108/api/v1/sync/state
 **Diagnosis:**
 ```bash
 # Check if database has data
-docker exec farmiq-edge-postgres psql -U farmiq -d farmiq -c "SELECT COUNT(*) FROM telemetry_raw;"
-docker exec farmiq-edge-postgres psql -U farmiq -d farmiq -c "SELECT COUNT(*) FROM media_objects;"
-docker exec farmiq-edge-postgres psql -U farmiq -d farmiq -c "SELECT COUNT(*) FROM inference_results;"
+docker compose -f edge-layer/docker-compose.yml -f edge-layer/docker-compose.dev.yml exec -T postgres psql -U farmiq -d farmiq -c "SELECT COUNT(*) FROM telemetry_raw;"
+docker compose -f edge-layer/docker-compose.yml -f edge-layer/docker-compose.dev.yml exec -T postgres psql -U farmiq -d farmiq -c "SELECT COUNT(*) FROM media_objects;"
+docker compose -f edge-layer/docker-compose.yml -f edge-layer/docker-compose.dev.yml exec -T postgres psql -U farmiq -d farmiq -c "SELECT COUNT(*) FROM inference_results;"
 ```
 
 **Solutions:**
@@ -661,8 +661,7 @@ For detailed implementation information, see:
 ## Links
 
 - [00-overview.md](00-overview.md) - Architecture overview and data flows
-- [01-services.md](01-services.md) - Service table with ports, dependencies, endpoints
+- [01-edge-services.md](01-edge-services.md) - Service table with ports, dependencies, endpoints
 - [02-setup-run.md](02-setup-run.md) - How to run compose, env vars, troubleshooting
 - [Evidence](../progress/edge-ops-realdata.md) - Real data integration details
 - [Evidence](../progress/edge-compose-verify.md) - Verified compose run results
-

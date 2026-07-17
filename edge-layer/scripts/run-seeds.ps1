@@ -1,11 +1,21 @@
+param(
+  [switch]$WithFeedIntake
+)
+
 $ErrorActionPreference = "Continue"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $EdgeDir = (Resolve-Path (Join-Path $ScriptDir "..")).Path
+$ComposeBase = Join-Path $EdgeDir "docker-compose.yml"
+$ComposeDev = Join-Path $EdgeDir "docker-compose.dev.yml"
 
 function Compose {
   param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
-  docker compose -f (Join-Path $EdgeDir "docker-compose.yml") -f (Join-Path $EdgeDir "docker-compose.dev.yml") @Args
+  $composeArgs = @("-f", $ComposeBase, "-f", $ComposeDev)
+  if ($WithFeedIntake) {
+    $composeArgs += @("--profile", "feed-intake")
+  }
+  docker compose @composeArgs @Args
 }
 
 $successes = New-Object System.Collections.Generic.List[string]
@@ -45,7 +55,7 @@ $pgDb = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "farmiq" }
 Write-Host "==> Waiting for postgres readiness"
 $ready = $false
 for ($i = 0; $i -lt 60; $i++) {
-  docker exec farmiq-edge-postgres pg_isready -U $pgUser -d $pgDb | Out-Null
+  Compose exec -T postgres pg_isready -U $pgUser -d $pgDb | Out-Null
   if ($LASTEXITCODE -eq 0) {
     $ready = $true
     break
@@ -58,15 +68,38 @@ if (-not $ready) {
 }
 
 Write-Host "==> Ensuring required extensions"
-docker exec -i farmiq-edge-postgres psql -U $pgUser -d $pgDb -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS ""uuid-ossp"";" | Out-Null
+Compose exec -T postgres psql -U $pgUser -d $pgDb -c "CREATE EXTENSION IF NOT EXISTS pgcrypto; CREATE EXTENSION IF NOT EXISTS ""uuid-ossp"";" | Out-Null
+
+Write-Host "==> Ensuring required edge databases"
+$edgeDbs = @(
+  "edge_ingress_gateway",
+  "edge_telemetry_timeseries",
+  "edge_weighvision_session",
+  "edge_media_store",
+  "edge_feed_intake",
+  "edge_policy_sync",
+  "edge_sync_forwarder",
+  "edge_vision_inference"
+)
+
+foreach ($db in $edgeDbs) {
+  $exists = (Compose exec -T postgres psql -U $pgUser -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${db}'" 2>$null)
+  if (($exists | Out-String).Trim() -ne "1") {
+    Write-Host "Creating database: $db"
+    Compose exec -T postgres psql -U $pgUser -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE ""$db"";" | Out-Null
+  }
+}
 
 $prismaDbServices = @(
   "edge-ingress-gateway",
   "edge-telemetry-timeseries",
   "edge-weighvision-session",
-  "edge-media-store",
-  "edge-feed-intake"
+  "edge-media-store"
 )
+
+if ($WithFeedIntake) {
+  $prismaDbServices += "edge-feed-intake"
+}
 
 foreach ($svc in $prismaDbServices) {
   Run-Step "$svc:db:migrate" { Compose run --rm --no-deps $svc npm run db:migrate }

@@ -3,9 +3,18 @@ set -u -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EDGE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+WITH_FEED_INTAKE=false
+
+if [[ "${1:-}" == "--with-feed-intake" ]]; then
+  WITH_FEED_INTAKE=true
+fi
 
 compose() {
-  docker compose -f "${EDGE_DIR}/docker-compose.yml" -f "${EDGE_DIR}/docker-compose.dev.yml" "$@"
+  local compose_args=(-f "${EDGE_DIR}/docker-compose.yml" -f "${EDGE_DIR}/docker-compose.dev.yml")
+  if [[ "$WITH_FEED_INTAKE" == "true" ]]; then
+    compose_args+=(--profile feed-intake)
+  fi
+  docker compose "${compose_args[@]}" "$@"
 }
 
 successes=()
@@ -82,8 +91,11 @@ PRISMA_DB_SERVICES=(
   edge-telemetry-timeseries
   edge-weighvision-session
   edge-media-store
-  edge-feed-intake
 )
+
+if [[ "$WITH_FEED_INTAKE" == "true" ]]; then
+  PRISMA_DB_SERVICES+=(edge-feed-intake)
+fi
 
 for svc in "${PRISMA_DB_SERVICES[@]}"; do
   run_step "${svc}:db:migrate" compose run --rm --no-deps "${svc}" npm run db:migrate || true

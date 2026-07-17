@@ -133,11 +133,14 @@ class ServiceConfig:
     status: StatusConfig
     media_store: MediaStoreConfig
     session_base_url: str
+    vision_inference_base_url: str
     capture: CaptureConfig
     buffer: BufferConfig
     state_dir: str
     dry_run: bool
     metadata_file_once: str
+    persist_capture_metadata_direct: bool
+    trigger_edge_inference_direct: bool
 
 
 def get_config() -> ServiceConfig:
@@ -229,9 +232,18 @@ def get_config() -> ServiceConfig:
         status=status,
         media_store=media_store,
         session_base_url=_env("EDGE_SESSION_BASE_URL", "http://localhost:5105"),
+        vision_inference_base_url=_env(
+            "EDGE_VISION_INFERENCE_BASE_URL", "http://localhost:5107"
+        ),
         capture=capture,
         buffer=buffer,
         state_dir=state_dir,
         dry_run=_env_bool("DRY_RUN", False),
         metadata_file_once=_env("METADATA_FILE_ONCE", "").strip(),
+        persist_capture_metadata_direct=_env_bool(
+            "PERSIST_CAPTURE_METADATA_DIRECT", True
+        ),
+        trigger_edge_inference_direct=_env_bool(
+            "TRIGGER_EDGE_INFERENCE_DIRECT", True
+        ),
     )

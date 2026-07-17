@@ -139,18 +139,25 @@ class InferenceService:
             await self._ack_subscription(active_package_id, "failed", "failed", detail)
             if fallback_package:
                 fallback_id = str(fallback_package.get("id") or "")
-                await self._activate_package(
-                    fallback_package,
-                    activation_source="fallback_manifest",
-                    fallback_engaged=True,
-                    fallback_only=True,
-                )
-                await self._ack_subscription(
-                    fallback_id,
-                    "rollback",
-                    "ok",
-                    f"fallback package {fallback_id} activated after primary failure",
-                )
+                try:
+                    await self._activate_package(
+                        fallback_package,
+                        activation_source="fallback_manifest",
+                        fallback_engaged=True,
+                        fallback_only=True,
+                    )
+                    await self._ack_subscription(
+                        fallback_id,
+                        "rollback",
+                        "ok",
+                        f"fallback package {fallback_id} activated after primary failure",
+                    )
+                except Exception as fallback_exc:
+                    logger.warning(
+                        "fallback activation failed for package %s: %s",
+                        fallback_id,
+                        fallback_exc,
+                    )
 
     async def _fetch_effective_subscription(self) -> Optional[Dict[str, Any]]:
         base_url = self.config.POLICY_SYNC_URL.rstrip("/")

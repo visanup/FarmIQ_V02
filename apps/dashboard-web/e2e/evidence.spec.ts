@@ -1,54 +1,45 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 
 test.describe('Evidence Collection', () => {
-    test('capture screenshots of key pages', async ({ page }) => {
-        // 1. Login
-        await page.goto('http://localhost:5173/login');
-        await page.waitForTimeout(1000); // Wait for hydration
-        await page.screenshot({ path: 'evidence/ui/01-login.png' });
+  test('capture screenshots of key pages', async ({ page }) => {
+    await page.goto('/login');
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: 'evidence/ui/01-login.png' });
 
-        await page.getByPlaceholder('admin@farmiq.com').fill('admin@farmiq.com');
-        await page.getByPlaceholder('••••••••').fill('password');
-        await page.getByRole('button', { name: 'Sign In' }).click();
+    await page.getByLabel('Email address').fill('admin@farmiq.com');
+    await page.getByLabel('Password').fill('password123');
+    await page.getByRole('button', { name: 'Sign In' }).click();
 
-        // 2. Overview
-        await page.waitForURL('**/overview');
-        await page.waitForTimeout(2000); // Allow charts/animations
-        await page.screenshot({ path: 'evidence/ui/02-overview.png' });
+    if (page.url().includes('/select-tenant')) {
+      const tenantCards = page.getByRole('button', { name: /enter workspace/i });
+      const overrideInput = page.getByLabel('Developer tenant ID');
 
-        // 3. Farms
-        await page.goto('http://localhost:5173/farms');
-        await page.waitForTimeout(1000);
-        await page.screenshot({ path: 'evidence/ui/03-farms-list.png' });
+      if (await tenantCards.first().isVisible().catch(() => false)) {
+        await tenantCards.first().click();
+      } else if (await overrideInput.isVisible().catch(() => false)) {
+        await overrideInput.fill(process.env.SMOKE_TENANT_ID || 'tenant-batch5-e2e');
+        await page.getByRole('button', { name: /use this tenantid/i }).click();
+      }
+    }
 
-        // 4. Barns
-        await page.goto('http://localhost:5173/barns');
-        await page.waitForTimeout(1000);
-        await page.screenshot({ path: 'evidence/ui/04-barns-list.png' });
+    await page.waitForURL(/\/overview|\/select-farm|\/select-context/);
+    await page.waitForTimeout(2000);
+    await page.screenshot({ path: 'evidence/ui/02-overview.png' });
 
-        // 5. WeighVision Sessions
-        await page.goto('http://localhost:5173/weighvision/sessions');
-        await page.waitForTimeout(1000);
-        await page.screenshot({ path: 'evidence/ui/05-weighvision-sessions.png' });
+    const paths = [
+      ['/farms', '03-farms-list.png'],
+      ['/barns', '04-barns-list.png'],
+      ['/weighvision/sessions', '05-weighvision-sessions.png'],
+      ['/feeding/daily', '06-feeding-daily.png'],
+      ['/sensors/matrix', '07-sensors-matrix.png'],
+      ['/admin/users', '08-admin-users.png'],
+      ['/settings', '09-settings.png'],
+    ] as const;
 
-        // 6. Feeding
-        await page.goto('http://localhost:5173/feeding/daily');
-        await page.waitForTimeout(2000); // Wait for chart
-        await page.screenshot({ path: 'evidence/ui/06-feeding-daily.png' });
-
-        // 7. Sensors
-        await page.goto('http://localhost:5173/sensors/matrix');
-        await page.waitForTimeout(2000); // Wait for polling/grid
-        await page.screenshot({ path: 'evidence/ui/07-sensors-matrix.png' });
-
-        // 8. Admin Users
-        await page.goto('http://localhost:5173/admin/users');
-        await page.waitForTimeout(1000);
-        await page.screenshot({ path: 'evidence/ui/08-admin-users.png' });
-
-        // 9. Settings
-        await page.goto('http://localhost:5173/settings');
-        await page.waitForTimeout(1000);
-        await page.screenshot({ path: 'evidence/ui/09-settings.png' });
-    });
+    for (const [path, filename] of paths) {
+      await page.goto(path);
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: `evidence/ui/${filename}` });
+    }
+  });
 });

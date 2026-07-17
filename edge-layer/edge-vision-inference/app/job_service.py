@@ -34,6 +34,7 @@ class JobService:
         farm_id: str,
         barn_id: str,
         device_id: str,
+        station_id: str = "",
         media_id: Optional[str] = None,
         object_key: Optional[str] = None,
         session_id: Optional[str] = None,
@@ -50,6 +51,7 @@ class JobService:
             "farm_id": farm_id,
             "barn_id": barn_id,
             "device_id": device_id,
+            "station_id": station_id,
             "media_id": media_id,
             "object_key": object_key,
             "session_id": session_id,
@@ -317,28 +319,33 @@ class JobService:
             f"{Config().WEIGHVISION_SESSION_URL}/api/v1/weighvision/sessions/"
             f"{session_id}/inference-outcome"
         )
+        payload = {
+            "tenantId": tenant_id,
+            "farmId": job.get("farm_id"),
+            "barnId": job.get("barn_id"),
+            "deviceId": job.get("device_id"),
+            "stationId": job.get("station_id"),
+            "eventId": job.get("job_id", Config.new_id()),
+            "occurredAt": occurred_at,
+            "inferenceResultId": inference_result_id,
+            "mediaId": job.get("media_id"),
+            "captureMetadataId": metadata.get("capture_metadata_id"),
+            "predictedWeightKg": inference_result.get("predicted_weight_kg"),
+            "confidence": inference_result.get("confidence"),
+            "modelVersion": inference_result.get("model_version"),
+            "packageId": metadata.get("package_id"),
+            "packageVersion": metadata.get("package_version"),
+            "featureSchemaVersion": metadata.get("feature_schema_version"),
+            "activationSource": metadata.get("activation_source"),
+            "fallbackEngaged": metadata.get("fallback_engaged"),
+            "predictionMode": metadata.get("prediction_mode"),
+            "featuresUsed": metadata.get("features_used"),
+        }
         body = json.dumps(
             {
-                "tenantId": tenant_id,
-                "farmId": job.get("farm_id"),
-                "barnId": job.get("barn_id"),
-                "deviceId": job.get("device_id"),
-                "stationId": job.get("device_id"),
-                "eventId": job.get("job_id", Config.new_id()),
-                "occurredAt": occurred_at,
-                "inferenceResultId": inference_result_id,
-                "mediaId": job.get("media_id"),
-                "captureMetadataId": metadata.get("capture_metadata_id"),
-                "predictedWeightKg": inference_result.get("predicted_weight_kg"),
-                "confidence": inference_result.get("confidence"),
-                "modelVersion": inference_result.get("model_version"),
-                "packageId": metadata.get("package_id"),
-                "packageVersion": metadata.get("package_version"),
-                "featureSchemaVersion": metadata.get("feature_schema_version"),
-                "activationSource": metadata.get("activation_source"),
-                "fallbackEngaged": metadata.get("fallback_engaged"),
-                "predictionMode": metadata.get("prediction_mode"),
-                "featuresUsed": metadata.get("features_used"),
+                key: value
+                for key, value in payload.items()
+                if value is not None and (not isinstance(value, str) or value != "")
             }
         ).encode("utf-8")
         headers = {

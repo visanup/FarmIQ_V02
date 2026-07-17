@@ -63,6 +63,7 @@ FarmIQ is organized into **three layers**:
   - [Cloud services](cloud-layer/01-cloud-services.md)
   - [Dashboard](cloud-layer/02-dashboard.md)
   - [Dashboard Pages Design](cloud-layer/03-dashboard-pages-design.md)
+  - [Deployment runbook](cloud-layer/05-deployment-runbook.md)
   - Runbooks: `docs/cloud-layer/RUNBOOKS.md`
   - Service pages (selected):
     - `docs/cloud-layer/cloud-api-gateway-bff.md`
@@ -82,6 +83,9 @@ FarmIQ is organized into **three layers**:
     - [Ops Observability UX](cloud-layer/dashboard/07-ops-observability-ux.md)
     - [ML Analytics Roadmap](cloud-layer/dashboard/08-ml-analytics-roadmap.md)
     - [Acceptance Checklist](cloud-layer/dashboard/09-acceptance-checklist.md)
+- Apps
+  - [Overview](apps/00-overview.md)
+  - [Deployment runbook](apps/01-deployment-runbook.md)
 
 ---
 
@@ -207,6 +211,7 @@ Each service-level document below explicitly maps to one of these boilerplates.
   - [cloud-layer/02-dashboard](cloud-layer/02-dashboard.md)
   - [cloud-layer/03-dashboard-pages-design](cloud-layer/03-dashboard-pages-design.md)
   - [cloud-layer/04-dashboard-design-system](cloud-layer/04-dashboard-design-system.md)
+  - [cloud-layer/05-deployment-runbook](cloud-layer/05-deployment-runbook.md)
   - [cloud-layer/RUNBOOKS](cloud-layer/RUNBOOKS.md)
   - **cloud-layer/dashboard/** (Dashboard Documentation Pack)
     - [dashboard/00-dashboard-expanded-scope](cloud-layer/dashboard/00-dashboard-expanded-scope.md)
@@ -219,6 +224,10 @@ Each service-level document below explicitly maps to one of these boilerplates.
     - [dashboard/07-ops-observability-ux](cloud-layer/dashboard/07-ops-observability-ux.md)
     - [dashboard/08-ml-analytics-roadmap](cloud-layer/dashboard/08-ml-analytics-roadmap.md)
     - [dashboard/09-acceptance-checklist](cloud-layer/dashboard/09-acceptance-checklist.md)
+
+- **Apps**
+  - [apps/00-overview](apps/00-overview.md)
+  - [apps/01-deployment-runbook](apps/01-deployment-runbook.md)
 
 Refer to `shared/04-security-compliance-mapping.md` for explicit mapping back to GT&D standards.
 

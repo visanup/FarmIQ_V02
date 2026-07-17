@@ -75,7 +75,7 @@ const publishInferenceOutcomeSchema = z.object({
   deviceId: z.string().min(1).optional(),
   stationId: z.string().min(1).optional(),
   eventId: z.string().min(1),
-  occurredAt: z.string().datetime(),
+  occurredAt: z.string().datetime({ offset: true }),
   inferenceResultId: z.string().min(1).optional(),
   mediaId: z.string().min(1).optional(),
   captureMetadataId: z.string().min(1).optional(),

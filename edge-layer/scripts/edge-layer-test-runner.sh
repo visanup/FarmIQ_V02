@@ -7,9 +7,15 @@ set -euo pipefail
 # Script configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+COMPOSE_BASE="${ROOT_DIR}/docker-compose.yml"
+COMPOSE_DEV="${ROOT_DIR}/docker-compose.dev.yml"
 LOG_DIR="${SCRIPT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/edge-test-$(date +%Y%m%d-%H%M%S).log"
 REPORT_FILE="${LOG_DIR}/edge-test-report-$(date +%Y%m%d-%H%M%S).json"
+
+compose() {
+    docker compose -f "$COMPOSE_BASE" -f "$COMPOSE_DEV" "$@"
+}
 
 # Create log directory if it doesn't exist
 mkdir -p "$LOG_DIR"
@@ -137,7 +143,7 @@ run_health_checks() {
         "edge-sync-forwarder:5108:HTTP:/api/health"
         "edge-policy-sync:5109:HTTP:/api/health"
         "edge-observability-agent:5111:HTTP:/api/health"
-        "edge-feed-intake:5116:HTTP:/api/health"
+        "edge-feed-intake:5112:HTTP:/api/health"
         "edge-retention-janitor:5114:HTTP:/api/health"
     )
 
@@ -202,7 +208,7 @@ seed_allowlists() {
     local device_id="d-001"
     local station_id="st-01"
 
-    if docker exec edge-layer-postgres-1 psql -U farmiq -d farmiq -c "
+    if compose exec -T postgres psql -U farmiq -d farmiq -c "
         INSERT INTO device_allowlist (tenant_id, device_id, farm_id, barn_id, enabled, created_at, updated_at)
         VALUES ('$tenant_id','$device_id','$farm_id','$barn_id', TRUE, NOW(), NOW())
         ON CONFLICT (tenant_id, device_id) DO UPDATE SET enabled = TRUE, farm_id = EXCLUDED.farm_id, barn_id = EXCLUDED.barn_id, updated_at = NOW();
@@ -275,7 +281,7 @@ run_http_tests() {
     fi
 
     # Test observability
-    if response=$(curl -s --max-time 10 "http://localhost:5111/api/v1/ops" 2>&1); then
+    if response=$(curl -s --max-time 10 "http://localhost:5111/api/v1/ops/edge/status" 2>&1); then
         log "SUCCESS" "✅ Observability health retrieved: $response"
         add_test_result "HTTP-OBSERVABILITY" true
     else
