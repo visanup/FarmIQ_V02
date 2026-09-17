@@ -1,58 +1,53 @@
 # FarmIQ Edge Ops Web
 
-The lightweight local dashboard for monitoring, managing, and debugging the FarmIQ Edge Node.
+Lightweight operations UI plus `/svc/*` proxy for the local edge stack.
 
-## 🏗 Architecture (Polyglot Proxy)
+## Runtime modes
 
-The application runs a lightweight **Node.js Server** (`server.js`) in both Development and Production (Docker). This server performs three critical functions:
+### Docker compose
 
-1.  **Static Serving**: Delivers the React SPA (`dist/`).
-2.  **API Proxy**: Routes `/svc/<service>/*` requests to internal Docker container hostnames (e.g., `http://edge-ingress-gateway:3000`).
-3.  **TCP Probing**: Exposes `/api/probe/tcp?host=...` to allow the browser to check non-HTTP services (like MQTT).
-
-## 🚀 Quick Start
-
-### Option 1: Run via Docker (Recommended)
 ```bash
-# From edge-layer root
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build edge-ops-web
+# From edge-layer
+./scripts/deploy.sh up
 ```
-- **URL**: `http://localhost:5110`
 
-### Option 2: Run Locally (Development)
+- URL: `http://localhost:5113`
+- Health: `http://localhost:5113/api/health`
+
+### Local Vite development
+
 ```bash
 cd edge-ops-web
 npm install
 npm run dev
 ```
-- **URL**: `http://localhost:5110`
-- **Note**: `vite.config.ts` includes a middleware to mimic the Production TCP probe.
 
-## 📋 Service Registry
+- URL: `http://localhost:5110`
 
-The dashboard automatically monitors these services:
+## Responsibilities
 
-| Service | Protocol | Port (Int) |
-|---------|----------|------------|
-| Ingress Gateway | HTTP | 3000 |
-| Telemetry TS | HTTP | 3000 |
-| WeighVision | HTTP | 3000 |
-| Media Store | HTTP | 3000 |
-| Vision Inf. | HTTP | 8000 |
-| Sync Fwd | HTTP | 3000 |
-| Observability | HTTP | 3000 |
-| Policy Sync | HTTP | 3000 |
-| Janitor | HTTP | 3000 |
-| Feed Intake | HTTP | 5109 |
-| MQTT Broker | TCP | 1883 |
+- Serve the built React SPA from `dist/`
+- Proxy browser traffic from `/svc/*` to internal compose services
+- Expose `/api/probe/tcp` for MQTT reachability checks
+- Expose `/api/health` for container health checks
 
-## 🛠 Troubleshooting
+## Proxy map
 
-### Port Conflicts
-- **Ops Web** listens on **5110**.
-- **Janitor** has been moved to **5113** (in dev compose vars) to avoid conflict.
+| Path | Target |
+|---|---|
+| `/svc/ingress/*` | `http://edge-ingress-gateway:3000` |
+| `/svc/telemetry/*` | `http://edge-telemetry-timeseries:3000` |
+| `/svc/weighvision/*` | `http://edge-weighvision-session:3000` |
+| `/svc/media/*` | `http://edge-media-store:3000` |
+| `/svc/vision/*` | `http://edge-vision-inference:8000` |
+| `/svc/sync/*` | `http://edge-sync-forwarder:3000` |
+| `/svc/ops/*` | `http://edge-observability-agent:3000` |
+| `/svc/policy/*` | `http://edge-policy-sync:3000` |
+| `/svc/janitor/*` | `http://edge-retention-janitor:3000` |
+| `/svc/feed/*` | `http://edge-feed-intake:5109` |
 
-### "MQTT Offline"
-- Ensure `edge-mqtt-broker` is running.
-- In Docker, the probe checks host `edge-mqtt-broker`.
-- In Dev, the probe checks `localhost`.
+## Notes
+
+- Compose uses port `5113`.
+- Standalone Vite development uses port `5110`.
+- If MQTT shows offline in the UI, verify `edge-mqtt-broker` is running and reachable on port `5100`.

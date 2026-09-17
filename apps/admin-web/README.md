@@ -110,12 +110,21 @@ apps/admin-web/
 ### Docker
 
 ```bash
-# Build image
-docker build -t farmiq-admin-web:latest .
-
-# Run container
-docker run -d -p 5143:80 farmiq-admin-web:latest
+cd apps
+./scripts/deploy.sh up admin-web
 ```
+
+PowerShell:
+
+```powershell
+cd apps
+.\scripts\deploy.ps1 -Mode up -Target admin-web
+```
+
+Canonical note:
+
+- `admin-web` is deployed through `cloud-layer/docker-compose.yml` plus `cloud-layer/docker-compose.dev.yml`.
+- Do not add or restore a standalone `apps/docker-compose.yml`.
 
 ### Kubernetes
 

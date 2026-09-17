@@ -184,3 +184,174 @@ class ListMeta(BaseModel):
     limit: int
     total: int
     hasNext: bool
+
+
+# WeighVision Cloud-Edge control plane schemas
+
+ApprovalState = Literal["draft", "approved", "published", "deprecated"]
+SubscriptionChannel = Literal["stable", "candidate", "pinned"]
+SubscriptionAckType = Literal["downloaded", "validated", "activated", "rollback", "failed"]
+
+
+class WeighVisionDatasetField(BaseModel):
+    name: str
+    role: Literal["entity", "feature", "context", "label"]
+    dataType: Literal["string", "integer", "number", "boolean", "datetime", "json"]
+    required: bool
+    source: str
+    description: str
+
+
+class WeighVisionDatasetContractResponse(BaseModel):
+    contractName: str
+    version: str
+    featureSchemaVersion: str
+    entityKeys: list[WeighVisionDatasetField]
+    featureFields: list[WeighVisionDatasetField]
+    contextFields: list[WeighVisionDatasetField]
+    labelFields: list[WeighVisionDatasetField]
+    splitPolicy: dict[str, Any]
+    notes: list[str] = Field(default_factory=list)
+
+
+class WeighVisionPackageManifest(BaseModel):
+    packageVersion: str
+    modelFamily: str
+    runtimeFamily: str
+    runtimeVersion: str
+    featureSchemaVersion: str
+    checksumSha256: str
+    packageUri: str
+    entrypoint: str
+    channel: SubscriptionChannel
+    activationPolicy: dict[str, Any]
+    fallbackPolicy: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WeighVisionModelPackageCreate(BaseModel):
+    modelId: str
+    packageVersion: str
+    runtimeFamily: str
+    runtimeVersion: str
+    featureSchemaVersion: str
+    checksumSha256: str
+    packageUri: str
+    channel: SubscriptionChannel
+    approvalState: ApprovalState = "draft"
+    manifest: WeighVisionPackageManifest
+
+
+class WeighVisionModelPackageResponse(BaseModel):
+    id: str
+    tenantId: str
+    modelId: str
+    packageVersion: str
+    runtimeFamily: str
+    runtimeVersion: str
+    featureSchemaVersion: str
+    checksumSha256: str
+    packageUri: str
+    channel: SubscriptionChannel
+    approvalState: ApprovalState
+    manifest: WeighVisionPackageManifest
+    createdAt: datetime
+    updatedAt: datetime
+
+
+class WeighVisionModelPackageListResponse(BaseModel):
+    data: list[WeighVisionModelPackageResponse]
+    meta: dict[str, Any]
+
+
+class WeighVisionBaselineBootstrapResponse(BaseModel):
+    datasetContract: WeighVisionDatasetContractResponse
+    model: ModelResponse
+    package: WeighVisionModelPackageResponse
+
+
+class WeighVisionBaselineTrainingRequest(BaseModel):
+    datasetPath: Optional[str] = None
+    packageVersion: Optional[str] = None
+    channel: SubscriptionChannel = "stable"
+    approvalState: ApprovalState = "published"
+
+
+class WeighVisionBaselineTrainingResponse(BaseModel):
+    datasetContract: WeighVisionDatasetContractResponse
+    model: ModelResponse
+    package: WeighVisionModelPackageResponse
+    datasetPath: str
+    datasetRows: int
+    trainingRows: int
+    validationRows: int
+    featureNames: list[str]
+    trainMetrics: list[ModelMetric] = Field(default_factory=list)
+    validationMetrics: list[ModelMetric] = Field(default_factory=list)
+    naiveMetrics: list[ModelMetric] = Field(default_factory=list)
+
+
+class WeighVisionSiteSubscriptionUpsert(BaseModel):
+    tenantId: str
+    siteId: str
+    farmId: Optional[str] = None
+    barnId: Optional[str] = None
+    channel: SubscriptionChannel = "stable"
+    pinnedPackageId: Optional[str] = None
+    fallbackPackageId: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("pinnedPackageId")
+    @classmethod
+    def validate_pinned_for_channel(cls, value: Optional[str], info):  # type: ignore[override]
+        channel = info.data.get("channel")
+        if channel == "pinned" and not value:
+            raise ValueError("pinnedPackageId is required when channel is pinned")
+        return value
+
+
+class WeighVisionSiteSubscriptionResponse(BaseModel):
+    id: str
+    tenantId: str
+    siteId: str
+    farmId: Optional[str] = None
+    barnId: Optional[str] = None
+    channel: SubscriptionChannel
+    pinnedPackageId: Optional[str] = None
+    fallbackPackageId: Optional[str] = None
+    notes: Optional[str] = None
+    createdAt: datetime
+    updatedAt: datetime
+
+
+class WeighVisionSiteSubscriptionResolveResponse(BaseModel):
+    tenantId: str
+    siteId: str
+    farmId: Optional[str] = None
+    barnId: Optional[str] = None
+    channel: SubscriptionChannel
+    activePackage: WeighVisionModelPackageResponse
+    fallbackPackage: Optional[WeighVisionModelPackageResponse] = None
+    activationPolicy: dict[str, Any]
+    fallbackPolicy: dict[str, Any]
+
+
+class WeighVisionSiteSubscriptionAckRequest(BaseModel):
+    tenantId: str
+    packageId: str
+    ackType: SubscriptionAckType
+    status: Literal["ok", "failed"]
+    detail: Optional[str] = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class WeighVisionSiteSubscriptionAckResponse(BaseModel):
+    id: str
+    tenantId: str
+    siteId: str
+    packageId: str
+    ackType: SubscriptionAckType
+    status: Literal["ok", "failed"]
+    detail: Optional[str] = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    createdAt: datetime

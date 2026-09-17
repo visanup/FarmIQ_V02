@@ -1,0 +1,10 @@
+path: D:\FarmIQ_RawData_to_TrainModel\Code-Edge-PRD\FarmIQ_V02\docs\iot-layer\evidence\batch3-yolo26-benchmark\frozen_dataset
+train: test/images
+val: test/images
+test: test/images
+task: segment
+nc: 3
+names:
+- CK
+- CK-S
+- NCK

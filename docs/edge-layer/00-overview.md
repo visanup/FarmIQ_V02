@@ -250,7 +250,7 @@ All services expose:
 
 ## Links
 
-- [01-services.md](01-services.md) - Service table with ports, dependencies, endpoints
+- [01-edge-services.md](01-edge-services.md) - Service table with ports, dependencies, endpoints
 - [02-setup-run.md](02-setup-run.md) - How to run compose, env vars, troubleshooting
 - [03-edge-ops-web.md](03-edge-ops-web.md) - UI usage, profiles, metrics sources
 - [Evidence](../progress/edge-compose-verify.md) - Verified compose run results

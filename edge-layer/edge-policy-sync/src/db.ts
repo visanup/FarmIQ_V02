@@ -39,6 +39,21 @@ async function ensureSchema(pool: Pool): Promise<void> {
   `)
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS edge_model_subscription_cache (
+      tenant_id TEXT NOT NULL,
+      site_id TEXT NOT NULL,
+      resolved_json JSONB NOT NULL,
+      hash TEXT NULL,
+      fetched_at TIMESTAMPTZ NOT NULL,
+      source_etag TEXT NULL,
+      last_error TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (tenant_id, site_id)
+    );
+  `)
+
+  await pool.query(`
     INSERT INTO edge_config_sync_state (id)
     VALUES (1)
     ON CONFLICT (id) DO NOTHING;

@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FarmIQ IoT Layer Field Update Guide</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --ink: #17212b;
+      --muted: #556371;
+      --line: #d8e0e8;
+      --brand: #0f766e;
+      --brand-soft: #dff7f4;
+      --warn: #9a3412;
+      --warn-soft: #ffedd5;
+      --good: #166534;
+      --good-soft: #dcfce7;
+      --mono: "Cascadia Code", Consolas, "Courier New", monospace;
+      --sans: "Segoe UI", Tahoma, sans-serif;
+      --shadow: 0 10px 30px rgba(23, 33, 43, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background: linear-gradient(180deg, #edf7f5 0%, var(--bg) 180px);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    .hero, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      padding: 28px;
+      margin-bottom: 22px;
+    }
+
+    h1, h2, h3 {
+      line-height: 1.25;
+      margin: 0 0 12px;
+    }
+
+    h1 { font-size: 32px; }
+    h2 { font-size: 24px; margin-top: 0; }
+    h3 { font-size: 18px; }
+
+    p, li { color: var(--muted); }
+    strong { color: var(--ink); }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #f2f6fa;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 20px;
+    }
+
+    .col-12 { grid-column: span 12; }
+    .col-7 { grid-column: span 7; }
+    .col-5 { grid-column: span 5; }
+    .col-6 { grid-column: span 6; }
+    .col-4 { grid-column: span 4; }
+
+    .card {
+      padding: 22px;
+      margin-bottom: 20px;
+    }
+
+    .note, .warn, .good {
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin: 14px 0;
+      border: 1px solid var(--line);
+    }
+
+    .note { background: #f3f7fb; }
+    .warn {
+      background: var(--warn-soft);
+      border-color: #fdba74;
+    }
+    .good {
+      background: var(--good-soft);
+      border-color: #86efac;
+    }
+
+    .steps {
+      counter-reset: step;
+      padding-left: 0;
+      list-style: none;
+      margin: 0;
+    }
+
+    .steps li {
+      margin: 0 0 14px;
+      padding: 16px 16px 16px 60px;
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fbfdff;
+    }
+
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 700;
+      display: grid;
+      place-items: center;
+    }
+
+    pre, code {
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    pre {
+      margin: 12px 0 0;
+      padding: 14px;
+      background: #0f1720;
+      color: #e8f1fa;
+      border-radius: 14px;
+      overflow-x: auto;
+      border: 1px solid #1f2b36;
+    }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .checklist li {
+      padding-left: 28px;
+      position: relative;
+      margin-bottom: 10px;
+    }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--brand);
+      font-weight: 800;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f2f6fa;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    td { font-size: 14px; color: var(--muted); }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+      background: #fcfeff;
+      margin-top: 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .footer {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .col-7, .col-5, .col-6, .col-4 { grid-column: span 12; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>คู่มืออัปเดตโค้ดและ Docker Images ของ FarmIQ iot-layer หน้างาน</h1>
+      <p>
+        คู่มือนี้สรุปขั้นตอนใช้งานจริงสำหรับการนำ <strong>โค้ด iot-layer เวอร์ชันใหม่</strong> และ
+        <strong>Docker images ที่ export ไว้ล่วงหน้า</strong> ไปอัปเดตเครื่องหน้างานแบบ offline หรือกึ่ง offline
+        โดยอิงจาก <code>iot-layer/README.md</code>, <code>scripts/deploy.ps1</code>, <code>scripts/deploy.sh</code>
+        และชุดไฟล์ export ปัจจุบัน
+      </p>
+      <div class="meta">
+        <div class="pill">อัปเดตล่าสุด: Thursday, August 20, 2026</div>
+        <div class="pill">เหมาะกับ: หน้างาน / field deploy</div>
+        <div class="pill">ใช้กับ export ชุด: 2026-08-16</div>
+      </div>
+      <div class="warn">
+        <strong>ประเด็นสำคัญ:</strong> การ <code>docker load</code> อย่างเดียว <strong>ไม่พอ</strong> สำหรับ iot-layer ชุดนี้
+        เพราะหลาย service mount โฟลเดอร์ source จากเครื่องหน้างานเข้า container โดยตรง ดังนั้นถ้าจะอัปเดตจริง
+        ต้องอัปเดตทั้ง <strong>source code</strong> และ <strong>docker images</strong>
+      </div>
+      <div class="good">
+        <strong>หมายเหตุสำหรับเครื่องหน้างาน Ubuntu Linux:</strong> ใช้งานได้จริง แต่ต้องใช้
+        <code>./scripts/deploy.sh</code> ไม่ใช่ <code>.\scripts\deploy.ps1</code>
+        ตัว action หลักเหมือนกันคือ <code>core</code>, <code>full</code>, <code>smoke</code>, <code>status</code>, <code>logs</code>, และ <code>down</code>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card col-12">
+        <h2>0. ถ้าเครื่องหน้างานเป็น Ubuntu Linux ให้ใช้คำสั่งชุดนี้</h2>
+        <div class="note">
+          คู่มือนี้มีตัวอย่างคำสั่งแบบ Windows อยู่หลายจุด เพราะตอนแรกจัดทำจากเครื่องพัฒนา Windows
+          แต่สำหรับเครื่องหน้างาน Ubuntu ให้ยึด <code>scripts/deploy.sh</code> เป็นหลัก
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>งานที่ต้องทำ</th>
+              <th>Windows</th>
+              <th>Ubuntu Linux</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>เปิด core</td>
+              <td><code>.\scripts\deploy.ps1 -Action core</code></td>
+              <td><code>./scripts/deploy.sh core</code></td>
+            </tr>
+            <tr>
+              <td>เปิด full</td>
+              <td><code>.\scripts\deploy.ps1 -Action full</code></td>
+              <td><code>./scripts/deploy.sh full</code></td>
+            </tr>
+            <tr>
+              <td>เปิด smoke</td>
+              <td><code>.\scripts\deploy.ps1 -Action smoke</code></td>
+              <td><code>./scripts/deploy.sh smoke</code></td>
+            </tr>
+            <tr>
+              <td>ดูสถานะ</td>
+              <td><code>.\scripts\deploy.ps1 -Action status</code></td>
+              <td><code>./scripts/deploy.sh status</code></td>
+            </tr>
+            <tr>
+              <td>ดู logs</td>
+              <td><code>.\scripts\deploy.ps1 -Action logs -Service weight-vision-service</code></td>
+              <td><code>./scripts/deploy.sh logs weight-vision-service</code></td>
+            </tr>
+            <tr>
+              <td>ปิด stack</td>
+              <td><code>.\scripts\deploy.ps1 -Action down</code></td>
+              <td><code>./scripts/deploy.sh down</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="good">
+          <strong>สิ่งที่ต้องมีบน Ubuntu:</strong> <code>bash</code>, <code>docker</code>, และ <code>docker compose</code>
+          ถ้ายังรัน script ไม่ได้ ให้ลอง <code>chmod +x ./scripts/deploy.sh</code> ก่อนหนึ่งครั้ง
+        </div>
+      </section>
+
+      <section class="card col-7">
+        <h2>1. สิ่งที่ต้องเตรียมก่อนออกหน้างาน</h2>
+        <ul class="checklist">
+          <li>โฟลเดอร์ <code>iot-layer</code> เวอร์ชันใหม่ที่ต้องการ deploy</li>
+          <li>โฟลเดอร์ <code>iot-layer/docker-exports/2026-08-16</code> ที่มีไฟล์ <code>.tar</code></li>
+          <li>ไฟล์ <code>iot-layer/weight-vision-service/.env</code> ที่ใช้จริง</li>
+          <li>ไฟล์ <code>iot-layer/.env</code> ถ้าจะเปิด live capture</li>
+          <li>config กล้อง, RTSP, scale, และไฟล์ใน <code>camera-config</code> ถ้ามีค่าเฉพาะไซต์</li>
+          <li>พื้นที่ disk ว่างเพียงพอสำหรับ image ขนาดใหญ่ โดยเฉพาะ <code>weight-vision-capture</code></li>
+        </ul>
+        <div class="note">
+          <strong>หมายเหตุ:</strong> ชุด export ปัจจุบันมี image อย่างน้อย 5 ตัว:
+          <code>ui-app</code>, <code>weight-vision-service</code>, <code>weight-vision-calibrator</code>,
+          <code>weight-vision-capture</code>, และ <code>weight-vision-capture-smoke</code>
+        </div>
+      </section>
+
+      <section class="card col-5">
+        <h2>2. ตัดสินใจก่อน deploy</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>เป้าหมาย</th>
+              <th>Action ที่ใช้</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>เปิด UI + calibrator + service โดยยังไม่ใช้ hardware capture</td>
+              <td><code>core</code></td>
+            </tr>
+            <tr>
+              <td>เปิดระบบเต็มรวมกล้อง RTSP และตาชั่ง</td>
+              <td><code>full</code></td>
+            </tr>
+            <tr>
+              <td>เช็กแค่ container startup และ model runtime แบบไม่พึ่ง hardware</td>
+              <td><code>smoke</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="good">
+          <strong>คำแนะนำใช้งานจริง:</strong> ถ้าหน้างานมีความเสี่ยงสูง ให้เริ่มจาก <code>core</code> ก่อนเสมอ
+          เมื่อ core stack ขึ้นครบแล้ว ค่อยขยับไป <code>full</code>
+        </div>
+      </section>
+
+      <section class="card col-12">
+        <h2>3. ลำดับงานหน้างานแบบแนะนำ</h2>
+        <ol class="steps">
+          <li>
+            <strong>ประเมินก่อนว่าเครื่องเดิมกำลังรันงานอยู่หรือไม่</strong>
+            <p>
+              ถ้าเครื่องเดิมยังใช้งานอยู่จริง อย่ารีบ copy โค้ดใหม่ทับทันที เพราะ stack นี้ mount source code จากเครื่องเข้า container
+              โดยตรง การทับไฟล์ระหว่าง container ยังทำงานอยู่จะทำให้ state ปัจจุบันตรวจสอบยากและ rollback ลำบาก
+            </p>
+            <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action status
+.\scripts\deploy.ps1 -Action logs -Service weight-vision-service</code></pre>
+            <pre><code>cd /path/to/iot-layer
+./scripts/deploy.sh status
+./scripts/deploy.sh logs weight-vision-service</code></pre>
+          </li>
+          <li>
+            <strong>หยุด stack เดิมและ backup ค่าเฉพาะหน้างาน</strong>
+            <p>backup ไฟล์ <code>.env</code>, <code>weight-vision-service/.env</code>, และ config เฉพาะไซต์ก่อนทุกครั้ง</p>
+            <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action down</code></pre>
+            <pre><code>cd /path/to/iot-layer
+./scripts/deploy.sh down</code></pre>
+          </li>
+          <li>
+            <strong>อัปเดต source code ของ iot-layer</strong>
+            <p>
+              ถ้าใช้ Git ให้ <code>git pull</code> เวอร์ชันที่ต้องการ ถ้าไม่ใช้ Git ให้ copy โฟลเดอร์
+              <code>iot-layer</code> ชุดใหม่ไปทับของเดิม โดยระวังอย่าทับไฟล์ <code>.env</code> ของหน้างาน
+            </p>
+          </li>
+          <li>
+            <strong>คัดลอกโฟลเดอร์ docker-exports ไปไว้บนเครื่องหน้างาน</strong>
+            <p>แนะนำให้คงโครงสร้างเดิมไว้ เช่น <code>iot-layer\docker-exports\2026-08-16</code></p>
+          </li>
+          <li>
+            <strong>โหลด Docker images ที่ export ไว้</strong>
+            <pre><code>cd D:\path\to\iot-layer\docker-exports\2026-08-16
+docker load -i .\iot-layer-ui-app_latest.tar
+docker load -i .\iot-layer-weight-vision-service_latest.tar
+docker load -i .\iot-layer-weight-vision-calibrator_latest.tar
+docker load -i .\iot-layer-weight-vision-capture_latest.tar
+docker load -i .\iot-layer-weight-vision-capture-smoke_latest.tar</code></pre>
+          </li>
+          <li>
+            <strong>ตรวจว่า image ถูกโหลดเข้ามาครบ</strong>
+            <pre><code>docker image ls | Select-String "^iot-layer-"</code></pre>
+          </li>
+          <li>
+            <strong>ตรวจ env ก่อนยก stack</strong>
+            <p>
+              อย่างน้อยต้องเช็ก <code>weight-vision-service/.env</code> และถ้าจะใช้ live capture ต้องเช็ก
+              <code>iot-layer/.env</code> ด้วย โดยเฉพาะค่า RTSP, network และ serial scale
+            </p>
+          </li>
+          <li>
+            <strong>เริ่ม deploy ตาม flow ที่ต้องการ</strong>
+            <p>ถ้าไม่แน่ใจ เริ่มที่ <code>core</code> ก่อน แล้วค่อยไป <code>full</code></p>
+          </li>
+          <li>
+            <strong>ตรวจสถานะและ logs หลัง deploy</strong>
+            <p>เช็กว่า service ขึ้นครบจริง ไม่ใช่แค่ container ถูก create</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="card col-12">
+        <h2>3A. ถ้าเครื่องเดิมมีการรันโค้ดอยู่ ต้องจัดการอย่างไร</h2>
+        <div class="warn">
+          <strong>หลักการสำคัญ:</strong> เครื่องเดิมที่กำลังรันอยู่ให้ถือว่าเป็นระบบใช้งานจริงชั่วคราว
+          ดังนั้นก่อนอัปเดตต้องทำให้สามารถ <strong>ย้อนกลับ</strong> ได้เสมอ
+        </div>
+        <div class="note">
+          <strong>ข้อผิดพลาดที่เจอบ่อย:</strong> เอาโค้ดชุดใหม่ไปเปิดจาก <strong>อีกโฟลเดอร์หนึ่ง</strong> ทั้งที่ stack เดิมยังรันอยู่
+          ผลคืออาจเกิด container คนละ compose project วิ่งซ้อนกัน, port ชนกัน, หรือแย่ง camera/scale device เดียวกัน
+          ดังนั้นต้องหาให้ชัดก่อนว่า stack เดิมรันมาจากโฟลเดอร์ไหน แล้วค่อยหยุดจากโฟลเดอร์นั้นก่อนเสมอ
+        </div>
+        <ol class="steps">
+          <li>
+            <strong>เก็บหลักฐานสถานะเดิมก่อนแตะอะไร</strong>
+            <p>จดว่า service ไหนขึ้นอยู่, ใช้ไฟล์ env อะไร, และมีปัญหาค้างอยู่หรือไม่</p>
+            <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action status
+.\scripts\deploy.ps1 -Action logs -Service weight-vision-service
+.\scripts\deploy.ps1 -Action logs -Service weight-vision-calibrator
+.\scripts\deploy.ps1 -Action logs -Service weight-vision-capture</code></pre>
+          </li>
+          <li>
+            <strong>ถ้าไม่แน่ใจว่า stack เดิมรันจากโฟลเดอร์ไหน ให้หา working directory ก่อน</strong>
+            <p>
+              ขั้นตอนนี้สำคัญมากในเครื่องที่มีหลายชุดโค้ดหรือเคย copy โฟลเดอร์ไว้หลายเวอร์ชัน
+              ให้ดูทั้ง compose label และ mount path ของ container เดิมก่อน
+            </p>
+            <pre><code>docker compose ps --all
+
+docker inspect --format "{{ index .Config.Labels \"com.docker.compose.project.working_dir\" }}" iot-layer-weight-vision-service-1
+
+docker inspect --format "{{ range .Mounts }}{{ .Source }} -> {{ .Destination }}{{ println }}{{ end }}" iot-layer-weight-vision-service-1</code></pre>
+            <p>
+              ถ้าผลลัพธ์ชี้ไปที่โฟลเดอร์อื่น เช่น <code>D:\deploy\iot-layer</code> ให้ไปหยุด stack จากโฟลเดอร์นั้นก่อน
+              ไม่ใช่จากโฟลเดอร์ใหม่ที่เพิ่ง copy เข้าเครื่อง
+            </p>
+          </li>
+          <li>
+            <strong>backup โฟลเดอร์เดิมทั้งชุดก่อนอัปเดต</strong>
+            <p>
+              แนะนำให้ copy โฟลเดอร์ <code>iot-layer</code> เดิมทั้งก้อนไปไว้เป็น backup เช่น
+              <code>iot-layer_backup_2026-08-20</code> เพื่อให้ rollback ได้เร็วที่สุด
+            </p>
+          </li>
+          <li>
+            <strong>backup ไฟล์ config เฉพาะไซต์แยกอีกชั้นหนึ่ง</strong>
+            <ul class="checklist">
+              <li><code>iot-layer\.env</code></li>
+              <li><code>iot-layer\weight-vision-service\.env</code></li>
+              <li>ไฟล์ใน <code>camera-config</code> ที่อาจถูกปรับเฉพาะหน้างาน</li>
+            </ul>
+          </li>
+          <li>
+            <strong>หยุด stack เดิมให้เรียบร้อยก่อนทับ source code</strong>
+            <p>
+              ขั้นตอนนี้สำคัญมาก เพราะ compose ชุดนี้ mount source code เข้ container โดยตรง
+              ถ้าไม่หยุดก่อนแล้ว copy ทับ จะตรวจว่า container ใช้โค้ดเวอร์ชันไหนอยู่ได้ยากมาก
+            </p>
+            <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action down</code></pre>
+          </li>
+          <li>
+            <strong>ตรวจให้แน่ใจว่า container เดิมหยุดจริง</strong>
+            <pre><code>.\scripts\deploy.ps1 -Action status</code></pre>
+            <p>ถ้ายังมี container เก่าไม่ยอมลง ให้ตรวจชื่อ service และ logs ก่อน อย่าเพิ่งลบแบบเดาสุ่ม</p>
+          </li>
+          <li>
+            <strong>เลือกวิธี cutover ให้ชัด: ทับโฟลเดอร์เดิม หรือสลับไปโฟลเดอร์ใหม่</strong>
+            <p>
+              ถ้าหน้างานต้องการความเสี่ยงต่ำสุด แนะนำให้ <strong>ใช้โฟลเดอร์เดิม</strong> แล้ว backup ออกก่อน
+              เพราะ compose path, env path และ shortcut เดิมมักยังใช้ได้ต่อทันที
+            </p>
+            <ul class="checklist">
+              <li><strong>แบบ A แนะนำ:</strong> backup โฟลเดอร์เดิม แล้ว copy โค้ดใหม่ลง path เดิม</li>
+              <li><strong>แบบ B ใช้ได้:</strong> เตรียมโฟลเดอร์ใหม่ แต่ต้อง down stack เดิมก่อน และต้องแน่ใจว่าหลัง cutover ทีมจะสั่งงานจากโฟลเดอร์ใหม่เท่านั้น</li>
+            </ul>
+          </li>
+          <li>
+            <strong>ค่อยอัปเดต source code และโหลด images ใหม่</strong>
+            <p>
+              หลัง stack เดิมลงแล้ว จึงค่อย copy source ใหม่ทับ หรือสลับไปใช้โฟลเดอร์เวอร์ชันใหม่
+              จากนั้นค่อยทำ <code>docker load</code> และ deploy ตาม flow ปกติ
+            </p>
+          </li>
+          <li>
+            <strong>ถ้าอัปเดตแล้วมีปัญหา ให้ rollback แบบเร็ว</strong>
+            <p>
+              ใช้ backup folder และ env เดิมคืนกลับ แล้ว deploy ใหม่ด้วยชุดเดิมก่อน เพื่อให้หน้างานกลับมาใช้งานได้เร็วที่สุด
+            </p>
+          </li>
+        </ol>
+        <div class="good">
+          <strong>แนวทางที่ปลอดภัยที่สุด:</strong> ถ้าเวลาและพื้นที่ disk พอ ให้เก็บทั้ง
+          <strong>source code เดิม</strong> และ <strong>docker images เดิม</strong> ไว้ก่อนอัปเดต
+          จะช่วยให้ rollback ได้เร็วที่สุด
+        </div>
+        <details>
+          <summary>ตัวอย่างลำดับงานที่แนะนำสำหรับเครื่องเดิมที่มี stack รันอยู่แล้ว</summary>
+          <pre><code>1. เข้าไปที่โฟลเดอร์ที่ stack เดิมใช้งานจริง
+2. รัน .\scripts\deploy.ps1 -Action status
+3. backup .env, weight-vision-service\.env และ camera-config
+4. รัน .\scripts\deploy.ps1 -Action down
+5. ยืนยันว่า container เดิมหยุดแล้ว
+6. backup โฟลเดอร์ iot-layer เดิมทั้งก้อน
+7. copy โค้ดใหม่ลง path เดิม หรือเตรียม path ใหม่ให้ชัดเจน
+8. docker load images จาก docker-exports
+9. รัน .\scripts\deploy.ps1 -Action core
+10. ตรวจ logs และ UI
+11. ถ้า core ผ่าน ค่อยรัน .\scripts\deploy.ps1 -Action full</code></pre>
+        </details>
+      </section>
+
+      <section class="card col-6">
+        <h2>4. คำสั่ง deploy ที่ใช้จริง</h2>
+        <h3>เปิด core stack</h3>
+        <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action core</code></pre>
+        <pre><code>cd /path/to/iot-layer
+./scripts/deploy.sh core</code></pre>
+
+        <h3>เปิด full stack รวม live capture</h3>
+        <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action full</code></pre>
+        <pre><code>cd /path/to/iot-layer
+./scripts/deploy.sh full</code></pre>
+
+        <h3>เปิด hardware-free smoke</h3>
+        <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action smoke</code></pre>
+        <pre><code>cd /path/to/iot-layer
+./scripts/deploy.sh smoke</code></pre>
+
+        <details>
+          <summary>คำสั่งตรงเทียบกับ docker compose</summary>
+          <pre><code>docker compose up -d --build ui-app weight-vision-calibrator weight-vision-service
+
+docker compose --profile capture up -d --build ui-app weight-vision-calibrator weight-vision-service weight-vision-capture
+
+docker compose -f docker-compose.yml -f docker-compose.capture-smoke.yml up -d --build weight-vision-capture-smoke</code></pre>
+        </details>
+      </section>
+
+      <section class="card col-6">
+        <h2>5. คำสั่งตรวจสถานะหลัง deploy</h2>
+        <pre><code>cd D:\path\to\iot-layer
+.\scripts\deploy.ps1 -Action status</code></pre>
+        <pre><code>cd /path/to/iot-layer
+./scripts/deploy.sh status</code></pre>
+
+        <h3>ดู log ทุก service</h3>
+        <pre><code>.\scripts\deploy.ps1 -Action logs</code></pre>
+        <pre><code>./scripts/deploy.sh logs</code></pre>
+
+        <h3>ดู log เฉพาะ service</h3>
+        <pre><code>.\scripts\deploy.ps1 -Action logs -Service weight-vision-service
+.\scripts\deploy.ps1 -Action logs -Service weight-vision-calibrator
+.\scripts\deploy.ps1 -Action logs -Service weight-vision-capture</code></pre>
+        <pre><code>./scripts/deploy.sh logs weight-vision-service
+./scripts/deploy.sh logs weight-vision-calibrator
+./scripts/deploy.sh logs weight-vision-capture</code></pre>
+
+        <h3>ปิด stack</h3>
+        <pre><code>.\scripts\deploy.ps1 -Action down</code></pre>
+        <pre><code>./scripts/deploy.sh down</code></pre>
+      </section>
+
+      <section class="card col-12">
+        <h2>6. จุดที่ต้องระวังมากที่สุด</h2>
+        <div class="warn">
+          <strong>1. weight-vision-capture จะไม่ขึ้นถ้าใช้แค่คำสั่ง core</strong><br>
+          เพราะใน compose ปัจจุบัน service นี้อยู่หลัง profile <code>capture</code> ดังนั้นต้องใช้ flow
+          <code>full</code> หรือสั่งพร้อม <code>--profile capture</code>
+        </div>
+        <div class="warn">
+          <strong>2. docker load ไม่ได้แทนการอัปเดต source code</strong><br>
+          ชุด iot-layer นี้ mount source code จากเครื่องเข้า container โดยตรง ดังนั้นถ้าโฟลเดอร์หน้างานยังเก่า
+          service หลายตัวจะยังทำงานด้วยโค้ดเก่าแม้ image จะใหม่แล้ว
+        </div>
+        <div class="warn">
+          <strong>3. ค่า SCALE_PORT ต้องตรงกับเครื่องจริง</strong><br>
+          ในไฟล์ <code>iot-layer/.env</code> ตอนนี้มีค่า <code>SCALE_PORT=/dev/ttyUSB0</code> และ
+          <code>SCALE_DEVICE=/dev/ttyUSB0</code> ซึ่งใช้ได้ใน Linux node ที่มี device นี้จริงเท่านั้น
+          ถ้าเครื่องหน้างานเป็น Windows หรือใช้ serial port คนละชื่อ ต้องแก้ก่อนสั่ง <code>full</code>
+        </div>
+        <div class="warn">
+          <strong>4. ถ้า full ไม่ขึ้น ให้สงสัย .env ก่อน</strong><br>
+          โดยเฉพาะค่า RTSP, network route, ตำแหน่ง maps file, และ serial scale
+        </div>
+        <div class="warn">
+          <strong>5. อย่าทับ source code ใหม่ขณะ container เดิมยังวิ่งอยู่</strong><br>
+          เพราะ stack นี้ bind mount โฟลเดอร์ <code>./:/workspace/iot-layer</code> เข้า container โดยตรง
+          ถ้าแก้หรือ copy ทับระหว่างรันงาน จะทำให้ trace เวอร์ชันยากและ rollback เสี่ยง
+        </div>
+        <div class="warn">
+          <strong>6. อย่าเปิด stack ใหม่จากคนละโฟลเดอร์ ถ้ายังไม่ได้ down ของเดิม</strong><br>
+          แม้ image จะชื่อเดียวกัน แต่ถ้ารันจากคนละ working directory ก็อาจกลายเป็นคนละ compose project ได้
+          ทำให้ port ชนกันหรือ service แย่ง hardware ตัวเดียวกัน
+        </div>
+      </section>
+
+      <section class="card col-12">
+        <h2>7. เช็กลิสต์ก่อนสั่ง full</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>หัวข้อ</th>
+              <th>ต้องเช็กอะไร</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>RTSP</td>
+              <td><code>RTSP_IP_LEFT</code>, <code>RTSP_IP_RIGHT</code>, <code>RTSP_USER</code>, <code>RTSP_PASS</code>, <code>RTSP_STREAM_PATH</code></td>
+            </tr>
+            <tr>
+              <td>Scale</td>
+              <td><code>SCALE_PORT</code>, <code>SCALE_BAUD</code>, และ device path/COM port ต้องมีอยู่จริงบนเครื่อง</td>
+            </tr>
+            <tr>
+              <td>Maps</td>
+              <td><code>MAPS_PATH</code> ต้องอ้างถึงไฟล์ calibration ที่มีจริง</td>
+            </tr>
+            <tr>
+              <td>Service connectivity</td>
+              <td><code>weight-vision-service/.env</code> ต้องชี้ edge endpoint, tenant, และ network settings ถูกต้อง</td>
+            </tr>
+            <tr>
+              <td>Disk</td>
+              <td>ต้องมีพื้นที่ว่างพอสำหรับ images และ container logs</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card col-12">
+        <h2>8. วิธีเดินงานที่ปลอดภัยที่สุด</h2>
+        <ol class="steps">
+          <li>
+            โหลด image ให้ครบด้วย <code>docker load</code>
+          </li>
+          <li>
+            อัปเดต source code โฟลเดอร์ <code>iot-layer</code> ให้เป็นเวอร์ชันใหม่
+          </li>
+          <li>
+            สั่ง <code>.\scripts\deploy.ps1 -Action core</code>
+          </li>
+          <li>
+            ตรวจว่า <code>ui-app</code>, <code>weight-vision-calibrator</code>, <code>weight-vision-service</code> ขึ้นครบ
+          </li>
+          <li>
+            ถ้า core ผ่าน ค่อยเช็ก <code>.env</code> ฝั่ง capture อีกรอบ
+          </li>
+          <li>
+            จึงค่อยสั่ง <code>.\scripts\deploy.ps1 -Action full</code>
+          </li>
+          <li>
+            ถ้า live capture มีปัญหา ให้ถอยกลับมาใช้ <code>core</code> เพื่อให้ระบบส่วนอื่นยังทำงานได้ก่อน
+          </li>
+        </ol>
+        <div class="good">
+          แนวทางนี้ช่วยลดความเสี่ยงที่หน้างานจะล้มทั้งชุด เพราะแยกปัญหา core services ออกจากปัญหา camera/scale hardware ได้ชัดกว่า
+        </div>
+      </section>
+
+      <section class="card col-12">
+        <h2>9. คำสั่งกู้สถานการณ์เร็ว</h2>
+        <h3>ถ้าแก้ source ของ capture อย่างเดียว</h3>
+        <pre><code>.\scripts\deploy.ps1 -Action capture-recreate</code></pre>
+
+        <h3>ถ้าแก้ Dockerfile หรือ requirements ของ capture</h3>
+        <pre><code>.\scripts\deploy.ps1 -Action capture-rebuild</code></pre>
+
+        <h3>ถ้าต้องการหยุดและเริ่มใหม่ทั้งหมด</h3>
+        <pre><code>.\scripts\deploy.ps1 -Action down
+.\scripts\deploy.ps1 -Action core</code></pre>
+      </section>
+
+      <section class="card col-12">
+        <h2>10. สรุปสั้นสำหรับทีมหน้างาน</h2>
+        <ul class="checklist">
+          <li>ถ้าเครื่องเดิมยังรันอยู่ ให้เก็บสถานะเดิมและ backup ก่อนทุกครั้ง</li>
+          <li>หาให้ชัดก่อนว่า stack เดิมรันมาจากโฟลเดอร์ไหน แล้ว down จากโฟลเดอร์นั้นก่อน</li>
+          <li>หยุด stack เดิมก่อนค่อย copy source code ใหม่ทับ</li>
+          <li>เอาไปทั้ง <strong>source code ใหม่</strong> และ <strong>docker-exports</strong></li>
+          <li>backup <code>.env</code> ของหน้างานก่อนทุกครั้ง</li>
+          <li>ถ้าเครื่องหน้างานเป็น Ubuntu ให้ใช้ <code>./scripts/deploy.sh</code> เป็นหลัก</li>
+          <li>เริ่มจาก <code>core</code> ก่อน ถ้าไม่จำเป็นอย่าเริ่มด้วย <code>full</code></li>
+          <li><code>weight-vision-capture</code> ต้องใช้ profile <code>capture</code></li>
+          <li>ถ้า full ล้ม ให้เช็ก <code>RTSP_*</code>, <code>SCALE_PORT</code>, และ <code>MAPS_PATH</code> ก่อนเป็นอันดับแรก</li>
+        </ul>
+        <p class="footer">
+          เอกสารนี้ตั้งใจให้เปิดอ่านหน้างานได้ทันทีแบบ offline และใช้ร่วมกับไฟล์ใน
+          <code>iot-layer/README.md</code>, <code>scripts/deploy.ps1</code>, <code>scripts/deploy.sh</code>, และ
+          <code>iot-layer/docker-exports/2026-08-16/README.md</code>
+        </p>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

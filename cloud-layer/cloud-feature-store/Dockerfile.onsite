@@ -1,0 +1,11 @@
+ARG FEATURE_STORE_BASE_IMAGE=cloud-layer-cloud-feature-store:release-20260816
+FROM ${FEATURE_STORE_BASE_IMAGE}
+
+# Offline field update: dependencies come from the verified release image.
+# Only application source and Feast configuration are replaced.
+WORKDIR /app
+COPY app/ ./app/
+COPY feature_store/ ./feature_store/
+COPY feature_store.yaml ./feature_store.yaml
+
+LABEL farmiq.release.variant="onsite-localfs"

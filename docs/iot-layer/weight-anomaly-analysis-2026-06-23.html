@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarmIQ Weight Anomaly Analysis - 2026-06-23</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --panel: #fffdf8;
+      --ink: #1f2522;
+      --muted: #5f6b63;
+      --line: #d9cfbf;
+      --accent: #146356;
+      --accent-soft: #d8eee9;
+      --warn: #9b5b1b;
+      --warn-soft: #fff0dd;
+      --risk: #8b2e2e;
+      --risk-soft: #f8e3e3;
+      --shadow: 0 10px 30px rgba(31, 37, 34, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(180deg, #efe7d8 0%, var(--bg) 180px);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+
+    .hero {
+      background: radial-gradient(circle at top left, #f8f2e4 0%, #f1eadc 42%, #ece3d3 100%);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 28px 30px;
+      box-shadow: var(--shadow);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0 0 12px;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: 34px;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      font-size: 24px;
+      margin-top: 30px;
+    }
+
+    h3 {
+      font-size: 18px;
+      margin-top: 22px;
+    }
+
+    p {
+      margin: 10px 0 0;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .card .label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .card .value {
+      font-size: 30px;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .card .desc {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 6px;
+    }
+
+    .callout {
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin-top: 18px;
+      border: 1px solid transparent;
+    }
+
+    .callout.good {
+      background: var(--accent-soft);
+      border-color: #a8d8cd;
+    }
+
+    .callout.warn {
+      background: var(--warn-soft);
+      border-color: #efc999;
+    }
+
+    .callout.risk {
+      background: var(--risk-soft);
+      border-color: #d7a5a5;
+    }
+
+    .callout h3 {
+      margin-top: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f1ebdf;
+      font-size: 14px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+    }
+
+    ul {
+      margin: 10px 0 0 18px;
+      padding: 0;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .metric-row {
+      margin-top: 12px;
+    }
+
+    .metric-row .topline {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .bar {
+      height: 12px;
+      background: #ebe2d2;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .bar-risk > span {
+      background: linear-gradient(90deg, #b13f3f, #d26161);
+    }
+
+    .bar-good > span {
+      background: linear-gradient(90deg, #1b7f6b, #43a98f);
+    }
+
+    .footnote {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 14px;
+    }
+
+    .section {
+      margin-top: 26px;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>FarmIQ Weight Anomaly Analysis</h1>
+      <p>
+        สรุปการวิเคราะห์ความผิดปกติของน้ำหนักจาก 2 แหล่งข้อมูล:
+        เคสหน้างานจริงในไฟล์ metadata ช่วง <span class="mono">2026-05-14 ถึง 2026-05-20</span>
+        และชุดข้อมูลใหญ่จาก Excel/ภาพสรุปในโฟลเดอร์ <span class="mono">RawPic_Summary</span>
+      </p>
+      <p class="meta">
+        Generated: 2026-06-23 | Scope: วิเคราะห์เท่านั้น, ไม่มีการแก้โค้ด
+      </p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <div class="label">RawPic_Summary</div>
+        <div class="value">9,548</div>
+        <div class="desc">จำนวนรูปทั้งหมดในโฟลเดอร์ภาพสรุป</div>
+      </article>
+      <article class="card">
+        <div class="label">Excel Rows</div>
+        <div class="value">5,467</div>
+        <div class="desc">จำนวนแถวใน <span class="mono">Summary_Data_FarmIQ.xlsx</span></div>
+      </article>
+      <article class="card">
+        <div class="label">Unique Sessions</div>
+        <div class="value">3,927</div>
+        <div class="desc">นับระดับ session เพื่อลด bias จากรูปซ้ำใน event เดียวกัน</div>
+      </article>
+      <article class="card">
+        <div class="label">Primary Device</div>
+        <div class="value">wv-001</div>
+        <div class="desc">ข้อมูลส่วนใหญ่ผูกกับ <span class="mono">wv-001 / st-01</span></div>
+      </article>
+    </section>
+
+    <section class="section">
+      <div class="callout good">
+        <h3>ข้อสรุปสั้นที่สุด</h3>
+        <p>
+          สมมติฐาน <strong>“interface ส่งค่าเป็น lb แต่ระบบตีความเป็น kg”</strong>
+          มีน้ำหนักมากและอธิบายเคสหนักผิดปกติได้ดี โดยเฉพาะค่า
+          <span class="mono">26.30 - 26.65</span> ในช่วง <span class="mono">2026-05-14 ถึง 2026-05-15</span>
+          เพราะเมื่อแปลง <span class="mono">lb -&gt; kg</span> แล้วจะกลับมาอยู่แถว
+          <span class="mono">11.9 - 12.1 kg</span> ซึ่งใกล้กับน้ำหนักรวมของไก่ 5 ตัวตามมาตรฐานมาก
+        </p>
+      </div>
+
+      <div class="callout warn">
+        <h3>แต่ยังสรุปว่าเป็นสาเหตุเดียวไม่ได้</h3>
+        <p>
+          แม้สมมติฐานเรื่อง <span class="mono">lb interpreted as kg</span> จะลดความขัดแย้งของข้อมูลลงอย่างชัดเจน
+          แต่ยังอธิบายทุก session ไม่หมด จึงยังต้องเก็บสาเหตุอื่นไว้พร้อมกัน เช่น
+          <span class="mono">serial stale/carry-over</span>,
+          <span class="mono">tare/zero ไม่จริง</span>,
+          residual load บนแท่น และบางเคสมี metadata ฝั่ง vision ผิดปกติร่วมด้วย
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>1) ขอบเขตข้อมูลที่ใช้</h2>
+      <div class="two-col">
+        <article class="card">
+          <h3>เคสหน้างานจริงที่ไล่รายไฟล์</h3>
+          <ul>
+            <li><span class="mono">20260514_215734.json</span> น้ำหนัก <span class="mono">26.65</span></li>
+            <li><span class="mono">20260520_171813.json</span> น้ำหนัก <span class="mono">12.75</span></li>
+            <li><span class="mono">20260515_005922.json</span> น้ำหนัก <span class="mono">26.30</span></li>
+            <li><span class="mono">20260515_005331.json</span> น้ำหนัก <span class="mono">25.85</span></li>
+            <li><span class="mono">20260515_003842.json</span> น้ำหนัก <span class="mono">26.30</span></li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>ชุดข้อมูลใหญ่จาก Excel</h3>
+          <ul>
+            <li><span class="mono">Summary_Data_FarmIQ.xlsx</span> ใช้วิเคราะห์ค่าน้ำหนักจริงของระบบ</li>
+            <li><span class="mono">Summary_Data_FarmIQ_V2.xlsx</span> ใช้ sheet <span class="mono">Standard Weight</span> เป็นน้ำหนักมาตรฐานรายตัว</li>
+            <li>ข้อมูลใน workbook หลักครอบคลุมวันที่ <span class="mono">2026-04-08 ถึง 2026-05-08</span></li>
+            <li>ชุด workbook นี้ไม่ได้ครอบคลุม metadata production ช่วง <span class="mono">2026-05-14 ถึง 2026-05-20</span> โดยตรง</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>2) เทียบเคสที่สงสัยกับน้ำหนักมาตรฐาน</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ไฟล์</th>
+            <th>วันที่</th>
+            <th>ค่าใน metadata</th>
+            <th>ถ้าอ่านเป็น kg ตรงๆ</th>
+            <th>ถ้าแปลงจาก lb -&gt; kg</th>
+            <th>ข้อสังเกต</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">20260514_215734.json</td>
+            <td>2026-05-14</td>
+            <td><span class="mono">26.65</span></td>
+            <td>
+              มาตรฐานรายตัววันที่นี้ = <span class="mono">2.365 kg</span><br>
+              เทียบเท่า ~ <span class="mono">11.27 ตัว</span>
+            </td>
+            <td>
+              <span class="mono">26.65 lb = 12.09 kg</span><br>
+              เทียบเท่า ~ <span class="mono">5.11 ตัว</span>
+            </td>
+            <td>เป็นเคสที่เข้าทางสมมติฐาน <span class="mono">lb -&gt; kg</span> ชัดที่สุด</td>
+          </tr>
+          <tr>
+            <td class="mono">20260515_005922.json</td>
+            <td>2026-05-15</td>
+            <td><span class="mono">26.30</span></td>
+            <td>
+              มาตรฐานรายตัววันที่นี้ = <span class="mono">2.465 kg</span><br>
+              เทียบเท่า ~ <span class="mono">10.67 ตัว</span>
+            </td>
+            <td>
+              <span class="mono">26.30 lb = 11.93 kg</span><br>
+              เทียบเท่า ~ <span class="mono">4.84 ตัว</span>
+            </td>
+            <td>กลับมาใกล้ 5 ตัวมากหลังแปลงหน่วย</td>
+          </tr>
+          <tr>
+            <td class="mono">20260515_005331.json</td>
+            <td>2026-05-15</td>
+            <td><span class="mono">25.85</span></td>
+            <td>
+              เทียบเท่า ~ <span class="mono">10.49 ตัว</span>
+            </td>
+            <td>
+              <span class="mono">25.85 lb = 11.73 kg</span><br>
+              เทียบเท่า ~ <span class="mono">4.76 ตัว</span>
+            </td>
+            <td>เข้าทาง <span class="mono">lb -&gt; kg</span> เช่นกัน</td>
+          </tr>
+          <tr>
+            <td class="mono">20260515_003842.json</td>
+            <td>2026-05-15</td>
+            <td><span class="mono">26.30</span></td>
+            <td>หนักเกินจริงถ้าอ่านเป็น kg</td>
+            <td>ใกล้ 5 ตัวถ้าอ่านเป็น lb</td>
+            <td>นอกจากเรื่องน้ำหนัก ยังพบ mask/geometry เพี้ยนร่วมด้วย</td>
+          </tr>
+          <tr>
+            <td class="mono">20260520_171813.json</td>
+            <td>2026-05-20</td>
+            <td><span class="mono">12.75</span></td>
+            <td>ยังอยู่ในโซนที่อาจ plausible ได้อยู่ แม้ไม่แปลง</td>
+            <td><span class="mono">12.75 lb = 5.78 kg</span></td>
+            <td>เป็นเคสที่ไม่ชี้ขาดเรื่องหน่วยเท่ากลุ่ม 25-26</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="footnote">
+        หมายเหตุ: ค่าน้ำหนักมาตรฐานรายตัวถูกอ้างจาก sheet <span class="mono">Standard Weight</span>
+        ใน <span class="mono">Summary_Data_FarmIQ_V2.xlsx</span>
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>3) ผลจากชุดใหญ่ใน Excel</h2>
+      <div class="grid">
+        <article class="card">
+          <div class="label">Session Weight Median</div>
+          <div class="value">8.35</div>
+          <div class="desc">ค่ากลางของน้ำหนักระดับ session</div>
+        </article>
+        <article class="card">
+          <div class="label">Session Weight Average</div>
+          <div class="value">10.30</div>
+          <div class="desc">ค่าน้ำหนักเฉลี่ยระดับ session</div>
+        </article>
+        <article class="card">
+          <div class="label">Session Weight Max</div>
+          <div class="value">37.30</div>
+          <div class="desc">ค่าสูงสุดในชุด workbook</div>
+        </article>
+        <article class="card">
+          <div class="label">Rows Per Session</div>
+          <div class="value">1.39</div>
+          <div class="desc">เฉลี่ยภาพต่อหนึ่ง session</div>
+        </article>
+      </div>
+
+      <h3>ทดสอบสมมติฐานกับเพดาน “5 ตัวบนแท่น”</h3>
+      <div class="two-col">
+        <article class="card">
+          <h3>ถ้าอ่านค่าใน Excel เป็น kg ตรงๆ</h3>
+          <div class="metric-row">
+            <div class="topline">
+              <span>sessions ที่หนักเกิน 5 ตัว</span>
+              <strong>88.2%</strong>
+            </div>
+            <div class="bar bar-risk"><span style="width: 88.2%;"></span></div>
+          </div>
+          <div class="metric-row">
+            <div class="topline">
+              <span>sessions ที่หนักเกิน 6 ตัว</span>
+              <strong>83.1%</strong>
+            </div>
+            <div class="bar bar-risk"><span style="width: 83.1%;"></span></div>
+          </div>
+          <div class="metric-row">
+            <div class="topline">
+              <span>sessions ที่หนักเกิน 8 ตัว</span>
+              <strong>68.1%</strong>
+            </div>
+            <div class="bar bar-risk"><span style="width: 68.1%;"></span></div>
+          </div>
+        </article>
+        <article class="card">
+          <h3>ถ้าแปลง lb -&gt; kg ก่อนค่อยเทียบ</h3>
+          <div class="metric-row">
+            <div class="topline">
+              <span>sessions ที่หนักเกิน 5 ตัว</span>
+              <strong>45.5%</strong>
+            </div>
+            <div class="bar bar-good"><span style="width: 45.5%;"></span></div>
+          </div>
+          <div class="metric-row">
+            <div class="topline">
+              <span>sessions ที่หนักเกิน 6 ตัว</span>
+              <strong>31.7%</strong>
+            </div>
+            <div class="bar bar-good"><span style="width: 31.7%;"></span></div>
+          </div>
+          <div class="metric-row">
+            <div class="topline">
+              <span>sessions ที่หนักเกิน 8 ตัว</span>
+              <strong>8.9%</strong>
+            </div>
+            <div class="bar bar-good"><span style="width: 8.9%;"></span></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="callout good">
+        <h3>ความหมายของสถิติด้านบน</h3>
+        <p>
+          การแปลง <span class="mono">lb -&gt; kg</span> ไม่ได้แก้ทุกอย่าง แต่ลดความผิดธรรมชาติของข้อมูลลงอย่างชัดเจน
+          โดยเฉพาะกลุ่ม session ที่ดูเหมือนหนักเกิน 5-8 ตัว ถ้าอ่านเป็น kg ตรงๆ
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>4) หลักฐานที่สนับสนุนสมมติฐาน lb interpreted as kg</h2>
+      <ul>
+        <li>เคสหนักผิดปกติช่วง <span class="mono">26.30 - 26.65</span> ในวันที่ <span class="mono">2026-05-14 ถึง 2026-05-15</span> จะกลับมาอยู่แถว <span class="mono">11.7 - 12.1 kg</span> หลังแปลง ซึ่งแทบพอดีกับ 5 ตัวตามมาตรฐาน</li>
+        <li>ในชุดใหญ่ ระดับ session ถ้าอ่านเป็น kg ตรงๆ จะมีถึง <span class="mono">88.2%</span> ที่หนักเกิน 5 ตัว แต่ถ้าแปลงจาก lb ก่อนจะลดเหลือ <span class="mono">45.5%</span></li>
+        <li>ภาพตัวอย่างจากกลุ่มน้ำหนักสูงสุดใน workbook ดูใกล้เคียงกับ “ประมาณ 4-5 ตัวบนแท่น” มากกว่า “8-10 ตัวบนแท่น”</li>
+        <li>โค้ดรับค่าน้ำหนักฝั่ง capture parse แค่ตัวเลขตัวแรกจาก serial line และไม่ได้ validate หน่วยก่อนใช้เป็น kg</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>5) หลักฐานที่ยังขัดกับสมมติฐาน lb อย่างเดียว</h2>
+      <ul>
+        <li>แม้แปลงจาก lb แล้ว ยังมีอีกจำนวนหนึ่งที่ดูหนักเกินกว่าจำนวนตัวที่คาดได้</li>
+        <li>เคส <span class="mono">20260520_171813.json</span> ไม่ได้ชี้ขาดเรื่องหน่วยชัดเท่ากลุ่ม 25-26</li>
+        <li>บาง metadata มีปัญหาฝั่ง vision ร่วมด้วย เช่น <span class="mono">20260515_003842.json</span> ซึ่งมี mask/geometry เพี้ยน</li>
+        <li>ชุด workbook ใหญ่เป็นข้อมูลถึง <span class="mono">2026-05-08</span> จึงเป็นหลักฐานเชิง pattern ไม่ใช่ proof ตรงของเคส production วันที่ <span class="mono">2026-05-14 ถึง 2026-05-20</span></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>6) สาเหตุอื่นที่ยังต้องคงไว้</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>สาเหตุ</th>
+            <th>ทำไมยังน่าสงสัย</th>
+            <th>ความสัมพันธ์กับเรื่อง lb</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Serial stale / carry-over</strong></td>
+            <td>มีโอกาสใช้ค่าน้ำหนักล่าสุดซ้ำ หากรอบนั้นไม่ได้มี byte ใหม่เข้ามา แต่ state เดิมยังถูกมองว่านิ่ง</td>
+            <td>เป็นสาเหตุร่วมได้ แม้ interface จะเป็น lb จริงก็ตาม</td>
+          </tr>
+          <tr>
+            <td><strong>Tare/zero ไม่จริง</strong></td>
+            <td>ถ้าแท่นไม่คืนศูนย์หรือมี residual load จะทำให้น้ำหนักรวมสูงกว่าความจริง</td>
+            <td>เกิดร่วมกับ unit mismatch ได้</td>
+          </tr>
+          <tr>
+            <td><strong>จังหวะ capture ไม่ตรงสภาวะนิ่งจริง</strong></td>
+            <td>ถ้าจับตอนขึ้น-ลงแท่นหรือมีแรงถ่ายน้ำหนักบางส่วน ค่าที่ได้อาจเบี้ยว</td>
+            <td>อาจทำให้บางเคสดูแปลก แม้หน่วยจะถูกต้อง</td>
+          </tr>
+          <tr>
+            <td><strong>Vision metadata ผิดปกติ</strong></td>
+            <td>เช่น mask/geometry เพี้ยน ทำให้ข้อมูลประกอบบางส่วนเชื่อถือได้น้อยลง</td>
+            <td>ไม่ใช่ต้นเหตุของน้ำหนักโดยตรง แต่ทำให้ debug ยากขึ้น</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>7) ข้อสรุปสำหรับคุยกับทีม</h2>
+      <div class="callout warn">
+        <p>
+          ตอนนี้หลักฐานโดยรวม <strong>หนุนสมมติฐานว่า interface อาจส่งค่าเป็น lb แล้วถูกตีความเป็น kg</strong>
+          เพราะมันทำให้ทั้งเคสหน้างานบางเคส และ pattern ในชุดใหญ่กลับมาสมเหตุผลขึ้นมาก
+          แต่ <strong>ยังไม่ควรปิดคดีที่สาเหตุนี้อย่างเดียว</strong> เนื่องจากยังมีหลาย session ที่แม้แปลงจาก lb แล้วก็ยังดูหนักเกิน plausibility
+          จึงยังต้องตรวจสาเหตุร่วมอย่าง <span class="mono">stale serial</span>, <span class="mono">tare/load ค้าง</span> และ timing ของการ capture ต่อ
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>8) วิธีพิสูจน์หน้างานแบบสั้นที่สุด</h2>
+      <ol>
+        <li>จับคู่ภาพหน้าจอเครื่องชั่งกับ raw serial payload เวลาเดียวกัน แล้วดูว่าข้อความจาก interface มี unit อะไรตามมาจริง</li>
+        <li>ทดสอบชั่งแบบควบคุมจำนวนตัวหรือใช้น้ำหนัก known load แล้วเทียบค่า display กับค่าที่เข้า metadata พร้อมกัน</li>
+        <li>เฝ้าดูค่าระหว่าง session ต่อ session ว่ามีการค้างหรือ reuse ค่าเดิมก่อนมีน้ำหนักรอบใหม่หรือไม่</li>
+      </ol>
+    </section>
+
+    <section class="section footnote">
+      ไฟล์อ้างอิงหลัก:
+      <span class="mono">D:\FarmIQ_RawData_to_TrainModel\RawPic_Summary</span>,
+      <span class="mono">D:\FarmIQ_RawData_to_TrainModel\RawPic_Summary - filter\scripts\Summary_Data_FarmIQ.xlsx</span>,
+      <span class="mono">D:\FarmIQ_RawData_to_TrainModel\RawPic_Summary - filter\scripts\Summary_Data_FarmIQ_V2.xlsx</span>
+    </section>
+  </main>
+</body>
+</html>

@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app/ ./app/
 COPY feature_store/ ./feature_store/
+COPY feature_store.yaml ./feature_store.yaml
 
 # Create directories for feature store
 RUN mkdir -p /data/features /data/registry
@@ -33,5 +34,5 @@ EXPOSE 5137
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:5137/health || exit 1
 
-# Start Feast UI server with correct port
-CMD ["python", "-m", "feast", "ui", "--host", "0.0.0.0", "--port", "5137"]
+# Start FastAPI feature store API
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5137"]

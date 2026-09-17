@@ -22,9 +22,9 @@ COPY app/ ./app/
 RUN mkdir -p /mlflow/artifacts /mlflow/db
 
 # Set environment variables
-ENV MLFLOW_TRACKING_URI=postgresql://farmiq:farmiq_dev@postgres:5432/mlflow_registry
+ENV MLFLOW_TRACKING_URI=postgresql://farmiq:farmiq_dev@postgres:5432/cloud_mlflow
 ENV MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts
-ENV MLFLOW_BACKEND_STORE_URI=postgresql://farmiq:farmiq_dev@postgres:5432/mlflow_registry
+ENV MLFLOW_BACKEND_STORE_URI=postgresql://farmiq:farmiq_dev@postgres:5432/cloud_mlflow
 ENV MLFLOW_DEFAULT_ARTIFACT_ROOT=s3://mlflow-artifacts
 
 # Expose MLflow UI port
@@ -32,12 +32,7 @@ EXPOSE 5000
 
 # Health check - use curl instead of Python requests
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD curl -fsS http://localhost:5000/ || exit 1
 
 # Start MLflow server
-CMD ["mlflow", "server", \
-     "--backend-store-uri", "postgresql://farmiq:farmiq_dev@postgres:5432/mlflow_registry", \
-     "--default-artifact-root", "/mlflow/artifacts", \
-     "--host", "0.0.0.0", \
-     "--port", "5000", \
-     "--gunicorn-workers", "4"]
+CMD ["sh", "-c", "mlflow server --backend-store-uri \"${MLFLOW_BACKEND_STORE_URI}\" --default-artifact-root \"${MLFLOW_DEFAULT_ARTIFACT_ROOT:-/mlflow/artifacts}\" --host 0.0.0.0 --port \"${PORT:-5000}\" --workers 4"]

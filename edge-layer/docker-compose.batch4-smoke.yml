@@ -1,0 +1,19 @@
+services:
+  edge-policy-sync:
+    environment:
+      - BFF_BASE_URL=http://host.docker.internal:5125
+      - EDGE_CLOUD_TOKEN=tenant-batch4-smoke
+      - POLICY_SYNC_INTERVAL_SECONDS=5
+      - POLICY_SYNC_TIMEOUT_SECONDS=10
+      - EDGE_CONTEXTS=[{"tenantId":"tenant-batch4-smoke","farmId":"farm-batch4-smoke","barnId":"barn-batch4-smoke","siteId":"site-batch4-smoke"}]
+
+  edge-vision-inference:
+    environment:
+      - MODEL_SYNC_ENABLED=true
+      - POLICY_SYNC_URL=http://edge-policy-sync:3000/api/v1/edge-config
+      - EDGE_TENANT_ID=tenant-batch4-smoke
+      - EDGE_SITE_ID=site-batch4-smoke
+      - MODEL_CONTROL_BFF_URL=http://host.docker.internal:5125
+      - MODEL_CONTROL_TOKEN=tenant-batch4-smoke
+      - MODEL_CONTROL_TIMEOUT_SECONDS=15
+      - WEIGHVISION_SESSION_URL=http://edge-weighvision-session:3000

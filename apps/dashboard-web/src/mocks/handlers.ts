@@ -1,7 +1,9 @@
 import { http, HttpResponse, delay } from 'msw';
 
-const API_BASE_URL = 'http://localhost:5130/api/v1';
-const API_ROOT = 'http://localhost:5130/api';
+const API_ORIGIN =
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5135';
+const API_BASE_URL = `${API_ORIGIN}/api/v1`;
+const API_ROOT = `${API_ORIGIN}/api`;
 
 export const handlers = [
     // Health

@@ -52,6 +52,38 @@ paths:
         '404':
           description: Not found
 
+  /v1/weighvision/sessions/{sessionId}/metadata:
+    get:
+      summary: Get persisted raw and normalized metadata for a session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session capture metadata
+    post:
+      summary: Persist raw capture metadata and normalized features for a session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertCaptureMetadata'
+      responses:
+        '200':
+          description: Capture metadata persisted
+        '400':
+          description: Invalid request
+
   /v1/weighvision/sessions/{sessionId}/bind-weight:
     post:
       summary: Bind a weight record to a session
@@ -205,6 +237,39 @@ components:
         tenantId: { type: string }
         eventId: { type: string, description: "MQTT event_id (used as sync_outbox.id for idempotency)" }
         occurredAt: { type: string, format: date-time }
+        finalWeightKg: { type: number }
+        payload:
+          type: object
+          additionalProperties: true
+
+    UpsertCaptureMetadata:
+      type: object
+      required:
+        - tenantId
+        - farmId
+        - barnId
+        - deviceId
+        - stationId
+        - eventId
+        - occurredAt
+        - metadata
+      properties:
+        tenantId: { type: string }
+        farmId: { type: string }
+        barnId: { type: string }
+        deviceId: { type: string }
+        stationId: { type: string }
+        eventId: { type: string, description: "MQTT event_id for inference.completed" }
+        occurredAt: { type: string, format: date-time }
+        captureId: { type: string }
+        mediaIds:
+          type: array
+          items: { type: string }
+        metadata:
+          type: object
+          additionalProperties: true
+        eventSchemaVersion: { type: string }
+        sourceEventType: { type: string }
 
     Attach:
       type: object

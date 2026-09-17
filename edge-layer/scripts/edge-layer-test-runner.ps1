@@ -14,12 +14,15 @@ param(
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = Split-Path -Parent $ScriptDir
-$LogFile = Join-Path $ScriptDir "$LogDir\edge-test-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
-$ReportFile = Join-Path $ScriptDir "$LogDir\edge-test-report-$(Get-Date -Format 'yyyyMMdd-HHmmss').json"
+$ComposeBase = Join-Path $RootDir "docker-compose.yml"
+$ComposeDev = Join-Path $RootDir "docker-compose.dev.yml"
+$ResolvedLogDir = Join-Path $ScriptDir $LogDir
+$LogFile = Join-Path $ResolvedLogDir "edge-test-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+$ReportFile = Join-Path $ResolvedLogDir "edge-test-report-$(Get-Date -Format 'yyyyMMdd-HHmmss').json"
 
 # Create log directory if it doesn't exist
-if (-not (Test-Path $LogDir)) {
-    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+if (-not (Test-Path $ResolvedLogDir)) {
+    New-Item -ItemType Directory -Path $ResolvedLogDir -Force | Out-Null
 }
 
 # Test results
@@ -48,8 +51,13 @@ $Services = @{
     "edge-sync-forwarder" = @{ Port = 5108; Type = "HTTP"; HealthPath = "/api/health" }
     "edge-policy-sync" = @{ Port = 5109; Type = "HTTP"; HealthPath = "/api/health" }
     "edge-observability-agent" = @{ Port = 5111; Type = "HTTP"; HealthPath = "/api/health" }
-    "edge-feed-intake" = @{ Port = 5116; Type = "HTTP"; HealthPath = "/api/health" }
+    "edge-feed-intake" = @{ Port = 5112; Type = "HTTP"; HealthPath = "/api/health" }
     "edge-retention-janitor" = @{ Port = 5114; Type = "HTTP"; HealthPath = "/api/health" }
+}
+
+function Invoke-Compose {
+    param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
+    & docker compose -f $ComposeBase -f $ComposeDev @Args
 }
 
 # Logging function
@@ -222,7 +230,7 @@ VALUES ('$tenantId','$deviceId','$farmId','$barnId', TRUE, NOW(), NOW())
 ON CONFLICT (tenant_id, device_id) DO UPDATE SET enabled = TRUE, farm_id = EXCLUDED.farm_id, barn_id = EXCLUDED.barn_id, updated_at = NOW();
 "@
 
-        docker exec edge-layer-postgres-1 psql -U farmiq -d farmiq -c $sqlDevice 2>&1 | Out-Null
+        Invoke-Compose exec -T postgres psql -U farmiq -d farmiq -c $sqlDevice 2>&1 | Out-Null
 
         # Seed station allowlist
         $sqlStation = @"
@@ -231,7 +239,7 @@ VALUES ('$tenantId','$stationId','$farmId','$barnId', TRUE, NOW(), NOW())
 ON CONFLICT (tenant_id, station_id) DO UPDATE SET enabled = TRUE, farm_id = EXCLUDED.farm_id, barn_id = EXCLUDED.barn_id, updated_at = NOW();
 "@
 
-        docker exec edge-layer-postgres-1 psql -U farmiq -d farmiq -c $sqlStation 2>&1 | Out-Null
+        Invoke-Compose exec -T postgres psql -U farmiq -d farmiq -c $sqlStation 2>&1 | Out-Null
 
         Write-Log "✅ Allowlists seeded successfully" -Level "SUCCESS"
         Add-TestResult -TestCase "SEED-ALLOWLISTS" -Passed $true
@@ -303,7 +311,7 @@ function Invoke-HTTPTests {
 
     # Test observability
     try {
-        $response = Invoke-RestMethod -Uri "http://localhost:5111/api/v1/ops" -Method Get -TimeoutSec 10
+        $response = Invoke-RestMethod -Uri "http://localhost:5111/api/v1/ops/edge/status" -Method Get -TimeoutSec 10
         Write-Log "✅ Observability health retrieved: $($response | ConvertTo-Json -Compress)" -Level "SUCCESS"
         Add-TestResult -TestCase "HTTP-OBSERVABILITY" -Passed $true
     } catch {

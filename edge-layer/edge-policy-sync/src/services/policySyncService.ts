@@ -50,6 +50,18 @@ export class PolicySyncService {
     return result.rows[0] || null
   }
 
+  async getEffectiveModelSubscription(tenantId: string, siteId: string) {
+    const result = await this.pool.query(
+      `
+      SELECT tenant_id, site_id, resolved_json, hash, fetched_at, source_etag
+      FROM edge_model_subscription_cache
+      WHERE tenant_id = $1 AND site_id = $2
+      `,
+      [tenantId, siteId]
+    )
+    return result.rows[0] || null
+  }
+
   async getSyncState() {
     const state = await this.pool.query(
       `SELECT last_success_at, last_error_at, last_error, consecutive_failures
@@ -66,9 +78,9 @@ export class PolicySyncService {
 
   private async syncContext(context: EdgeContext): Promise<void> {
     const url = new URL('/api/v1/config/context', this.config.bffBaseUrl)
-    url.searchParams.set('tenantId', context.tenantId)
-    url.searchParams.set('farmId', context.farmId)
-    url.searchParams.set('barnId', context.barnId)
+    url.searchParams.set('tenant_id', context.tenantId)
+    url.searchParams.set('farm_id', context.farmId)
+    url.searchParams.set('barn_id', context.barnId)
 
     const controller = new AbortController()
     const timeout = setTimeout(
@@ -79,6 +91,7 @@ export class PolicySyncService {
     try {
       const headers: Record<string, string> = {
         'x-request-id': `edge-policy-sync-${Date.now()}`,
+        'x-tenant-id': context.tenantId,
       }
 
       if (this.config.cloudToken) {
@@ -121,6 +134,75 @@ export class PolicySyncService {
         tenantId: context.tenantId,
         farmId: context.farmId,
         barnId: context.barnId,
+      })
+
+      if (context.siteId) {
+        await this.syncModelSubscription(context)
+      }
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  private async syncModelSubscription(context: EdgeContext): Promise<void> {
+    if (!context.siteId) return
+
+    const url = new URL(
+      `/api/v1/weighvision/model-subscriptions/sites/${encodeURIComponent(context.siteId)}/resolve`,
+      this.config.bffBaseUrl
+    )
+
+    const controller = new AbortController()
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.config.requestTimeoutSeconds * 1000
+    )
+
+    try {
+      const headers: Record<string, string> = {
+        'x-request-id': `edge-policy-sync-model-${Date.now()}`,
+        'x-tenant-id': context.tenantId,
+      }
+
+      if (this.config.cloudToken) {
+        headers.Authorization = `Bearer ${this.config.cloudToken}`
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '')
+        throw new Error(`Model subscription response ${response.status}: ${body}`)
+      }
+
+      const payload = await response.json()
+      const etag = response.headers.get('etag')
+      const hash = this.hashPayload(payload)
+
+      await this.pool.query(
+        `
+        INSERT INTO edge_model_subscription_cache
+          (tenant_id, site_id, resolved_json, hash, fetched_at, source_etag, last_error, updated_at)
+        VALUES ($1, $2, $3, $4, NOW(), $5, NULL, NOW())
+        ON CONFLICT (tenant_id, site_id)
+        DO UPDATE SET
+          resolved_json = EXCLUDED.resolved_json,
+          hash = EXCLUDED.hash,
+          fetched_at = EXCLUDED.fetched_at,
+          source_etag = EXCLUDED.source_etag,
+          last_error = NULL,
+          updated_at = NOW()
+        `,
+        [context.tenantId, context.siteId, payload, hash, etag]
+      )
+
+      logger.info('Model subscription synced', {
+        tenantId: context.tenantId,
+        siteId: context.siteId,
       })
     } finally {
       clearTimeout(timeout)

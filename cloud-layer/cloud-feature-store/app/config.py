@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # Feature store configuration
     feast_registry_path: str = "/data/registry"
     feast_data_path: str = "/data/features"
-    feast_repo_path: str = "./feature_store"
+    feast_repo_path: str = "."
 
     # Online store (Redis)
     redis_host: str = os.getenv("REDIS_HOST", "redis")

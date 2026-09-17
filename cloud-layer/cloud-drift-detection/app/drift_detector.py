@@ -19,8 +19,6 @@ from evidently.metric_preset import DataDriftPreset, TargetDriftPreset
 
 from app.config import settings
 
-# Configure logging
-logging.basicConfig(level=settings.log_level, format=settings.log_format)
 logger = logging.getLogger(__name__)
 
 

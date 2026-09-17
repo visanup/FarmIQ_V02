@@ -33,6 +33,15 @@ function parseStatusFromErrorMessage(message?: string): number | null {
   return Number.isFinite(status) ? status : null
 }
 
+function forwardHeaders(req: Request, res: Response): Record<string, string> {
+  const headers: Record<string, string> = {}
+  const auth = req.headers.authorization
+  if (auth) headers.authorization = auth
+  if (res.locals.traceId) headers['x-trace-id'] = res.locals.traceId
+  if (res.locals.requestId) headers['x-request-id'] = res.locals.requestId
+  return headers
+}
+
 /**
  * Get weighvision sessions (proxy to weighvision-readmodel)
  */
@@ -71,6 +80,7 @@ export async function getSessionsHandler(req: Request, res: Response) {
       to,
       limit,
       cursor,
+      headers: forwardHeaders(req, res),
     })
 
     logger.info('WeighVision sessions retrieved', {
@@ -141,7 +151,7 @@ export async function getSessionByIdHandler(req: Request, res: Response) {
       })
     }
 
-    const result = await weighvisionService.getSessionById(tenantId, sessionId)
+    const result = await weighvisionService.getSessionById(tenantId, sessionId, forwardHeaders(req, res))
 
     logger.info('WeighVision session retrieved', {
       tenantId,
@@ -238,6 +248,7 @@ export async function getAnalyticsHandler(req: Request, res: Response) {
       startDate,
       endDate,
       aggregation,
+      headers: forwardHeaders(req, res),
     })
 
     logger.info('WeighVision analytics retrieved', {
@@ -318,6 +329,7 @@ export async function getWeightAggregatesHandler(req: Request, res: Response) {
       batchId,
       start,
       end,
+      headers: forwardHeaders(req, res),
     })
 
     res.json(result)
@@ -338,3 +350,118 @@ export async function getWeightAggregatesHandler(req: Request, res: Response) {
   }
 }
 
+export async function getDatasetContractHandler(req: Request, res: Response) {
+  try {
+    const result = await weighvisionService.getDatasetContract(forwardHeaders(req, res))
+    res.json(result)
+  } catch (error: any) {
+    logger.error('Error in getDatasetContractHandler', { error: error.message, traceId: res.locals.traceId })
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to fetch weighvision dataset contract',
+        traceId: res.locals.traceId || 'unknown',
+      },
+    })
+  }
+}
+
+export async function bootstrapBaselineHandler(req: Request, res: Response) {
+  try {
+    const result = await weighvisionService.bootstrapBaseline(forwardHeaders(req, res))
+    res.status(201).json(result)
+  } catch (error: any) {
+    logger.error('Error in bootstrapBaselineHandler', { error: error.message, traceId: res.locals.traceId })
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to bootstrap weighvision baseline assets',
+        traceId: res.locals.traceId || 'unknown',
+      },
+    })
+  }
+}
+
+export async function trainBaselineHandler(req: Request, res: Response) {
+  try {
+    const result = await weighvisionService.trainBaseline(req.body, forwardHeaders(req, res))
+    res.status(201).json(result)
+  } catch (error: any) {
+    logger.error('Error in trainBaselineHandler', { error: error.message, traceId: res.locals.traceId })
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to train weighvision baseline package',
+        traceId: res.locals.traceId || 'unknown',
+      },
+    })
+  }
+}
+
+export async function upsertModelSubscriptionHandler(req: Request, res: Response) {
+  try {
+    const siteId = req.params.siteId
+    const result = await weighvisionService.upsertModelSubscription(siteId, req.body, forwardHeaders(req, res))
+    res.json(result)
+  } catch (error: any) {
+    logger.error('Error in upsertModelSubscriptionHandler', { error: error.message, traceId: res.locals.traceId })
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to upsert weighvision model subscription',
+        traceId: res.locals.traceId || 'unknown',
+      },
+    })
+  }
+}
+
+export async function getModelSubscriptionHandler(req: Request, res: Response) {
+  try {
+    const siteId = req.params.siteId
+    const result = await weighvisionService.getModelSubscription(siteId, forwardHeaders(req, res))
+    res.json(result)
+  } catch (error: any) {
+    logger.error('Error in getModelSubscriptionHandler', { error: error.message, traceId: res.locals.traceId })
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to fetch weighvision model subscription',
+        traceId: res.locals.traceId || 'unknown',
+      },
+    })
+  }
+}
+
+export async function resolveModelSubscriptionHandler(req: Request, res: Response) {
+  try {
+    const siteId = req.params.siteId
+    const result = await weighvisionService.resolveModelSubscription(siteId, forwardHeaders(req, res))
+    res.json(result)
+  } catch (error: any) {
+    logger.error('Error in resolveModelSubscriptionHandler', { error: error.message, traceId: res.locals.traceId })
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to resolve weighvision model subscription',
+        traceId: res.locals.traceId || 'unknown',
+      },
+    })
+  }
+}
+
+export async function ackModelSubscriptionHandler(req: Request, res: Response) {
+  try {
+    const siteId = req.params.siteId
+    const result = await weighvisionService.ackModelSubscription(siteId, req.body, forwardHeaders(req, res))
+    res.status(201).json(result)
+  } catch (error: any) {
+    logger.error('Error in ackModelSubscriptionHandler', { error: error.message, traceId: res.locals.traceId })
+    return res.status(500).json({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to acknowledge weighvision model subscription',
+        traceId: res.locals.traceId || 'unknown',
+      },
+    })
+  }
+}

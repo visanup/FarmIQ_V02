@@ -124,7 +124,7 @@ export const SERVICE_REGISTRY: ServiceDef[] = [
         name: 'Retention Janitor',
         description: 'Disk cleanup and policy enforcement',
         hasHttp: true,
-        defaultPort: 5115,
+        defaultPort: 5114,
         clusterPath: '/svc/janitor',
         healthPath: '/api/health',
         readyPath: '/api/ready',

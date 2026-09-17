@@ -1,13 +1,5 @@
 ## Stage 0: Build Stage ##
-FROM node:24-slim AS builder
-
-# Install essential build tools
-RUN apt-get update && apt-get install -y \
-    git \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+FROM node:20-alpine AS builder
 
 # Accept build argument for app name
 ARG APP_NAME=dashboard-web
@@ -18,21 +10,34 @@ WORKDIR /app
 RUN npm config set strict-ssl false
 
 # Copy packages directory first (for workspace dependencies)
-COPY packages/ /usr/src/packages/
+COPY packages/ /packages/
 
 # Build the packages first
-WORKDIR /usr/src/packages/farmiq-api-client
-RUN npm install && npm run build
+WORKDIR /packages/farmiq-api-client
+RUN for i in 1 2 3 4 5; do \
+      npm ci --include=dev && break; \
+      if [ "$i" -eq 5 ]; then exit 1; fi; \
+      sleep $((i * 5)); \
+    done && (test -x ./node_modules/.bin/tsc || npm install --include=dev typescript@^5) && npm run build
 
-WORKDIR /usr/src/packages/contracts
-RUN npm install && npm run build
+WORKDIR /packages/contracts
+RUN for i in 1 2 3 4 5; do \
+      npm install && break; \
+      if [ "$i" -eq 5 ]; then exit 1; fi; \
+      sleep $((i * 5)); \
+    done && npm run build
 
 # Go back to app directory
 WORKDIR /app
 
 # Copy app package.json and install dependencies
 COPY apps/${APP_NAME}/package.json ./
-RUN npm cache clean --force && npm install
+RUN npm cache clean --force && \
+    for i in 1 2 3 4 5; do \
+      npm install && break; \
+      if [ "$i" -eq 5 ]; then exit 1; fi; \
+      sleep $((i * 5)); \
+    done
 
 # Copy app source code (excluding node_modules)
 COPY apps/${APP_NAME}/src ./src
@@ -51,7 +56,7 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npx vite build
 
 ## Stage 1: Development Stage ##
-FROM node:24-slim AS development
+FROM node:20-alpine AS development
 
 # Accept build argument for app name
 ARG APP_NAME=dashboard-web
@@ -62,21 +67,34 @@ WORKDIR /app
 RUN npm config set strict-ssl false
 
 # Copy packages directory first (for workspace dependencies)
-COPY packages/ /usr/src/packages/
+COPY packages/ /packages/
 
 # Build the packages first
-WORKDIR /usr/src/packages/farmiq-api-client
-RUN npm install && npm run build
+WORKDIR /packages/farmiq-api-client
+RUN for i in 1 2 3 4 5; do \
+      npm ci --include=dev && break; \
+      if [ "$i" -eq 5 ]; then exit 1; fi; \
+      sleep $((i * 5)); \
+    done && (test -x ./node_modules/.bin/tsc || npm install --include=dev typescript@^5) && npm run build
 
-WORKDIR /usr/src/packages/contracts
-RUN npm install && npm run build
+WORKDIR /packages/contracts
+RUN for i in 1 2 3 4 5; do \
+      npm install && break; \
+      if [ "$i" -eq 5 ]; then exit 1; fi; \
+      sleep $((i * 5)); \
+    done && npm run build
 
 # Go back to app directory
 WORKDIR /app
 
 # Copy app package.json and install dependencies
 COPY apps/${APP_NAME}/package.json ./
-RUN npm cache clean --force && npm install
+RUN npm cache clean --force && \
+    for i in 1 2 3 4 5; do \
+      npm install && break; \
+      if [ "$i" -eq 5 ]; then exit 1; fi; \
+      sleep $((i * 5)); \
+    done
 
 # Copy app source code (excluding node_modules)
 COPY apps/${APP_NAME}/src ./src
@@ -94,6 +112,8 @@ RUN mkdir -p /usr/local/bin && \
     echo 'if [ -f "/app/package.json" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '  echo "[Entrypoint] package.json found, checking dependencies..."' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '  MISSING_DEPS=false' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '  if [ ! -d "/app/node_modules/lucide-react" ]; then MISSING_DEPS=true; fi' >> /usr/local/bin/docker-entrypoint.sh && \
+    echo '  if [ ! -d "/app/node_modules/@tanstack/react-query" ]; then MISSING_DEPS=true; fi' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '  if [ ! -d "/app/node_modules/i18next-browser-languagedetector" ]; then MISSING_DEPS=true; fi' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '  if [ ! -d "/app/node_modules" ] || [ ! "$(ls -A /app/node_modules 2>/dev/null)" ] || [ "$MISSING_DEPS" = "true" ]; then' >> /usr/local/bin/docker-entrypoint.sh && \
     echo '    echo "[Entrypoint] Installing/updating dependencies..."' >> /usr/local/bin/docker-entrypoint.sh && \
@@ -130,12 +150,8 @@ RUN apk add --no-cache curl
 # Create non-root user if not exists
 RUN adduser -D -H -u 101 -s /sbin/nologin nginx || true
 
-# Copy build files and set ownership (Vite builds to 'dist' by default)
+# Copy build files and set ownership
 COPY --from=builder --chown=nginx:nginx /app/build /usr/share/nginx/html
-
-# Copy source maps to separate location for debugging (optional)
-RUN mkdir -p /source-map/assets
-COPY --from=builder --chown=nginx:nginx /app/build/*.map /source-map/assets/
 
 # Copy and set ownership of nginx configuration
 COPY --chown=nginx:nginx apps/${APP_NAME}/nginx.conf /etc/nginx/nginx.conf

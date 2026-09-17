@@ -1,0 +1,208 @@
+{
+  "mode": "isolated replay; test model; mocked DB/outbox; no production writes",
+  "source": "Edge farmiq.session_capture_metadata",
+  "time_window_thai": "2026-09-15 15:00:00 exclusive to 15:18:03.737 inclusive",
+  "sessions": 39,
+  "actual_detections": 220,
+  "distinct_results": 220,
+  "distinct_events": 220,
+  "prediction_calls": 440,
+  "weight_accuracy_validated": false,
+  "details": [
+    {
+      "session_id": "20260915_080054",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080313",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080451",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080515",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080532",
+      "detection_count": 4,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080547",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080606",
+      "detection_count": 4,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080611",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080619",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080746",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_080759",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081034",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081104",
+      "detection_count": 4,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081124",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081137",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081145",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081205",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081221",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081244",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081301",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081306",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081318",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081348",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081359",
+      "detection_count": 8,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081403",
+      "detection_count": 5,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081409",
+      "detection_count": 7,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081420",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081437",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081511",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081521",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081531",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081543",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081555",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081606",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081707",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081711",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081717",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081747",
+      "detection_count": 6,
+      "verified_views": 2
+    },
+    {
+      "session_id": "20260915_081803",
+      "detection_count": 6,
+      "verified_views": 2
+    }
+  ]
+}

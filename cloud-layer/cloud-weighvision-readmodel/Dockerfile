@@ -110,7 +110,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 CMD node -e "fetch('http://localhost:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
-# Run database migrations before starting the application
-# Note: DATABASE_URL must be provided as environment variable
-CMD sh -c "npx prisma migrate deploy && node dist/src/index.js"
-
+# Run database migrations before starting the application.
+# Fallback to db push when the database was pre-seeded without Prisma migration history.
+CMD sh -c "(node node_modules/prisma/build/index.js migrate deploy || (echo 'prisma migrate deploy failed; fallback to prisma db push' && node node_modules/prisma/build/index.js db push)) && node dist/src/index.js"

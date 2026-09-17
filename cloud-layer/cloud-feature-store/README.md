@@ -25,7 +25,7 @@ Enterprise-grade feature management using Feast for centralized feature storage 
                      ┌──────────────┐     ┌─────────────┐
                      │   Offline     │     │   Feature   │
                      │   Store       │     │   Registry  │
-                     │ (PostgreSQL)  │     │   (SQLite)  │
+                     │(Local Parquet)│     │   (SQLite)  │
                      └──────────────┘     └─────────────┘
 ```
 
@@ -199,10 +199,15 @@ curl "http://localhost:5137/api/v1/features/views"
 |-----------|-------------|----------|
 | `REDIS_HOST` | Redis host for online store | `redis` |
 | `REDIS_PORT` | Redis port | `6379` |
-| `POSTGRES_HOST` | PostgreSQL host for offline store | `postgres` |
-| `POSTGRES_DB` | Feature store database | `feature_store` |
+| `FEAST_DATA_PATH` | Persistent local Parquet directory | `/data/features` |
+| `FEAST_REGISTRY_PATH` | Persistent Feast registry directory | `/data/registry` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `PORT` | Service port | `5137` |
+
+On first startup, the service creates schema-only Parquet files for all four
+FarmIQ feature domains when they do not exist. Existing field data is never
+overwritten. A separate export/materialization job can populate these files
+from operational databases before materializing the latest values into Redis.
 
 ## Testing
 
@@ -224,6 +229,18 @@ docker build -t farmiq-feature-store:latest .
 kubectl apply -f k8s/deployment.yaml
 ```
 
+For an offline onsite update, first preserve the verified release image under
+the tag expected by `Dockerfile.onsite`, then build only the source overlay:
+
+```bash
+docker tag cloud-layer-cloud-feature-store:latest \
+  cloud-layer-cloud-feature-store:release-20260816
+docker build -f Dockerfile.onsite \
+  -t cloud-layer-cloud-feature-store:latest .
+```
+
+This path performs no package-manager or dependency downloads.
+
 ## Monitoring
 
 - **Feast UI**: http://localhost:6566
@@ -238,8 +255,9 @@ kubectl apply -f k8s/deployment.yaml
 # Check Redis connection
 docker compose -f docker-compose.dev.yml exec redis redis-cli ping
 
-# Check PostgreSQL connection
-docker compose -f docker-compose.dev.yml exec postgres psql -U farmiq -d feature_store
+# Check persistent local datasets and registry
+docker compose -f docker-compose.dev.yml exec cloud-feature-store \
+  sh -lc 'ls -lh /data/features /data/registry'
 
 # Check Feast logs
 docker compose -f docker-compose.dev.yml logs cloud-feature-store

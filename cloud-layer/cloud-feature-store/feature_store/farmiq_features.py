@@ -5,11 +5,15 @@ Domain-specific features for poultry farming ML models
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import List, Dict, Any
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from feast import (
+    Entity,
     FeatureStore,
     FeatureView,
     Field,
@@ -17,12 +21,14 @@ from feast import (
     types
 )
 from feast.types import Float32, Int64, String
-
+from feast.value_type import ValueType
 from app.config import settings
 
-# Configure logging
-logging.basicConfig(level=settings.log_level, format=settings.log_format)
 logger = logging.getLogger(__name__)
+
+
+def _feature_path(dataset_name: str) -> str:
+    return str(Path(settings.feast_data_path) / f"{dataset_name}.parquet")
 
 
 # ============================================================================
@@ -31,32 +37,36 @@ logger = logging.getLogger(__name__)
 
 # Barn telemetry data source
 barn_telemetry_source = FileSource(
-    path="s3://farmiq-features/barn_telemetry/",
+    path=_feature_path("barn_telemetry"),
     event_timestamp_column="event_timestamp",
+    timestamp_field="event_timestamp",
     created_timestamp_column="created_timestamp",
     description="Barn telemetry sensor data from IoT devices"
 )
 
 # Bird performance data source
 bird_performance_source = FileSource(
-    path="s3://farmiq-features/bird_performance/",
+    path=_feature_path("bird_performance"),
     event_timestamp_column="event_timestamp",
+    timestamp_field="event_timestamp",
     created_timestamp_column="created_timestamp",
     description="Bird performance metrics from weighvision"
 )
 
 # Feed consumption data source
 feed_consumption_source = FileSource(
-    path="s3://farmiq-features/feed_consumption/",
+    path=_feature_path("feed_consumption"),
     event_timestamp_column="event_timestamp",
+    timestamp_field="event_timestamp",
     created_timestamp_column="created_timestamp",
     description="Feed consumption and inventory data"
 )
 
 # Environmental data source
 environmental_source = FileSource(
-    path="s3://farmiq-features/environmental/",
+    path=_feature_path("environmental"),
     event_timestamp_column="event_timestamp",
+    timestamp_field="event_timestamp",
     created_timestamp_column="created_timestamp",
     description="Environmental conditions (temperature, humidity, ammonia)"
 )
@@ -117,6 +127,7 @@ feed_consumption_features = [
 
 # Environmental features
 environmental_features = [
+    Field(name="barn_id", dtype=String),
     Field(name="temperature_c", dtype=Float32),
     Field(name="humidity_percent", dtype=Float32),
     Field(name="ammonia_ppm", dtype=Float32),
@@ -129,14 +140,96 @@ environmental_features = [
     Field(name="thermal_comfort_index", dtype=Float32)
 ]
 
+
+def _arrow_type(feast_type: Any) -> pa.DataType:
+    if feast_type == Float32:
+        return pa.float32()
+    if feast_type == Int64:
+        return pa.int64()
+    if feast_type == String:
+        return pa.string()
+    raise ValueError(f"Unsupported Feast type for local bootstrap: {feast_type}")
+
+
+def ensure_local_feature_files(data_root: str | Path | None = None) -> List[Path]:
+    """Create schema-only Parquet datasets without overwriting field data."""
+    root = Path(data_root or settings.feast_data_path)
+    root.mkdir(parents=True, exist_ok=True)
+
+    datasets = {
+        "barn_telemetry": barn_telemetry_features,
+        "bird_performance": bird_performance_features,
+        "feed_consumption": feed_consumption_features,
+        "environmental": environmental_features,
+    }
+    created: List[Path] = []
+
+    for dataset_name, fields in datasets.items():
+        path = root / f"{dataset_name}.parquet"
+        if path.exists():
+            continue
+
+        seen = set()
+        schema_fields = []
+        for field in fields:
+            if field.name in seen:
+                continue
+            seen.add(field.name)
+            schema_fields.append(pa.field(field.name, _arrow_type(field.dtype)))
+        schema_fields.extend(
+            [
+                pa.field("event_timestamp", pa.timestamp("us", tz="UTC")),
+                pa.field("created_timestamp", pa.timestamp("us", tz="UTC")),
+            ]
+        )
+        schema = pa.schema(schema_fields)
+        table = pa.Table.from_arrays(
+            [pa.array([], type=field.type) for field in schema],
+            schema=schema,
+        )
+        pq.write_table(table, path)
+        created.append(path)
+
+    if created:
+        logger.info("Created local feature datasets: %s", [str(path) for path in created])
+    return created
+
+
+def parse_feature_timestamp(value: str) -> datetime:
+    """Parse an ISO-8601 API timestamp into a timezone-aware datetime."""
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
 # ============================================================================
 # FEATURE VIEWS
 # ============================================================================
 
+barn_entity = Entity(
+    name="barn_id", join_keys=["barn_id"], value_type=ValueType.STRING
+)
+bird_entity = Entity(
+    name="bird_id", join_keys=["bird_id"], value_type=ValueType.STRING
+)
+batch_entity = Entity(
+    name="batch_id", join_keys=["batch_id"], value_type=ValueType.STRING
+)
+feed_batch_entity = Entity(
+    name="feed_batch_id",
+    join_keys=["feed_batch_id"],
+    value_type=ValueType.STRING,
+)
+supplier_entity = Entity(
+    name="supplier_id",
+    join_keys=["supplier_id"],
+    value_type=ValueType.STRING,
+)
+
 # Barn telemetry feature view
 barn_telemetry_fv = FeatureView(
     name="barn_telemetry_features",
-    entities=["barn_id"],
+    entities=[barn_entity],
     ttl=timedelta(days=30),
     schema=barn_telemetry_features,
     source=barn_telemetry_source,
@@ -146,7 +239,7 @@ barn_telemetry_fv = FeatureView(
 # Bird performance feature view
 bird_performance_fv = FeatureView(
     name="bird_performance_features",
-    entities=["bird_id", "batch_id"],
+    entities=[bird_entity, batch_entity],
     ttl=timedelta(days=90),
     schema=bird_performance_features,
     source=bird_performance_source,
@@ -156,7 +249,7 @@ bird_performance_fv = FeatureView(
 # Feed consumption feature view
 feed_consumption_fv = FeatureView(
     name="feed_consumption_features",
-    entities=["feed_batch_id", "supplier_id"],
+    entities=[feed_batch_entity, supplier_entity],
     ttl=timedelta(days=30),
     schema=feed_consumption_features,
     source=feed_consumption_source,
@@ -166,7 +259,7 @@ feed_consumption_fv = FeatureView(
 # Environmental feature view
 environmental_fv = FeatureView(
     name="environmental_features",
-    entities=["barn_id"],
+    entities=[barn_entity],
     ttl=timedelta(days=7),
     schema=environmental_features,
     source=environmental_source,
@@ -182,7 +275,7 @@ class FeatureStoreManager:
     Enterprise-grade feature store manager for FarmIQ domain
     """
 
-    def __init__(self, repo_path: str = "./feature_store"):
+    def __init__(self, repo_path: str = "."):
         """
         Initialize feature store manager
 
@@ -198,15 +291,27 @@ class FeatureStoreManager:
         Create all FarmIQ feature views in the feature store
         """
         try:
+            ensure_local_feature_files()
             feature_views = [
                 barn_telemetry_fv,
                 bird_performance_fv,
                 feed_consumption_fv,
                 environmental_fv
             ]
+            entities = [
+                barn_entity,
+                bird_entity,
+                batch_entity,
+                feed_batch_entity,
+                supplier_entity,
+            ]
 
-            self.store.apply(feature_views)
-            logger.info(f"Created {len(feature_views)} feature views")
+            self.store.apply([*entities, *feature_views])
+            logger.info(
+                "Registered %s entities and %s feature views",
+                len(entities),
+                len(feature_views),
+            )
 
         except Exception as e:
             logger.error(f"Failed to create feature views: {e}")
@@ -291,9 +396,15 @@ class FeatureStoreManager:
             end_date: End time for incremental materialization
         """
         try:
-            self.store.materialize_incremental(end_date)
+            start_at = parse_feature_timestamp(start_date)
+            end_at = parse_feature_timestamp(end_date)
+            if start_at > end_at:
+                raise ValueError("start_date must be earlier than or equal to end_date")
+            self.store.materialize_incremental(end_at)
             logger.info(
-                f"Incremental materialization completed: {start_date} to {end_date}"
+                "Incremental materialization completed: %s to %s",
+                start_at.isoformat(),
+                end_at.isoformat(),
             )
         except Exception as e:
             logger.error(f"Failed incremental materialization: {e}")
@@ -378,4 +489,4 @@ class FeatureStoreManager:
 
 
 # Global feature store instance
-feature_store = FeatureStoreManager(repo_path="./feature_store")
+feature_store = FeatureStoreManager(repo_path=settings.feast_repo_path)

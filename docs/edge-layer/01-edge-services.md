@@ -1,7 +1,7 @@
 Purpose: Define the canonical FarmIQ edge services, their responsibilities, and ownership boundaries.  
 Scope: Per-service purpose, APIs, owned tables, outbox events, PVC usage, and boilerplate mapping.  
 Owner: FarmIQ Edge Team  
-Last updated: 2025-12-31  
+Last updated: 2026-07-16  
 
 ---
 
@@ -38,8 +38,8 @@ For local docker-compose setup and verified commands/output, use:
 - `docs/edge-layer/05-evidence-local-compose.md`
 
 In local compose, FE should prefer going through `edge-ops-web`:
-- UI: `http://localhost:5110/` (and sometimes `http://localhost:5113/` when compose files are merged)
-- Service proxy: `http://localhost:5110/svc/{service}/...` (no browser CORS issues)
+- UI: `http://localhost:5113/`
+- Service proxy: `http://localhost:5113/svc/{service}/...` (no browser CORS issues)
 
 ---
 

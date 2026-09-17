@@ -422,6 +422,7 @@ services:
       - APP_PORT=3000
       - LOG_LEVEL=debug
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_api_gateway_bff
+      - JWT_SECRET=${JWT_SECRET:-dev-jwt-secret-change-in-production}
       - IDENTITY_BASE_URL=http://cloud-identity-access:3000
       - REGISTRY_BASE_URL=http://cloud-tenant-registry:3000
       - TELEMETRY_BASE_URL=http://cloud-telemetry-service:3000

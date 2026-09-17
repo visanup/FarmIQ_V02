@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { buildContextPath, loginAndWaitForSession } from './support/session';
 
 const defaultTenantId = process.env.VITE_DEFAULT_TENANT_ID || process.env.SMOKE_TENANT_ID || '';
 
 test.describe('tenant selection', () => {
   test('select tenant or use dev override', async ({ page }) => {
-    await page.goto('/select-tenant', { waitUntil: 'domcontentloaded' });
+    await loginAndWaitForSession(page);
+    await page.goto(buildContextPath('/select-tenant'), { waitUntil: 'domcontentloaded' });
 
     const tenantCards = page.getByRole('button', { name: /enter workspace/i });
     const overrideInput = page.getByLabel('Developer tenant ID');

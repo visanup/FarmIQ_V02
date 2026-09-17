@@ -5,7 +5,10 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-import asyncpg
+try:
+    import asyncpg
+except ModuleNotFoundError:  # pragma: no cover - local test fallback
+    asyncpg = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +18,9 @@ class InMemoryMlModelDb:
         self._models: dict[str, dict[str, Any]] = {}
         self._deployments: dict[str, dict[str, Any]] = {}
         self._trainings: dict[str, dict[str, Any]] = {}
+        self._packages: dict[str, dict[str, Any]] = {}
+        self._subscriptions: dict[tuple[str, str], dict[str, Any]] = {}
+        self._subscription_acks: dict[str, dict[str, Any]] = {}
 
     async def connect(self) -> None:
         return None
@@ -181,6 +187,108 @@ class InMemoryMlModelDb:
     async def get_training(self, *, training_id: str) -> Optional[dict[str, Any]]:
         return self._trainings.get(training_id)
 
+    # WeighVision package registry operations
+    async def create_model_package(self, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        created_at = kwargs.get("created_at") or datetime.now(tz=timezone.utc)
+        row = {
+            "id": kwargs["id"],
+            "tenant_id": kwargs["tenant_id"],
+            "model_id": kwargs["model_id"],
+            "package_version": kwargs["package_version"],
+            "runtime_family": kwargs["runtime_family"],
+            "runtime_version": kwargs["runtime_version"],
+            "feature_schema_version": kwargs["feature_schema_version"],
+            "checksum_sha256": kwargs["checksum_sha256"],
+            "package_uri": kwargs["package_uri"],
+            "channel": kwargs["channel"],
+            "approval_state": kwargs["approval_state"],
+            "manifest": kwargs["manifest"],
+            "created_at": created_at,
+            "updated_at": kwargs.get("updated_at", created_at),
+        }
+        self._packages[row["id"]] = row
+
+    async def get_model_package(self, *, package_id: str) -> Optional[dict[str, Any]]:
+        return self._packages.get(package_id)
+
+    async def list_model_packages(
+        self,
+        *,
+        tenant_id: str,
+        model_id: Optional[str] = None,
+        channel: Optional[str] = None,
+        approval_state: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[dict[str, Any]], int]:
+        page = max(1, page)
+        limit = max(1, min(limit, 100))
+        items = [
+            p
+            for p in self._packages.values()
+            if p["tenant_id"] == tenant_id
+            and (model_id is None or p["model_id"] == model_id)
+            and (channel is None or p["channel"] == channel)
+            and (approval_state is None or p["approval_state"] == approval_state)
+        ]
+        items.sort(key=lambda x: x["created_at"], reverse=True)
+        total = len(items)
+        offset = (page - 1) * limit
+        return items[offset : offset + limit], total
+
+    async def upsert_site_subscription(self, **kwargs) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+        key = (kwargs["tenant_id"], kwargs["site_id"])
+        created_at = datetime.now(tz=timezone.utc)
+        existing = self._subscriptions.get(key)
+        if existing:
+            existing.update(
+                {
+                    "farm_id": kwargs.get("farm_id"),
+                    "barn_id": kwargs.get("barn_id"),
+                    "channel": kwargs["channel"],
+                    "pinned_package_id": kwargs.get("pinned_package_id"),
+                    "fallback_package_id": kwargs.get("fallback_package_id"),
+                    "notes": kwargs.get("notes"),
+                    "updated_at": created_at,
+                }
+            )
+            return existing
+
+        row = {
+            "id": kwargs["id"],
+            "tenant_id": kwargs["tenant_id"],
+            "site_id": kwargs["site_id"],
+            "farm_id": kwargs.get("farm_id"),
+            "barn_id": kwargs.get("barn_id"),
+            "channel": kwargs["channel"],
+            "pinned_package_id": kwargs.get("pinned_package_id"),
+            "fallback_package_id": kwargs.get("fallback_package_id"),
+            "notes": kwargs.get("notes"),
+            "created_at": created_at,
+            "updated_at": created_at,
+        }
+        self._subscriptions[key] = row
+        return row
+
+    async def get_site_subscription(self, *, tenant_id: str, site_id: str) -> Optional[dict[str, Any]]:
+        return self._subscriptions.get((tenant_id, site_id))
+
+    async def create_site_subscription_ack(self, **kwargs) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+        created_at = datetime.now(tz=timezone.utc)
+        row = {
+            "id": kwargs["id"],
+            "tenant_id": kwargs["tenant_id"],
+            "site_id": kwargs["site_id"],
+            "package_id": kwargs["package_id"],
+            "ack_type": kwargs["ack_type"],
+            "status": kwargs["status"],
+            "detail": kwargs.get("detail"),
+            "payload": kwargs.get("payload", {}),
+            "created_at": created_at,
+        }
+        self._subscription_acks[row["id"]] = row
+        return row
+
 
 class MlModelDb:
     def __init__(self, database_url: str):
@@ -188,6 +296,8 @@ class MlModelDb:
         self._pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
+        if asyncpg is None:
+            raise RuntimeError("asyncpg is required for non-testing database mode")
         self._pool = await asyncpg.create_pool(dsn=self._database_url, min_size=1, max_size=10)
 
     async def close(self) -> None:
@@ -320,6 +430,84 @@ class MlModelDb:
                 """
                 CREATE INDEX IF NOT EXISTS ml_training_tenant_idx
                   ON ml_training(tenant_id);
+                """
+            )
+
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ml_model_package (
+                  id TEXT PRIMARY KEY,
+                  tenant_id TEXT NOT NULL,
+                  model_id TEXT NOT NULL REFERENCES ml_model(id) ON DELETE CASCADE,
+                  package_version TEXT NOT NULL,
+                  runtime_family TEXT NOT NULL,
+                  runtime_version TEXT NOT NULL,
+                  feature_schema_version TEXT NOT NULL,
+                  checksum_sha256 TEXT NOT NULL,
+                  package_uri TEXT NOT NULL,
+                  channel TEXT NOT NULL,
+                  approval_state TEXT NOT NULL DEFAULT 'draft',
+                  manifest JSONB NOT NULL DEFAULT '{}'::jsonb,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  UNIQUE (tenant_id, model_id, package_version)
+                );
+                """
+            )
+
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS ml_model_package_tenant_idx
+                  ON ml_model_package(tenant_id, channel, approval_state);
+                """
+            )
+
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ml_site_subscription (
+                  id TEXT PRIMARY KEY,
+                  tenant_id TEXT NOT NULL,
+                  site_id TEXT NOT NULL,
+                  farm_id TEXT NULL,
+                  barn_id TEXT NULL,
+                  channel TEXT NOT NULL,
+                  pinned_package_id TEXT NULL REFERENCES ml_model_package(id) ON DELETE SET NULL,
+                  fallback_package_id TEXT NULL REFERENCES ml_model_package(id) ON DELETE SET NULL,
+                  notes TEXT NULL,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  UNIQUE (tenant_id, site_id)
+                );
+                """
+            )
+
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS ml_site_subscription_tenant_site_idx
+                  ON ml_site_subscription(tenant_id, site_id);
+                """
+            )
+
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ml_site_subscription_ack (
+                  id TEXT PRIMARY KEY,
+                  tenant_id TEXT NOT NULL,
+                  site_id TEXT NOT NULL,
+                  package_id TEXT NOT NULL REFERENCES ml_model_package(id) ON DELETE CASCADE,
+                  ack_type TEXT NOT NULL,
+                  status TEXT NOT NULL,
+                  detail TEXT NULL,
+                  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                );
+                """
+            )
+
+            await conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS ml_site_subscription_ack_lookup_idx
+                  ON ml_site_subscription_ack(tenant_id, site_id, created_at DESC);
                 """
             )
 
@@ -760,3 +948,211 @@ class MlModelDb:
                 training_id,
             )
             return dict(row) if row else None
+
+    async def create_model_package(
+        self,
+        *,
+        id: str,
+        tenant_id: str,
+        model_id: str,
+        package_version: str,
+        runtime_family: str,
+        runtime_version: str,
+        feature_schema_version: str,
+        checksum_sha256: str,
+        package_uri: str,
+        channel: str,
+        approval_state: str,
+        manifest: dict[str, Any],
+    ) -> None:
+        assert self._pool is not None
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO ml_model_package
+                  (id, tenant_id, model_id, package_version, runtime_family, runtime_version,
+                   feature_schema_version, checksum_sha256, package_uri, channel, approval_state, manifest)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
+                """,
+                id,
+                tenant_id,
+                model_id,
+                package_version,
+                runtime_family,
+                runtime_version,
+                feature_schema_version,
+                checksum_sha256,
+                package_uri,
+                channel,
+                approval_state,
+                json.dumps(manifest),
+            )
+
+    async def get_model_package(self, *, package_id: str) -> Optional[dict[str, Any]]:
+        assert self._pool is not None
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                  id, tenant_id, model_id, package_version, runtime_family, runtime_version,
+                  feature_schema_version, checksum_sha256, package_uri, channel, approval_state,
+                  manifest, created_at, updated_at
+                FROM ml_model_package
+                WHERE id = $1
+                """,
+                package_id,
+            )
+            return dict(row) if row else None
+
+    async def list_model_packages(
+        self,
+        *,
+        tenant_id: str,
+        model_id: Optional[str] = None,
+        channel: Optional[str] = None,
+        approval_state: Optional[str] = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[dict[str, Any]], int]:
+        assert self._pool is not None
+        page = max(1, page)
+        limit = max(1, min(limit, 100))
+        offset = (page - 1) * limit
+
+        where_clauses = ["tenant_id = $1"]
+        params: list[Any] = [tenant_id]
+        param_idx = 2
+
+        if model_id:
+            where_clauses.append(f"model_id = ${param_idx}")
+            params.append(model_id)
+            param_idx += 1
+
+        if channel:
+            where_clauses.append(f"channel = ${param_idx}")
+            params.append(channel)
+            param_idx += 1
+
+        if approval_state:
+            where_clauses.append(f"approval_state = ${param_idx}")
+            params.append(approval_state)
+            param_idx += 1
+
+        where_clause = " AND ".join(where_clauses)
+
+        async with self._pool.acquire() as conn:
+            total = await conn.fetchval(
+                f"SELECT COUNT(*) FROM ml_model_package WHERE {where_clause}",
+                *params,
+            )
+            rows = await conn.fetch(
+                f"""
+                SELECT
+                  id, tenant_id, model_id, package_version, runtime_family, runtime_version,
+                  feature_schema_version, checksum_sha256, package_uri, channel, approval_state,
+                  manifest, created_at, updated_at
+                FROM ml_model_package
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+                """,
+                *params,
+                limit,
+                offset,
+            )
+            return [dict(r) for r in rows], int(total or 0)
+
+    async def upsert_site_subscription(
+        self,
+        *,
+        id: str,
+        tenant_id: str,
+        site_id: str,
+        farm_id: Optional[str],
+        barn_id: Optional[str],
+        channel: str,
+        pinned_package_id: Optional[str],
+        fallback_package_id: Optional[str],
+        notes: Optional[str],
+    ) -> dict[str, Any]:
+        assert self._pool is not None
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO ml_site_subscription
+                  (id, tenant_id, site_id, farm_id, barn_id, channel, pinned_package_id, fallback_package_id, notes)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                ON CONFLICT (tenant_id, site_id)
+                DO UPDATE SET
+                  farm_id = EXCLUDED.farm_id,
+                  barn_id = EXCLUDED.barn_id,
+                  channel = EXCLUDED.channel,
+                  pinned_package_id = EXCLUDED.pinned_package_id,
+                  fallback_package_id = EXCLUDED.fallback_package_id,
+                  notes = EXCLUDED.notes,
+                  updated_at = now()
+                RETURNING
+                  id, tenant_id, site_id, farm_id, barn_id, channel,
+                  pinned_package_id, fallback_package_id, notes, created_at, updated_at
+                """,
+                id,
+                tenant_id,
+                site_id,
+                farm_id,
+                barn_id,
+                channel,
+                pinned_package_id,
+                fallback_package_id,
+                notes,
+            )
+            assert row is not None
+            return dict(row)
+
+    async def get_site_subscription(self, *, tenant_id: str, site_id: str) -> Optional[dict[str, Any]]:
+        assert self._pool is not None
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                  id, tenant_id, site_id, farm_id, barn_id, channel,
+                  pinned_package_id, fallback_package_id, notes, created_at, updated_at
+                FROM ml_site_subscription
+                WHERE tenant_id = $1 AND site_id = $2
+                """,
+                tenant_id,
+                site_id,
+            )
+            return dict(row) if row else None
+
+    async def create_site_subscription_ack(
+        self,
+        *,
+        id: str,
+        tenant_id: str,
+        site_id: str,
+        package_id: str,
+        ack_type: str,
+        status: str,
+        detail: Optional[str],
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        assert self._pool is not None
+        async with self._pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO ml_site_subscription_ack
+                  (id, tenant_id, site_id, package_id, ack_type, status, detail, payload)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+                RETURNING id, tenant_id, site_id, package_id, ack_type, status, detail, payload, created_at
+                """,
+                id,
+                tenant_id,
+                site_id,
+                package_id,
+                ack_type,
+                status,
+                detail,
+                json.dumps(payload),
+            )
+            assert row is not None
+            return dict(row)

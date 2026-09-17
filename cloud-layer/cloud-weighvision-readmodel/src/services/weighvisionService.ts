@@ -160,7 +160,7 @@ export async function getSessions(params: {
     updatedAt: row.updatedAt,
     measurements: row.measurements || [],
     media: row.media || [],
-    inferences: row.inferences || [],
+    inferences: normalizeInferenceRows(row.inferences),
   }))
 
   const hasNext = sessions.length > limit
@@ -227,7 +227,7 @@ export async function getSessionById(tenantId: string, sessionId: string) {
     updatedAt: row.updatedAt,
     measurements: Array.isArray(row.measurements) ? row.measurements : [],
     media: Array.isArray(row.media) ? row.media : [],
-    inferences: Array.isArray(row.inferences) ? row.inferences : [],
+    inferences: normalizeInferenceRows(row.inferences),
   }
 }
 
@@ -246,6 +246,17 @@ export interface WeighVisionEvent {
   occurred_at: string
   trace_id?: string
   payload: Record<string, unknown>
+}
+
+function parseJsonText<T>(value: unknown, fallback: T): T {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return fallback
+  }
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
 }
 
 function getStringValue(...values: unknown[]): string | undefined {
@@ -288,6 +299,38 @@ function getNumericValue(value: unknown): number | undefined {
   return undefined
 }
 
+function normalizeInferenceRows(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.map((row) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) {
+      return { raw: row }
+    }
+
+    const record = { ...(row as Record<string, unknown>) }
+    const parsedResult = parseJsonText<Record<string, unknown>>(record.resultJson, {})
+    record.result = parsedResult
+    record.predicted_weight_kg =
+      getNumericValue(parsedResult.predicted_weight_kg ?? parsedResult.predictedWeightKg) ?? null
+    record.confidence = getNumericValue(parsedResult.confidence) ?? null
+    record.prediction_mode =
+      getStringValue(parsedResult.prediction_mode, parsedResult.predictionMode) ?? null
+    record.package_id =
+      getStringValue(parsedResult.package_id, parsedResult.packageId) ?? null
+    record.package_version =
+      getStringValue(parsedResult.package_version, parsedResult.packageVersion) ?? null
+    record.feature_schema_version =
+      getStringValue(parsedResult.feature_schema_version, parsedResult.featureSchemaVersion) ?? null
+    record.activation_source =
+      getStringValue(parsedResult.activation_source, parsedResult.activationSource) ?? null
+    record.source_event_type =
+      getStringValue(parsedResult.source_event_type, parsedResult.sourceEventType) ?? null
+    return record
+  })
+}
+
 function getSessionIdFromEvent(event: WeighVisionEvent): string | undefined {
   return getStringValue(event.session_id, event.payload.session_id, event.payload.sessionId)
 }
@@ -309,70 +352,40 @@ async function ensureSessionForEvent(
     getDateValue(event.payload.start_at, event.payload.startAt, event.occurred_at) || new Date()
   const endedAt = getDateValue(event.payload.end_at, event.payload.endAt, event.occurred_at)
 
-  const existing = await prisma.weighVisionSession.findUnique({
+  const session = await prisma.weighVisionSession.upsert({
     where: {
       tenantId_sessionId: {
         tenantId: event.tenant_id,
         sessionId,
       },
     },
-  })
-
-  if (!existing) {
-    const created = await prisma.weighVisionSession.create({
-      data: {
-        id: event.event_id,
-        tenantId: event.tenant_id,
-        farmId: farmId || null,
-        barnId: barnId || null,
-        batchId: batchId || null,
-        stationId: stationId || null,
-        sessionId,
-        startedAt,
-        endedAt: options.finalized ? endedAt || startedAt : null,
-        status: options.finalized ? 'FINALIZED' : 'RUNNING',
-      },
-    })
-
-    return { sessionId, session: created, createdPlaceholder: true }
-  }
-
-  const updateData: Record<string, unknown> = {
-    updatedAt: new Date(),
-  }
-
-  if (farmId && farmId !== existing.farmId) updateData.farmId = farmId
-  if (barnId && barnId !== existing.barnId) updateData.barnId = barnId
-  if (batchId && batchId !== existing.batchId) updateData.batchId = batchId
-  if (stationId && stationId !== existing.stationId) updateData.stationId = stationId
-  if (startedAt.getTime() <= existing.startedAt.getTime()) {
-    updateData.startedAt = startedAt
-  }
-
-  if (options.finalized) {
-    updateData.status = 'FINALIZED'
-    if (!existing.endedAt || (endedAt && endedAt.getTime() >= existing.endedAt.getTime())) {
-      updateData.endedAt = endedAt || existing.endedAt || startedAt
-    }
-  } else if (existing.status !== 'FINALIZED' && existing.status !== 'RUNNING') {
-    updateData.status = 'RUNNING'
-  }
-
-  if (Object.keys(updateData).length === 1) {
-    return { sessionId, session: existing, createdPlaceholder: false }
-  }
-
-  const updated = await prisma.weighVisionSession.update({
-    where: {
-      tenantId_sessionId: {
-        tenantId: event.tenant_id,
-        sessionId,
-      },
+    create: {
+      id: event.event_id,
+      tenantId: event.tenant_id,
+      farmId: farmId || null,
+      barnId: barnId || null,
+      batchId: batchId || null,
+      stationId: stationId || null,
+      sessionId,
+      startedAt,
+      endedAt: options.finalized ? endedAt || startedAt : null,
+      status: options.finalized ? 'FINALIZED' : 'RUNNING',
     },
-    data: updateData,
+    update: {
+      farmId: farmId || undefined,
+      barnId: barnId || undefined,
+      batchId: batchId || undefined,
+      stationId: stationId || undefined,
+      ...(options.finalized
+        ? {
+            status: 'FINALIZED',
+            endedAt: endedAt || startedAt,
+          }
+        : {}),
+    },
   })
 
-  return { sessionId, session: updated, createdPlaceholder: false }
+  return { sessionId, session }
 }
 
 /**

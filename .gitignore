@@ -136,3 +136,6 @@ secure/
 boilerplates/
 docs/master_data/
 
+# Exported Docker images
+/cloud-layer/exports/**/*.tar
+/edge-layer/artifacts/docker-images/*.tar

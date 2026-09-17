@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ============================================
   # CLOUD INFRASTRUCTURE
@@ -7,6 +5,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: farmiq-cloud-postgres
+    restart: unless-stopped
     ports:
       - "5140:5432"
     environment:
@@ -27,6 +26,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:8
     container_name: farmiq-cloud-pgadmin
+    restart: unless-stopped
     ports:
       - "5160:80"
     environment:
@@ -46,6 +46,7 @@ services:
   vault:
     image: hashicorp/vault:1.13.3
     container_name: farmiq-cloud-vault
+    restart: unless-stopped
     ports:
       - "8200:8200"
     environment:
@@ -67,6 +68,7 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: farmiq-cloud-rabbitmq
+    restart: unless-stopped
     ports:
       - "5150:5672" # AMQP port
       - "5151:15672" # Management UI port
@@ -87,6 +89,21 @@ services:
       timeout: 10s
       retries: 12
       start_period: 90s
+
+  redis:
+    image: redis:7-alpine
+    container_name: farmiq-cloud-redis
+    restart: unless-stopped
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+    networks:
+      - farmiq-net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   datadog:
     image: gcr.io/datadoghq/agent:7
@@ -122,6 +139,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-identity-access
+    restart: unless-stopped
     ports:
       - "5120:3000"
     environment:
@@ -152,6 +170,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-tenant-registry
+    restart: unless-stopped
     ports:
       - "5121:3000"
     environment:
@@ -181,6 +200,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-ingestion
+    restart: unless-stopped
     ports:
       - "5122:3000"
     environment:
@@ -218,6 +238,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-telemetry-service
+    restart: unless-stopped
     ports:
       - "5123:3000"
     environment:
@@ -248,6 +269,7 @@ services:
       context: ./cloud-analytics-service
       dockerfile: Dockerfile
     container_name: farmiq-cloud-analytics-service
+    restart: unless-stopped
     ports:
       - "5124:8000"
     environment:
@@ -284,7 +306,7 @@ services:
       cloud-llm-insights-service:
         condition: service_started
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/api/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -295,6 +317,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-config-rules-service
+    restart: unless-stopped
     ports:
       - "5126:3000"
     environment:
@@ -323,6 +346,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-audit-log-service
+    restart: unless-stopped
     ports:
       - "5127:3000"
     environment:
@@ -351,6 +375,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-fleet-management
+    restart: unless-stopped
     ports:
       - "5144:3000"
     environment:
@@ -383,6 +408,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-notification-service
+    restart: unless-stopped
     ports:
       - "5128:3000"
     environment:
@@ -415,6 +441,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-reporting-export-service
+    restart: unless-stopped
     ports:
       - "5129:3000"
     environment:
@@ -452,6 +479,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-feed-service
+    restart: unless-stopped
     ports:
       - "5130:3000"
     environment:
@@ -484,6 +512,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-barn-records-service
+    restart: unless-stopped
     ports:
       - "5131:3000"
     environment:
@@ -516,6 +545,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-weighvision-readmodel
+    restart: unless-stopped
     ports:
       - "5132:3000"
     environment:
@@ -547,6 +577,7 @@ services:
       context: ./cloud-llm-insights-service
       dockerfile: Dockerfile
     container_name: farmiq-cloud-llm-insights-service
+    restart: unless-stopped
     ports:
       - "5134:8000"
     environment:
@@ -571,7 +602,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/api/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -581,13 +612,20 @@ services:
       context: ./cloud-ml-model-service
       dockerfile: Dockerfile
     container_name: farmiq-cloud-ml-model-service
+    restart: unless-stopped
     ports:
       - "5135:8000"
+    volumes:
+      - ../docs:/workspace-docs:ro
+      - ./cloud-ml-model-service/artifacts:/app/artifacts
     environment:
       - LOG_LEVEL=INFO
       - PORT=8000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_ml_model
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-farmiq}:${RABBITMQ_PASS:-farmiq_dev}@rabbitmq:5672
+      - WEIGHVISION_ARTIFACT_BASE_URL=http://host.docker.internal:5135
+      - WEIGHVISION_BASELINE_DATASET_PATH=/workspace-docs/iot-layer/evidence/batch2-weight-audit-dataset.csv
+      - WEIGHVISION_ARTIFACT_ROOT_DIR=/app/artifacts/weighvision
       - DD_ENV=${DD_ENV:-prod}
       - DD_SERVICE=cloud-ml-model-service
       - DD_VERSION=${DD_VERSION:-local}
@@ -601,7 +639,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/api/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -614,12 +652,16 @@ services:
       context: ./cloud-mlflow-registry
       dockerfile: Dockerfile
     container_name: farmiq-cloud-mlflow-registry
+    restart: unless-stopped
     ports:
       - "5136:5000"
     environment:
       - LOG_LEVEL=INFO
       - PORT=5000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_mlflow
+      - MLFLOW_TRACKING_URI=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_mlflow
+      - MLFLOW_BACKEND_STORE_URI=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_mlflow
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
       - DD_ENV=${DD_ENV:-prod}
       - DD_SERVICE=cloud-mlflow-registry
       - DD_VERSION=${DD_VERSION:-local}
@@ -631,7 +673,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:5000/health" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:5000/" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -641,21 +683,31 @@ services:
       context: ./cloud-feature-store
       dockerfile: Dockerfile
     container_name: farmiq-cloud-feature-store
+    restart: unless-stopped
     ports:
       - "5137:5137"
     environment:
       - LOG_LEVEL=INFO
       - PORT=5137
+      - FEAST_DATA_PATH=/data/features
+      - FEAST_REGISTRY_PATH=/data/registry
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_feature_store
       - DD_ENV=${DD_ENV:-prod}
       - DD_SERVICE=cloud-feature-store
       - DD_VERSION=${DD_VERSION:-local}
       - DD_AGENT_HOST=datadog
       - DD_TRACE_AGENT_PORT=8126
+    volumes:
+      - feature_store_data:/data/features
+      - feature_registry_data:/data/registry
     networks:
       - farmiq-net
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:5137/health" ]
@@ -668,6 +720,7 @@ services:
       context: ./cloud-drift-detection
       dockerfile: Dockerfile
     container_name: farmiq-cloud-drift-detection
+    restart: unless-stopped
     ports:
       - "5138:5138"
     environment:
@@ -698,6 +751,7 @@ services:
       context: ./cloud-inference-server
       dockerfile: Dockerfile
     container_name: farmiq-cloud-inference-server
+    restart: unless-stopped
     ports:
       - "5139:5139"
     environment:
@@ -721,6 +775,7 @@ services:
       context: ./cloud-hybrid-router
       dockerfile: Dockerfile
     container_name: farmiq-cloud-hybrid-router
+    restart: unless-stopped
     ports:
       - "5141:5140"
     environment:
@@ -750,6 +805,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-standards-service
+    restart: unless-stopped
     ports:
       - "5133:3000"
     environment:
@@ -781,6 +837,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-api-gateway-bff
+    restart: unless-stopped
     ports:
       - "5125:3000"
     environment:
@@ -793,6 +850,7 @@ services:
       - TELEMETRY_BASE_URL=http://cloud-telemetry-service:3000
       - ANALYTICS_BASE_URL=http://cloud-analytics-service:8000
       - WEIGHVISION_READMODEL_BASE_URL=http://cloud-weighvision-readmodel:3000
+      - EDGE_WEIGHVISION_SESSION_BASE_URL=http://host.docker.internal:5105
       - STANDARDS_SERVICE_URL=http://cloud-standards-service:3000
       - CLOUD_STANDARDS_SERVICE_URL=http://cloud-standards-service:3000
       - CONFIG_RULES_BASE_URL=http://cloud-config-rules-service:3000
@@ -842,8 +900,9 @@ services:
       context: ..
       dockerfile: apps/dashboard-web/Dockerfile
     container_name: farmiq-dashboard-web
+    restart: unless-stopped
     ports:
-      - "5142:80"
+      - "5142:8080"
     environment:
       - VITE_API_BASE_URL=http://cloud-api-gateway-bff:3000
       - VITE_AUTH_URL=http://cloud-identity-access:3000
@@ -859,6 +918,7 @@ services:
       context: ..
       dockerfile: apps/admin-web/Dockerfile
     container_name: farmiq-admin-web
+    restart: unless-stopped
     ports:
       - "5143:80"
     environment:
@@ -877,6 +937,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: farmiq-cloud-billing-service
+    restart: unless-stopped
     ports:
       - "5145:3000"
     environment:
@@ -897,7 +958,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:3000/api/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -907,6 +968,7 @@ services:
       context: ./cloud-advanced-analytics
       dockerfile: Dockerfile
     container_name: farmiq-cloud-advanced-analytics
+    restart: unless-stopped
     ports:
       - "5146:8000"
     environment:
@@ -927,7 +989,7 @@ services:
       rabbitmq:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/api/health" ]
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8000/api/health" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -937,6 +999,7 @@ services:
       context: ./cloud-data-pipeline
       dockerfile: Dockerfile
     container_name: farmiq-cloud-data-pipeline
+    restart: unless-stopped
     ports:
       - "5147:8000"
     environment:
@@ -967,6 +1030,7 @@ services:
       context: ./cloud-bi-metabase
       dockerfile: Dockerfile
     container_name: farmiq-cloud-bi-metabase
+    restart: unless-stopped
     ports:
       - "5148:3000"
     environment:
@@ -997,5 +1061,8 @@ volumes:
   pgadmin_data:
   vault_data:
   rabbitmq_data:
+  redis_data:
+  feature_store_data:
+  feature_registry_data:
   report_exports_data:
   metabase_data:

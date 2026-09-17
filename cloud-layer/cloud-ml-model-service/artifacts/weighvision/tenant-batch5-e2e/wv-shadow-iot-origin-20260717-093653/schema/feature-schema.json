@@ -1,0 +1,211 @@
+{
+  "contractName": "farmiq.weighvision.weight-prediction-training-dataset",
+  "version": "1.0.0",
+  "featureSchemaVersion": "wv-feature-schema-v1",
+  "entityKeys": [
+    {
+      "name": "tenant_id",
+      "role": "entity",
+      "dataType": "string",
+      "required": true,
+      "source": "edge sync payload",
+      "description": "Tenant scope for subscription, training, and prediction partitioning."
+    },
+    {
+      "name": "session_id",
+      "role": "entity",
+      "dataType": "string",
+      "required": true,
+      "source": "edge-weighvision-session.weight_sessions.id",
+      "description": "Canonical session identifier for one weighvision event stream."
+    },
+    {
+      "name": "capture_id",
+      "role": "entity",
+      "dataType": "string",
+      "required": true,
+      "source": "weight-vision-capture metadata.image_id",
+      "description": "Capture identifier for one image and metadata bundle."
+    }
+  ],
+  "featureFields": [
+    {
+      "name": "selected_area_mm2",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Selected-object area in square millimeters."
+    },
+    {
+      "name": "selected_mask_area_px2",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Selected-object mask area in square pixels."
+    },
+    {
+      "name": "selected_bbox_width_px",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Bounding-box width in pixels."
+    },
+    {
+      "name": "selected_bbox_height_px",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Bounding-box height in pixels."
+    },
+    {
+      "name": "selected_width_mm",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Estimated body width in millimeters."
+    },
+    {
+      "name": "selected_length_mm",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Estimated body length in millimeters."
+    },
+    {
+      "name": "selected_height_mm",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Estimated body height in millimeters."
+    },
+    {
+      "name": "selected_depth_mm",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Selected-object depth from stereo geometry."
+    },
+    {
+      "name": "selected_confidence",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "edge normalized feature mapping",
+      "description": "Segmentation confidence score."
+    },
+    {
+      "name": "camera_focal_length_px",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "capture metadata camera.focal_length_px",
+      "description": "Stereo focal length in pixels."
+    },
+    {
+      "name": "camera_baseline_mm",
+      "role": "feature",
+      "dataType": "number",
+      "required": true,
+      "source": "capture metadata camera.baseline_mm",
+      "description": "Stereo baseline in millimeters."
+    }
+  ],
+  "contextFields": [
+    {
+      "name": "farm_id",
+      "role": "context",
+      "dataType": "string",
+      "required": true,
+      "source": "edge/cloud tenant topology",
+      "description": "Farm identifier."
+    },
+    {
+      "name": "barn_id",
+      "role": "context",
+      "dataType": "string",
+      "required": true,
+      "source": "edge/cloud tenant topology",
+      "description": "Barn identifier."
+    },
+    {
+      "name": "station_id",
+      "role": "context",
+      "dataType": "string",
+      "required": false,
+      "source": "weight-vision-service station binding",
+      "description": "Station identifier."
+    },
+    {
+      "name": "bird_age_days",
+      "role": "context",
+      "dataType": "integer",
+      "required": false,
+      "source": "farm batch context",
+      "description": "Chicken age in days."
+    },
+    {
+      "name": "breed_code",
+      "role": "context",
+      "dataType": "string",
+      "required": false,
+      "source": "farm batch context",
+      "description": "Breed or line code."
+    },
+    {
+      "name": "camera_position_code",
+      "role": "context",
+      "dataType": "string",
+      "required": false,
+      "source": "site deployment config",
+      "description": "Camera position or lane code."
+    },
+    {
+      "name": "captured_at",
+      "role": "context",
+      "dataType": "datetime",
+      "required": true,
+      "source": "capture metadata timestamp",
+      "description": "Capture timestamp in UTC."
+    }
+  ],
+  "labelFields": [
+    {
+      "name": "final_weight_kg",
+      "role": "label",
+      "dataType": "number",
+      "required": true,
+      "source": "edge-weighvision-session.weight_sessions.final_weight_kg",
+      "description": "Operational ground-truth weight used for validation."
+    },
+    {
+      "name": "load_cell_weight_kg",
+      "role": "label",
+      "dataType": "number",
+      "required": true,
+      "source": "capture metadata scale.weight_kg",
+      "description": "Load-cell weight attached to the selected capture."
+    }
+  ],
+  "splitPolicy": {
+    "training": "time-based split by captured_at",
+    "validation": "latest 20 percent of captures per tenant or site",
+    "grouping": [
+      "tenant_id",
+      "farm_id",
+      "barn_id"
+    ],
+    "leakage_guard": "session_id and capture_id must not cross train/validation boundary"
+  },
+  "notes": [
+    "Cloud training uses synchronized Edge normalized features, not raw segmentation masks directly.",
+    "Prediction remains Edge-executed; Cloud owns contract, registry, subscription, and approval state."
+  ]
+}

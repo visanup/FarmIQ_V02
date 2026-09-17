@@ -146,6 +146,9 @@ ARG APP_NAME=admin-web
 
 WORKDIR /app
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
 # Create non-root user if not exists
 RUN adduser -D -H -u 101 -s /sbin/nologin app || true
 
@@ -255,6 +258,6 @@ USER app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -q -O /dev/null http://localhost:80/ || exit 1
+    CMD curl -fsS http://127.0.0.1:80/ || exit 1
 
 CMD ["node", "/app/server.js"]

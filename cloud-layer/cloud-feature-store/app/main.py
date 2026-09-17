@@ -13,12 +13,31 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import pandas as pd
+from pythonjsonlogger import jsonlogger
 
 from app.config import settings
 from feature_store.farmiq_features import feature_store
 
 # Configure logging
-logging.basicConfig(level=settings.log_level, format=settings.log_format)
+def configure_logging() -> None:
+    root_logger = logging.getLogger()
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+
+    handler = logging.StreamHandler()
+    if settings.log_format.lower() == "json":
+        formatter = jsonlogger.JsonFormatter(
+            "%(asctime)s %(levelname)s %(name)s %(message)s"
+        )
+    else:
+        formatter = logging.Formatter(settings.log_format)
+
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
+    root_logger.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
+
+
+configure_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -56,7 +75,13 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     logger.info(f"Starting {settings.service_name}...")
     # Initialize feature store
-    feature_store.create_feature_views()
+    try:
+        feature_store.create_feature_views()
+    except FileNotFoundError as exc:
+        logger.warning(
+            "Skipping feature view bootstrap because backing files are not "
+            f"available yet: {exc}"
+        )
     yield
     logger.info(f"Shutting down {settings.service_name}...")
 

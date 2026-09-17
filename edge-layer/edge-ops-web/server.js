@@ -11,6 +11,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 80; // Docker internal port
 
+app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok' });
+});
+
 // --- TCP Probe Endpoint ---
 app.get('/api/probe/tcp', (req, res) => {
     const { host, port } = req.query;
@@ -71,5 +75,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Edge Ops Server running on port ${PORT}`);
+    console.log(`Edge Ops Server running on port ${PORT}`);
 });

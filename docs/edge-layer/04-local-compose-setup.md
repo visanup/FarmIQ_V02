@@ -1,112 +1,65 @@
-Purpose: Local docker-compose setup for FE/ops users of the Edge layer.  
-Scope: Starting the stack, ports, and how Edge Ops Web reaches “real APIs” via `/svc/*` proxies.  
+Purpose: Quick local compose reference for edge operators.  
+Scope: Short commands, canonical entrypoint, and current ports.  
 Owner: FarmIQ Edge Team  
-Last updated: 2025-12-31  
+Last updated: 2026-07-16
 
 ---
 
-## Local quickstart (Docker Compose)
+## Canonical entrypoint
 
-### Prerequisites
+Preferred browser entrypoint:
 
-- Docker Desktop (or Docker Engine) with Compose v2
-- Ports available on your machine (see the port map below)
+- `http://localhost:5113`
 
-### Start the stack
+Preferred operator commands:
 
-From repo root:
+```powershell
+cd edge-layer
+.\scripts\deploy.ps1 up
+.\scripts\deploy.ps1 ps
+.\scripts\deploy.ps1 seed
+.\scripts\deploy.ps1 smoke-http
+.\scripts\deploy.ps1 down
+```
+
+---
+
+## Equivalent compose commands
 
 ```bash
 cd edge-layer
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-```
-
-### Stop the stack
-
-```bash
-cd edge-layer
+docker compose -f docker-compose.yml -f docker-compose.dev.yml ps
 docker compose -f docker-compose.yml -f docker-compose.dev.yml down
 ```
 
-### Reset state (optional)
+---
 
-This removes Postgres/MinIO volumes and will delete local data.
+## Current local ports
 
-```bash
-cd edge-layer
-docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
-```
+| Service | Host Port |
+|---|---:|
+| edge-mqtt-broker | 5100 |
+| edge-cloud-ingestion-mock | 5102 |
+| edge-ingress-gateway | 5103 |
+| edge-telemetry-timeseries | 5104 |
+| edge-weighvision-session | 5105 |
+| edge-media-store | 5106 |
+| edge-vision-inference | 5107 |
+| edge-sync-forwarder | 5108 |
+| edge-policy-sync | 5109 |
+| edge-observability-agent | 5111 |
+| edge-feed-intake | 5112 |
+| edge-ops-web | 5113 |
+| edge-retention-janitor | 5114 |
+| postgres | 5141 |
+| pgadmin | 5438 |
+| minio | 9000 / 9001 |
 
 ---
 
-## Ports and URLs (local)
+## Notes
 
-### Ops UI
-
-- Edge Ops Web (recommended): `http://localhost:5110`
-  - When running with both compose files, `5113` may also be bound to the same container: `http://localhost:5113`
-
-### Core HTTP services (host → container)
-
-| Service | Host port | Container port | Notes |
-|---|---:|---:|---|
-| edge-ingress-gateway | 5103 | 3000 | API docs: `/api-docs` |
-| edge-telemetry-timeseries | 5104 | 3000 | DB-backed telemetry; API docs: `/api-docs` |
-| edge-weighvision-session | 5105 | 3000 | API docs: `/api-docs` |
-| edge-media-store | 5106 | 3000 | Uses MinIO; API docs: `/api-docs` |
-| edge-vision-inference | 5107 | 8000 | FastAPI docs: `/api-docs` |
-| edge-sync-forwarder | 5108 | 3000 | Sync/outbox admin APIs |
-| edge-policy-sync | 5109 | 3000 | Cloud policy caching |
-| edge-feed-intake | 5112 | 5109 | Local feed intake (DB-backed) |
-| edge-observability-agent | 5111 | 3000 | Aggregated health/status for ops UI |
-| edge-retention-janitor | 5115 | 3000 | When both compose files run, `5114` may also be bound |
-
-### Infrastructure (local)
-
-| Component | Host port(s) | Notes |
-|---|---:|---|
-| Postgres | 5141 | `postgres://farmiq:farmiq_dev@localhost:5141/farmiq` |
-| MinIO API | 9000 | S3-compatible endpoint |
-| MinIO Console | 9001 | UI login default: `minioadmin` / `minioadmin` |
-| MQTT Broker | 5100 | MQTT TCP (1883) |
-| Cloud ingestion mock | (no host port) | Internal only (compose network) |
-
----
-
-## How Edge Ops Web uses “real APIs”
-
-`edge-ops-web` is shipped with an embedded Node server (`edge-layer/edge-ops-web/server.js`) that proxies:
-
-- `/svc/ingress/*` → `edge-ingress-gateway`
-- `/svc/telemetry/*` → `edge-telemetry-timeseries`
-- `/svc/weighvision/*` → `edge-weighvision-session`
-- `/svc/media/*` → `edge-media-store`
-- `/svc/vision/*` → `edge-vision-inference`
-- `/svc/sync/*` → `edge-sync-forwarder`
-- `/svc/ops/*` → `edge-observability-agent`
-- `/svc/policy/*` → `edge-policy-sync`
-- `/svc/janitor/*` → `edge-retention-janitor`
-- `/svc/feed/*` → `edge-feed-intake`
-
-This means the browser can call `http://localhost:5110/svc/...` and get real service responses without CORS issues.
-
----
-
-## Quick verification commands
-
-```bash
-# Ops UI reachable
-curl -I http://localhost:5110/
-
-# Aggregated edge status (from real services)
-curl http://localhost:5110/svc/ops/api/v1/ops/edge/status
-
-# Telemetry metrics + DB-backed readings (real DB data)
-curl http://localhost:5110/svc/telemetry/api/v1/telemetry/metrics
-curl "http://localhost:5110/svc/telemetry/api/v1/telemetry/readings?tenant_id=t-001&limit=2"
-
-# Vision inference health/ready
-curl http://localhost:5107/api/health
-curl http://localhost:5107/api/ready
-```
-
+- `docker-compose.yml` is the shared base; pair it with `docker-compose.dev.yml` for local operation.
+- `docker-compose.batch4-smoke.yml` and `docker-compose.batch5-e2e.yml` are scenario-specific overlays, not default deploy files.
+- `edge-feed-intake` is optional and should be started with the `feed-intake` profile only when needed.

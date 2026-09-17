@@ -1,0 +1,79 @@
+{
+  "case": {
+    "barn_id": "b-001",
+    "farm_id": "f-001",
+    "media_id": "0e247f6d-6bf5-517e-b381-d703a57ac226",
+    "device_id": "wv-001",
+    "roi_count": 6,
+    "tenant_id": "t-001",
+    "capture_id": "20260915_084542",
+    "session_id": "20260915_084542",
+    "station_id": "st-01",
+    "occurred_at": "2026-09-15T08:45:42.089+00:00",
+    "detection_count": 6,
+    "existing_results": 0,
+    "actual_detections": 6
+  },
+  "inference_health": {
+    "status": "healthy"
+  },
+  "session_health": {
+    "status": "healthy"
+  },
+  "model_after_refresh": {
+    "model_version": "simulated-geometry-v1",
+    "model_path": "builtin:simulated-object-area",
+    "status": "simulated",
+    "prediction_mode": "simulated_per_object",
+    "simulated": true,
+    "activation_source": "explicit_simulation",
+    "package_id": null,
+    "package_version": null,
+    "active_model_path": null,
+    "weight_accuracy_validated": false
+  },
+  "job_created": {
+    "job_id": "3944e074-8500-4021-9dea-c88767e1da80",
+    "status": "pending",
+    "created_at": "2026-09-15T13:18:49.568539Z",
+    "updated_at": "2026-09-15T13:18:49.568550Z"
+  },
+  "job_final": {
+    "job_id": "3944e074-8500-4021-9dea-c88767e1da80",
+    "tenant_id": "t-001",
+    "farm_id": "f-001",
+    "barn_id": "b-001",
+    "device_id": "wv-001",
+    "station_id": "st-01",
+    "media_id": "0e247f6d-6bf5-517e-b381-d703a57ac226",
+    "object_key": null,
+    "session_id": "20260915_084542",
+    "trace_id": "rebuild-multi-detection-verification",
+    "status": "completed",
+    "created_at": "2026-09-15T13:18:49.568539Z",
+    "updated_at": "2026-09-15T13:18:49.682337Z",
+    "result_id": "60bd5c1c-732c-5b86-bd11-55fe0d341cee",
+    "result_ids": [
+      "b094237a-136f-5dcf-97f7-bd67a141657e",
+      "c32d4c3e-caea-5e9d-a310-57c39f6650cb",
+      "5ef0a26f-a04f-5ab5-bdf7-f79999b08c38",
+      "6e4bda67-709d-53b7-84f1-0d05746a2408",
+      "39011c16-5bbd-5ab7-8cac-d20a38726e7e",
+      "60bd5c1c-732c-5b86-bd11-55fe0d341cee"
+    ],
+    "detection_count": 6
+  },
+  "verification": {
+    "python_tests_passed": 32,
+    "results_in_database": 6,
+    "distinct_detection_indices": 6,
+    "results_after_repeated_job": 6,
+    "outbox_events": 6,
+    "all_results_labelled_simulated": true,
+    "services_healthy": [
+      "edge-vision-inference",
+      "edge-weighvision-session"
+    ],
+    "image_id": "sha256:444b6aa10b33ea928737f87fca440b78dc369b093331eb90bbd746694f5bfb9a"
+  }
+}

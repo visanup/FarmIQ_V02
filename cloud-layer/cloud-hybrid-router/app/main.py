@@ -8,20 +8,36 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
-from dataclasses import dataclass, field
 from enum import Enum
 import asyncio
-from collections import deque
 
-from fastapi import FastAPI, HTTPException, status, BackgroundTasks
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import httpx
+from pythonjsonlogger import jsonlogger
 
 from app.config import settings
 
-# Configure logging
-logging.basicConfig(level=settings.log_level, format=settings.log_format)
+def configure_logging() -> None:
+    """Configure logging for plain text or JSON output."""
+    root_logger = logging.getLogger()
+    root_logger.setLevel(settings.log_level)
+
+    handler = logging.StreamHandler()
+    if settings.log_format.lower() == "json":
+        formatter = jsonlogger.JsonFormatter(
+            "%(asctime)s %(levelname)s %(name)s %(message)s"
+        )
+    else:
+        formatter = logging.Formatter(settings.log_format)
+
+    handler.setFormatter(formatter)
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+
+
+configure_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -50,8 +66,7 @@ class InferenceTarget(Enum):
     FALLBACK = "fallback"
 
 
-@dataclass
-class ResourceStatus:
+class ResourceStatus(BaseModel):
     """Resource availability status"""
     edge_mcu_available: bool
     edge_mcu_load: float
@@ -62,8 +77,7 @@ class ResourceStatus:
     edge_cost_per_request: float = 0.0
 
 
-@dataclass
-class InferenceRequest:
+class InferenceRequest(BaseModel):
     """Inference request with routing metadata"""
     request_id: str
     model_name: str
@@ -75,8 +89,7 @@ class InferenceRequest:
     timeout_ms: int = 5000
 
 
-@dataclass
-class RoutingDecision:
+class RoutingDecision(BaseModel):
     """Routing decision with target and reasoning"""
     target: InferenceTarget
     score: float
@@ -88,18 +101,17 @@ class RoutingDecision:
     timestamp: datetime
 
 
-@dataclass
-class InferenceResponse:
+class InferenceResponse(BaseModel):
     """Inference response with routing metadata"""
     request_id: str
-    target: InferenceTarget
+    target: str
     model_name: str
     model_version: str
     outputs: Dict[str, Any]
     latency_ms: float
+    timestamp: str
     cached: bool = False
     cost: float = 0.0
-    timestamp: str
 
 
 class HybridRouter:
@@ -389,11 +401,17 @@ class HybridRouter:
         best_target, best_score = sorted_targets[0]
 
         # Edge preference if scores are close
-        if (best_target == InferenceTarget.EDGE_MCU or
-            best_target == InferenceTarget.EDGE_GPU) and \
-            best_score >= scores.get(InferenceTarget.CLOUD_GPU.value, 0.0) * settings.edge_preference_threshold):
-
-            best_target = InferenceTarget.EDGE_MCU if best_target == InferenceTarget.EDGE_GPU else InferenceTarget.EDGE_GPU
+        edge_preferred = (
+            best_target in (InferenceTarget.EDGE_MCU, InferenceTarget.EDGE_GPU)
+            and best_score >= scores.get(
+                InferenceTarget.CLOUD_GPU.value, 0.0
+            ) * settings.edge_preference_threshold
+        )
+        if edge_preferred:
+            logger.debug(
+                "Keeping edge target because its score satisfies the edge "
+                "preference threshold"
+            )
 
         # Build reasoning
         if best_target == InferenceTarget.EDGE_MCU:
@@ -709,10 +727,15 @@ class HybridRouter:
         return responses
 
 
+router = HybridRouter()
+
+
 # Lifespan manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
+    global router
+    router = HybridRouter()
     logger.info(f"Starting {settings.service_name}...")
     yield
     logger.info(f"Shutting down {settings.service_name}...")
@@ -751,13 +774,13 @@ async def health_check():
 async def readiness_check():
     """Readiness check endpoint"""
     try:
-        status = await self.get_resource_status()
+        resource_status = await router.get_resource_status()
         return {
             "status": "ready",
             "service": settings.service_name,
-            "edge_mcu_available": status.edge_mcu_available,
-            "edge_gpu_available": status.edge_gpu_available,
-            "cloud_available": status.cloud_available
+            "edge_mcu_available": resource_status.edge_mcu_available,
+            "edge_gpu_available": resource_status.edge_gpu_available,
+            "cloud_available": resource_status.cloud_available
         }
     except Exception as e:
         logger.error(f"Readiness check failed: {e}")
@@ -777,10 +800,13 @@ async def inference(request: InferenceRequest):
     based on latency requirements, model complexity, and cost.
     """
     try:
-        response = await self.route_and_execute(request)
+        response = await router.route_and_execute(request)
         return response
 
     except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to execute inference: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to execute inference: {str(e)}"
@@ -795,7 +821,7 @@ async def batch_inference(requests: List[InferenceRequest]):
     Processes multiple requests concurrently with optimal routing.
     """
     try:
-        responses = await self.execute_batch(requests)
+        responses = await router.execute_batch(requests)
         return {
             "success": True,
             "total_requests": len(requests),
@@ -819,24 +845,24 @@ async def get_resource_status():
     Returns real-time status of all inference targets.
     """
     try:
-        status = await self.get_resource_status()
+        resource_status = await router.get_resource_status()
         return {
             "success": True,
             "status": {
                 "edge_mcu": {
-                    "available": status.edge_mcu_available,
-                    "load": status.edge_mcu_load
+                    "available": resource_status.edge_mcu_available,
+                    "load": resource_status.edge_mcu_load
                 },
                 "edge_gpu": {
-                    "available": status.edge_gpu_available,
-                    "load": status.edge_gpu_load
+                    "available": resource_status.edge_gpu_available,
+                    "load": resource_status.edge_gpu_load
                 },
                 "cloud_gpu": {
-                    "available": status.cloud_available,
-                    "cost_per_request": status.cloud_cost_per_request
+                    "available": resource_status.cloud_available,
+                    "cost_per_request": resource_status.cloud_cost_per_request
                 },
                 "cloud_serverless": {
-                    "available": status.cloud_available,
+                    "available": resource_status.cloud_available,
                     "cost_per_request": settings.cloud_serverless_cost_per_request
                 },
                 "timestamp": datetime.utcnow().isoformat()
@@ -861,13 +887,13 @@ async def get_metrics():
     return {
         "success": True,
         "metrics": {
-            "total_requests": self.total_requests,
-            "total_edge_requests": self.total_edge_requests,
-            "total_cloud_requests": self.total_cloud_requests,
-            "total_fallback_requests": self.total_fallback_requests,
-            "total_cache_hits": self.total_cache_hits,
-            "total_cache_misses": self.total_cache_misses,
-            "cache_hit_rate": self.total_cache_hits / max(self.total_requests, 1) * 100,
+            "total_requests": router.total_requests,
+            "total_edge_requests": router.total_edge_requests,
+            "total_cloud_requests": router.total_cloud_requests,
+            "total_fallback_requests": router.total_fallback_requests,
+            "total_cache_hits": router.total_cache_hits,
+            "total_cache_misses": router.total_cache_misses,
+            "cache_hit_rate": router.total_cache_hits / max(router.total_requests, 1) * 100,
             "timestamp": datetime.utcnow().isoformat()
         }
     }

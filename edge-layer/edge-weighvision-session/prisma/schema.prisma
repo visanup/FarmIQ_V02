@@ -34,6 +34,7 @@ model WeightSession {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   weights             SessionWeight[]
+  captureMetadata     SessionCaptureMetadata[]
 
   @@index([tenantId, sessionId])
   @@map("weight_sessions")
@@ -83,6 +84,48 @@ model Outbox {
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@map("outbox")
+}
+
+model SessionCaptureMetadata {
+  id                     String   @id @default(uuid())
+  sessionId              String   @map("session_id")
+  tenantId               String   @map("tenant_id")
+  captureId              String?  @map("capture_id")
+  eventId                String   @map("event_id")
+  traceId                String   @map("trace_id")
+  sourceEventType        String   @map("source_event_type")
+  metadataSchemaVersion  String   @map("metadata_schema_version")
+  featureSchemaVersion   String   @map("feature_schema_version")
+  occurredAt             DateTime @map("occurred_at")
+  mediaIds               Json?    @map("media_ids")
+  rawMetadata            Json     @map("raw_metadata")
+  normalizedFeatures     Json     @map("normalized_features")
+  selectedDetectionIndex Int?     @map("selected_detection_index")
+  detectionCount         Int      @default(0) @map("detection_count")
+  roiCount               Int?     @map("roi_count")
+  areaMm2                Decimal? @db.Decimal(14, 2) @map("area_mm2")
+  maskAreaPx2            Decimal? @db.Decimal(14, 2) @map("mask_area_px2")
+  bboxX1                 Int?     @map("bbox_x1")
+  bboxY1                 Int?     @map("bbox_y1")
+  bboxX2                 Int?     @map("bbox_x2")
+  bboxY2                 Int?     @map("bbox_y2")
+  objectHeightMm         Decimal? @db.Decimal(14, 2) @map("object_height_mm")
+  objectWidthMm          Decimal? @db.Decimal(14, 2) @map("object_width_mm")
+  objectLengthMm         Decimal? @db.Decimal(14, 2) @map("object_length_mm")
+  averageDepthMm         Decimal? @db.Decimal(14, 2) @map("average_depth_mm")
+  medianDepthMm          Decimal? @db.Decimal(14, 2) @map("median_depth_mm")
+  distanceMm             Decimal? @db.Decimal(14, 2) @map("distance_mm")
+  confidenceScore        Decimal? @db.Decimal(8, 4) @map("confidence_score")
+  scaleWeightKg          Decimal? @db.Decimal(10, 2) @map("scale_weight_kg")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  session                WeightSession? @relation(fields: [sessionId], references: [sessionId])
+
+  @@unique([tenantId, eventId])
+  @@index([sessionId, occurredAt])
+  @@index([tenantId, captureId])
+  @@map("session_capture_metadata")
 }
 
 model Example {

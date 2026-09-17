@@ -244,4 +244,81 @@ describe('processIngressMessage', () => {
 
     expect(decision.action).toBe('dropped')
   })
+
+  it('routes weighvision.inference.completed to session metadata persistence', async () => {
+    const topic: ParsedTopic = {
+      kind: 'weighvision',
+      tenantId: 't-1',
+      farmId: 'f-1',
+      barnId: 'b-1',
+      stationId: 'st-1',
+      sessionId: 'session-1',
+      eventType: 'weighvision.inference.completed',
+    }
+
+    const decision = await processIngressMessage({
+      topic,
+      rawTopic:
+        'iot/weighvision/t-1/f-1/b-1/st-1/session/session-1/weighvision.inference.completed',
+      message: Buffer.from(
+        JSON.stringify({
+          schema_version: '1.0',
+          event_id: 'e-inf-1',
+          trace_id: 'trace-inf-1',
+          tenant_id: 't-1',
+          device_id: 'd-1',
+          event_type: 'weighvision.inference.completed',
+          ts: '2026-07-14T01:02:03Z',
+          payload: {
+            capture_id: 'capture-1',
+            media_ids: ['media-1'],
+            metadata: {
+              image_id: 'capture-1',
+              detections: [
+                {
+                  confidence: 0.9,
+                  bbox_xyxy: [1, 2, 3, 4],
+                  depth_mm: 800,
+                },
+              ],
+            },
+          },
+        })
+      ),
+      deps: {
+        dedupe: new InMemoryDedupeStore(),
+        deviceAllowlist: allowlistedDevice,
+        stationAllowlist: allowlistedStation,
+        lastSeen: noopLastSeen,
+        downstream: {
+          telemetryBaseUrl: 'http://telemetry',
+          weighvisionBaseUrl: 'http://weighvision',
+          timeoutMs: 50,
+        },
+        dedupeTtlMs: 60_000,
+      },
+    })
+
+    expect(decision.action).toBe('processed')
+    if (decision.action === 'processed') {
+      expect(decision.routedTo).toBe('edge-weighvision-session')
+    }
+
+    expect((global as any).fetch).toHaveBeenCalled()
+    const [url, options] = (global as any).fetch.mock.calls[0]
+    expect(url).toBe(
+      'http://weighvision/api/v1/weighvision/sessions/session-1/metadata'
+    )
+    expect(options.method).toBe('POST')
+
+    const body = JSON.parse(options.body as string)
+    expect(body).toMatchObject({
+      tenantId: 't-1',
+      farmId: 'f-1',
+      barnId: 'b-1',
+      stationId: 'st-1',
+      captureId: 'capture-1',
+      eventSchemaVersion: '1.0',
+    })
+  })
 })

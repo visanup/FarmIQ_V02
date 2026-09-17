@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 import numpy as np
 import tritonclient.grpc as grpc_client
 import tritonclient.http as http_client
+from pythonjsonlogger import jsonlogger
 
 from app.config import settings
 
@@ -27,7 +28,25 @@ from app.config import settings
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5135,http://localhost:5143").split(",")
 
 # Configure logging
-logging.basicConfig(level=settings.log_level, format=settings.log_format)
+def configure_logging() -> None:
+    root_logger = logging.getLogger()
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+
+    handler = logging.StreamHandler()
+    if settings.log_format.lower() == "json":
+        formatter = jsonlogger.JsonFormatter(
+            "%(asctime)s %(levelname)s %(name)s %(message)s"
+        )
+    else:
+        formatter = logging.Formatter(settings.log_format)
+
+    handler.setFormatter(formatter)
+    root_logger.addHandler(handler)
+    root_logger.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
+
+
+configure_logging()
 logger = logging.getLogger(__name__)
 
 

@@ -59,27 +59,34 @@ app.get('/api/ready', async (_req: Request, res: Response): Promise<void> => {
 logger.info(`Connecting to the database at ${process.env.DATABASE_URL}`)
 
 let server: ReturnType<typeof app.listen> | undefined
+const dbConnectRetryDelayMs = Number(process.env.DB_CONNECT_RETRY_DELAY_MS || 5000)
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function startServer() {
-  try {
-    await prisma.$connect()
-    logger.info('Database connection has been established successfully.')
-    server = app.listen(port, () => {
-      logger.info(`Billing service running on port ${port}`)
-    })
+  while (true) {
+    try {
+      await prisma.$connect()
+      logger.info('Database connection has been established successfully.')
+      server = app.listen(port, () => {
+        logger.info(`Billing service running on port ${port}`)
+      })
 
-    server.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        logger.error(`Port ${port} is already in use`)
-        throw new Error(`Port ${port} is already in use`)
-      } else {
-        logger.error(`Server error: ${err.message}`)
-        throw new Error(`Server error: ${err.message}`)
-      }
-    })
-  } catch (err) {
-    logger.error('Unable to connect to the database:', err)
-    process.exitCode = 1
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          logger.error(`Port ${port} is already in use`)
+          throw new Error(`Port ${port} is already in use`)
+        } else {
+          logger.error(`Server error: ${err.message}`)
+          throw new Error(`Server error: ${err.message}`)
+        }
+      })
+
+      return
+    } catch (err) {
+      logger.error('Unable to connect to the database, retrying startup:', err)
+      await sleep(dbConnectRetryDelayMs)
+    }
   }
 }
 

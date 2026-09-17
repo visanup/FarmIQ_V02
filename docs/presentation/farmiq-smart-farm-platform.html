@@ -1,0 +1,2383 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarmIQ - End-to-End Smart Farm Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #081316;
+      --bg-soft: #102126;
+      --ink: #0f1d23;
+      --ink-soft: #5d6f78;
+      --line: rgba(11, 49, 56, 0.12);
+      --white: #f6fbfb;
+      --card: rgba(255, 255, 255, 0.82);
+      --glass: rgba(255, 255, 255, 0.10);
+      --green: #10b981;
+      --green-deep: #047857;
+      --blue: #0f7ae5;
+      --blue-soft: #d9ebff;
+      --gray: #e5edf0;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.22);
+      --radius: 28px;
+      --radius-sm: 18px;
+      --max-width: 1440px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at top left, rgba(16, 185, 129, 0.18), transparent 24%),
+        radial-gradient(circle at top right, rgba(15, 122, 229, 0.18), transparent 28%),
+        linear-gradient(145deg, #061114 0%, #0e1b20 45%, #122027 100%);
+      color: var(--white);
+      font-family: "IBM Plex Sans Thai", "Segoe UI", sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.36), transparent 72%);
+      pointer-events: none;
+    }
+
+    .deck {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      height: 100%;
+      padding: 32px;
+    }
+
+    .slide.active {
+      display: block;
+    }
+
+    .slide-shell {
+      position: relative;
+      width: min(var(--max-width), 100%);
+      height: 100%;
+      margin: 0 auto;
+      padding: 38px 42px 96px;
+      border-radius: 34px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 250, 250, 0.94)),
+        linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(15, 122, 229, 0.03));
+      color: var(--ink);
+      box-shadow: var(--shadow);
+      isolation: isolate;
+    }
+
+    .slide-shell::before,
+    .slide-shell::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(2px);
+      z-index: -1;
+    }
+
+    .slide-shell::before {
+      width: 340px;
+      height: 340px;
+      top: -120px;
+      right: -60px;
+      background: radial-gradient(circle, rgba(15, 122, 229, 0.13), transparent 70%);
+    }
+
+    .slide-shell::after {
+      width: 300px;
+      height: 300px;
+      bottom: -120px;
+      left: -100px;
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.14), transparent 70%);
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.10);
+      color: var(--green-deep);
+      font-size: 0.92rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #22c58b, #059669);
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+    }
+
+    .time-chip,
+    .source-chip,
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(15, 29, 35, 0.05);
+      color: var(--ink-soft);
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+
+    .source-chip {
+      background: rgba(15, 122, 229, 0.08);
+      color: #0f5db2;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: "Sora", "IBM Plex Sans Thai", sans-serif;
+      letter-spacing: -0.03em;
+      line-height: 1.02;
+    }
+
+    h1 {
+      font-size: clamp(3rem, 5vw, 5.7rem);
+      font-weight: 800;
+    }
+
+    h2 {
+      font-size: clamp(2.15rem, 3vw, 3.3rem);
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: clamp(1.05rem, 1.55vw, 1.3rem);
+      color: var(--ink-soft);
+      line-height: 1.55;
+      max-width: 920px;
+    }
+
+    .quote {
+      font-family: "Sora", "IBM Plex Sans Thai", sans-serif;
+      font-size: clamp(2rem, 3.2vw, 3.6rem);
+      line-height: 1.12;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+
+    .hero-grid,
+    .problem-grid,
+    .two-col,
+    .three-col,
+    .four-col,
+    .results-grid,
+    .demo-grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .hero-grid,
+    .problem-grid,
+    .two-col {
+      grid-template-columns: 1.15fr 0.85fr;
+    }
+
+    .three-col {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .four-col {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .results-grid {
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+
+    .demo-grid {
+      grid-template-columns: 0.95fr 1.05fr;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .panel,
+    .metric-card,
+    .tech-pill,
+    .stat-box,
+    .flow-card,
+    .note-card,
+    .issue-card,
+    .arch-card {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 36px rgba(10, 25, 31, 0.08);
+    }
+
+    .panel {
+      padding: 24px;
+    }
+
+    .panel.soft {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(245, 251, 251, 0.74));
+    }
+
+    .cover-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      color: var(--green-deep);
+      font-weight: 700;
+    }
+
+    .brand-box {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      background: linear-gradient(180deg, #16c784, #0b8f66);
+      box-shadow: 10px 0 0 rgba(15, 122, 229, 0.18);
+    }
+
+    .big-pill-row,
+    .tag-row,
+    .mini-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .big-pill {
+      padding: 12px 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(4, 120, 87, 0.12);
+      background: rgba(16, 185, 129, 0.08);
+      color: var(--green-deep);
+      font-weight: 600;
+    }
+
+    .kicker {
+      margin-top: 24px;
+      font-size: 1.28rem;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.45;
+    }
+
+    .score-line {
+      margin-top: 12px;
+      font-size: 1rem;
+      color: var(--ink-soft);
+    }
+
+    .feature-list,
+    .bullet-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .bullet-list li,
+    .feature-item {
+      list-style: none;
+      position: relative;
+      padding-left: 28px;
+      font-size: 1.12rem;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+
+    .bullet-list li::before,
+    .feature-item::before {
+      content: "";
+      position: absolute;
+      top: 11px;
+      left: 0;
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #22c58b, #059669);
+      box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.10);
+    }
+
+    .image-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-auto-rows: minmax(170px, 1fr);
+      gap: 14px;
+      height: 100%;
+    }
+
+    .image-card,
+    .wide-image-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 26px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: #dbe6ea;
+      box-shadow: 0 18px 42px rgba(12, 29, 34, 0.16);
+    }
+
+    .wide-image-card {
+      min-height: 280px;
+    }
+
+    .image-card.large {
+      grid-row: span 2;
+    }
+
+    .image-card img,
+    .wide-image-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .image-label {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(8, 19, 22, 0.72);
+      color: #eff9fb;
+      font-size: 0.86rem;
+      font-weight: 600;
+      backdrop-filter: blur(12px);
+    }
+
+    .panel-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ink-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    .number-card {
+      padding: 22px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .number-card strong {
+      font-family: "Sora", "IBM Plex Sans Thai", sans-serif;
+      font-size: 2.3rem;
+      color: var(--ink);
+      letter-spacing: -0.04em;
+    }
+
+    .number-card span {
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+
+    .vision-stage {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 18px;
+      border-radius: 20px;
+      border: 1px solid rgba(15, 122, 229, 0.12);
+      background: linear-gradient(180deg, rgba(217, 235, 255, 0.72), rgba(255, 255, 255, 0.88));
+      color: #0a4f8b;
+      font-weight: 600;
+    }
+
+    .vision-stage .arrow {
+      color: var(--green);
+      font-size: 1.3rem;
+      font-weight: 800;
+    }
+
+    .highlight-banner {
+      margin-top: 22px;
+      padding: 22px 24px;
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(4, 120, 87, 0.96), rgba(15, 122, 229, 0.92));
+      color: #f7fffd;
+      box-shadow: 0 22px 48px rgba(4, 120, 87, 0.24);
+    }
+
+    .highlight-banner strong {
+      font-size: 1.25rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .feature-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.76);
+    }
+
+    .icon-box {
+      width: 50px;
+      height: 50px;
+      flex: 0 0 50px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.16), rgba(15, 122, 229, 0.13));
+      color: var(--green-deep);
+      border: 1px solid rgba(4, 120, 87, 0.10);
+    }
+
+    .icon-box svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .feature-box strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 1rem;
+    }
+
+    .feature-box span {
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .flow-lane {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      align-items: center;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .flow-card {
+      padding: 18px 16px;
+      min-height: 122px;
+      display: grid;
+      align-content: center;
+      gap: 10px;
+      text-align: center;
+    }
+
+    .flow-card .small {
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .flow-arrow {
+      justify-self: center;
+      width: 100%;
+      height: 4px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.9), rgba(15, 122, 229, 0.7));
+      position: relative;
+      top: -8px;
+    }
+
+    .flow-arrow::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: -5px;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+      border-left: 12px solid rgba(15, 122, 229, 0.82);
+    }
+
+    .arch-layout {
+      display: grid;
+      grid-template-columns: 0.95fr 1.2fr 1fr;
+      gap: 18px;
+      margin-top: 22px;
+    }
+
+    .arch-layout.compact {
+      gap: 14px;
+    }
+
+    .arch-layout.compact .arch-card {
+      padding: 18px;
+      min-height: 390px;
+    }
+
+    .arch-layout.compact .arch-list {
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .arch-layout.compact .arch-pill {
+      padding: 10px 12px;
+      font-size: 0.9rem;
+    }
+
+    .arch-layout.compact .arch-pill span {
+      margin-top: 3px;
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+
+    .arch-layout.compact h3 {
+      font-size: 1.15rem;
+      margin-bottom: 6px;
+    }
+
+    .arch-layout.compact .bridge {
+      margin-top: 12px;
+      padding: 14px 16px;
+      font-size: 0.92rem;
+    }
+
+    .arch-card {
+      padding: 22px;
+      min-height: 430px;
+      overflow: hidden;
+    }
+
+    .arch-card.iot {
+      background: linear-gradient(180deg, rgba(220, 244, 255, 0.74), rgba(255, 255, 255, 0.9));
+    }
+
+    .arch-card.edge {
+      background: linear-gradient(180deg, rgba(233, 252, 241, 0.82), rgba(255, 255, 255, 0.92));
+    }
+
+    .arch-card.cloud {
+      background: linear-gradient(180deg, rgba(227, 239, 255, 0.84), rgba(255, 255, 255, 0.92));
+    }
+
+    .arch-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .arch-pill {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid rgba(11, 49, 56, 0.08);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .arch-pill span {
+      display: block;
+      margin-top: 4px;
+      color: var(--ink-soft);
+      font-size: 0.85rem;
+      font-weight: 400;
+    }
+
+    .bridge {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.1), rgba(15, 122, 229, 0.08));
+      border: 1px solid rgba(16, 185, 129, 0.14);
+      font-weight: 600;
+      color: var(--green-deep);
+    }
+
+    .process-rail {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .rail-step {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 14px;
+      align-items: start;
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.74);
+    }
+
+    .rail-index {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(16, 185, 129, 0.16), rgba(15, 122, 229, 0.16));
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--green-deep);
+      font-weight: 800;
+    }
+
+    .rail-step p {
+      color: var(--ink-soft);
+      line-height: 1.45;
+      margin-top: 4px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .metric-card {
+      padding: 18px;
+      min-height: 136px;
+    }
+
+    .metric-card .label {
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .metric-card .value {
+      font-family: "Sora", "IBM Plex Sans Thai", sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: var(--ink);
+    }
+
+    .metric-card .meta {
+      margin-top: 8px;
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+      line-height: 1.4;
+    }
+
+    .compare-card {
+      padding: 20px 22px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 16px 34px rgba(8, 19, 22, 0.08);
+    }
+
+    .compare-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .compare-head strong {
+      font-size: 1.2rem;
+    }
+
+    .compare-head span {
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+    }
+
+    .meter {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .meter-row {
+      display: grid;
+      grid-template-columns: 130px 1fr 92px;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.94rem;
+    }
+
+    .meter-track {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(15, 29, 35, 0.08);
+      overflow: hidden;
+    }
+
+    .meter-fill {
+      width: 100%;
+      height: 100%;
+      transform-origin: left center;
+      transform: scaleX(0);
+      transition: transform 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+      border-radius: inherit;
+    }
+
+    .slide.active .meter-fill {
+      transform: scaleX(var(--value));
+    }
+
+    .fill-green {
+      background: linear-gradient(90deg, #10b981, #0f7ae5);
+    }
+
+    .fill-blue {
+      background: linear-gradient(90deg, #0f7ae5, #3abff8);
+    }
+
+    .fill-gray {
+      background: linear-gradient(90deg, #b8c7ce, #d7e2e6);
+    }
+
+    .verdict {
+      padding: 24px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(8, 19, 22, 0.96), rgba(7, 61, 82, 0.94));
+      color: #f7feff;
+      min-height: 100%;
+      display: grid;
+      align-content: start;
+      gap: 18px;
+    }
+
+    .verdict .status {
+      display: inline-flex;
+      width: fit-content;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .verdict h3 {
+      color: #ffffff;
+      margin-bottom: 0;
+    }
+
+    .verdict p {
+      line-height: 1.6;
+      color: rgba(247, 254, 255, 0.84);
+    }
+
+    .verdict ul {
+      display: grid;
+      gap: 12px;
+    }
+
+    .verdict li {
+      list-style: none;
+      padding-left: 24px;
+      position: relative;
+      line-height: 1.5;
+      color: rgba(247, 254, 255, 0.9);
+    }
+
+    .verdict li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 9px;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #53e1ae;
+    }
+
+    .screenshot-shell {
+      padding: 14px;
+      border-radius: 30px;
+      background: linear-gradient(180deg, rgba(8, 19, 22, 0.95), rgba(18, 43, 52, 0.9));
+      box-shadow: 0 22px 56px rgba(7, 23, 28, 0.22);
+    }
+
+    .screenshot-shell img {
+      width: 100%;
+      display: block;
+      border-radius: 18px;
+    }
+
+    .value-points {
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .value-points .point {
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+    }
+
+    .value-points strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+
+    .value-points span {
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+
+    .issues-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 22px;
+    }
+
+    .issue-card {
+      padding: 18px;
+      min-height: 180px;
+    }
+
+    .issue-card strong {
+      display: block;
+      font-size: 1rem;
+      margin-bottom: 10px;
+    }
+
+    .issue-card .count {
+      font-family: "Sora", "IBM Plex Sans Thai", sans-serif;
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: var(--green-deep);
+      letter-spacing: -0.04em;
+      margin-bottom: 8px;
+    }
+
+    .issue-card p {
+      color: var(--ink-soft);
+      line-height: 1.5;
+      font-size: 0.92rem;
+    }
+
+    .roadmap {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+      align-items: stretch;
+    }
+
+    .road-card {
+      padding: 22px 18px;
+      border-radius: 26px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 16px 36px rgba(8, 19, 22, 0.08);
+      display: grid;
+      gap: 10px;
+    }
+
+    .road-card .stage {
+      font-family: "Sora", "IBM Plex Sans Thai", sans-serif;
+      font-size: 0.95rem;
+      color: var(--green-deep);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .road-card strong {
+      font-size: 1.2rem;
+    }
+
+    .road-card span {
+      color: var(--ink-soft);
+      line-height: 1.45;
+      font-size: 0.94rem;
+    }
+
+    .demo-step {
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+      display: grid;
+      gap: 10px;
+    }
+
+    .demo-step strong {
+      font-size: 1.05rem;
+    }
+
+    .demo-step p {
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .status-card {
+      padding: 16px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 16px 36px rgba(8, 19, 22, 0.08);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(16, 185, 129, 0.12);
+      color: var(--green-deep);
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .status-badge.warn {
+      background: rgba(15, 122, 229, 0.12);
+      color: #0f5db2;
+    }
+
+    .status-card strong {
+      display: block;
+      font-size: 0.96rem;
+      margin-bottom: 6px;
+    }
+
+    .status-card p {
+      color: var(--ink-soft);
+      line-height: 1.42;
+      font-size: 0.88rem;
+    }
+
+    .evidence-stage {
+      position: relative;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .evidence-stage .wide-image-card {
+      height: 100%;
+      min-height: 0 !important;
+    }
+
+    .status-summary {
+      padding: 14px 16px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 14px 30px rgba(8, 19, 22, 0.08);
+      display: grid;
+      gap: 8px;
+    }
+
+    .status-summary .summary-row {
+      color: var(--ink-soft);
+      font-size: 0.86rem;
+      line-height: 1.36;
+    }
+
+    .status-summary .summary-row strong {
+      color: var(--ink);
+      margin-right: 6px;
+    }
+
+    .demo-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .closing-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 20px;
+      align-items: stretch;
+      margin-top: 22px;
+    }
+
+    .takeaway-list {
+      display: grid;
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .takeaway {
+      padding: 18px 18px 18px 54px;
+      position: relative;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
+    .takeaway::before {
+      content: "";
+      position: absolute;
+      left: 20px;
+      top: 23px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #10b981, #0f7ae5);
+    }
+
+    .takeaway strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .takeaway span {
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+
+    .footnote {
+      margin-top: auto;
+      padding-top: 18px;
+      color: var(--ink-soft);
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .nav-ui {
+      position: fixed;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      width: min(calc(100vw - 32px), 1280px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .nav-panel {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(7, 20, 24, 0.64);
+      backdrop-filter: blur(18px);
+      color: rgba(246, 251, 251, 0.92);
+      pointer-events: auto;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+    }
+
+    .nav-button {
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--white);
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: background 0.18s ease, transform 0.18s ease;
+    }
+
+    .nav-button:hover {
+      background: rgba(255, 255, 255, 0.16);
+      transform: translateY(-1px);
+    }
+
+    .counter {
+      font-family: "Sora", "IBM Plex Sans Thai", sans-serif;
+      font-size: 0.96rem;
+      min-width: 110px;
+      text-align: center;
+    }
+
+    .progress-wrap {
+      flex: 1;
+      max-width: 460px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #10b981, #0f7ae5);
+      transition: width 0.28s ease;
+    }
+
+    .slide-title-indicator {
+      max-width: 420px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 0.92rem;
+      color: rgba(246, 251, 251, 0.82);
+    }
+
+    .dots {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      pointer-events: auto;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: 0;
+      background: rgba(255, 255, 255, 0.28);
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .dot.active {
+      background: #4fe1b2;
+      transform: scale(1.26);
+    }
+
+    .stagger > * {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+
+    .slide.active .stagger > * {
+      animation: slideUp 0.65s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+      animation-delay: var(--d, 0s);
+    }
+
+    @keyframes slideUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1280px) {
+      .slide {
+        padding: 20px;
+      }
+
+      .slide-shell {
+        padding: 30px;
+      }
+
+      .hero-grid,
+      .problem-grid,
+      .two-col,
+      .results-grid,
+      .demo-grid,
+      .closing-grid,
+      .arch-layout,
+      .flow-lane,
+      .metric-grid,
+      .issues-grid,
+      .roadmap {
+        grid-template-columns: 1fr;
+      }
+
+      .three-col,
+      .four-col {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 860px) {
+      html, body {
+        overflow: auto;
+      }
+
+      .deck {
+        height: auto;
+      }
+
+      .slide,
+      .slide.active {
+        display: block;
+        height: auto;
+      }
+
+      .slide-shell {
+        min-height: auto;
+      }
+
+      .hero-grid,
+      .problem-grid,
+      .two-col,
+      .three-col,
+      .four-col {
+        grid-template-columns: 1fr;
+      }
+
+      .nav-ui {
+        display: none;
+      }
+    }
+
+    @media print {
+      html, body {
+        overflow: visible;
+        background: white;
+      }
+
+      body::before,
+      .nav-ui {
+        display: none !important;
+      }
+
+      .slide,
+      .slide.active {
+        display: block !important;
+        height: auto;
+        padding: 0;
+        break-after: page;
+      }
+
+      .slide-shell {
+        width: 100%;
+        min-height: 100vh;
+        border-radius: 0;
+        box-shadow: none;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="icon-camera" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M7 6h2l1.2-2h3.6L15 6h2a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3Zm5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-1.8a2.2 2.2 0 1 1 0-4.4 2.2 2.2 0 0 1 0 4.4Z"/>
+    </symbol>
+    <symbol id="icon-chip" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M9 3h6v2h2.5A1.5 1.5 0 0 1 19 6.5V9h2v6h-2v2.5a1.5 1.5 0 0 1-1.5 1.5H15v2H9v-2H6.5A1.5 1.5 0 0 1 5 17.5V15H3V9h2V6.5A1.5 1.5 0 0 1 6.5 5H9V3Zm-2 4v10h10V7H7Zm2 2h6v6H9V9Z"/>
+    </symbol>
+    <symbol id="icon-cloud" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M7 19a4 4 0 0 1-.7-7.94A6 6 0 0 1 18.7 9.4 4.5 4.5 0 1 1 18 19H7Z"/>
+    </symbol>
+    <symbol id="icon-db" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M12 3c4.42 0 8 1.34 8 3v12c0 1.66-3.58 3-8 3s-8-1.34-8-3V6c0-1.66 3.58-3 8-3Zm0 2c-3.72 0-6 .99-6 1s2.28 1 6 1 6-.99 6-1-2.28-1-6-1Zm0 5c-2.63 0-4.88-.48-6-1.22V12c1.12.74 3.37 1.22 6 1.22s4.88-.48 6-1.22V8.78C16.88 9.52 14.63 10 12 10Zm0 5c-2.63 0-4.88-.48-6-1.22V17c1.12.74 3.37 1.22 6 1.22s4.88-.48 6-1.22v-3.22C16.88 14.52 14.63 15 12 15Z"/>
+    </symbol>
+    <symbol id="icon-dashboard" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M4 4h7v7H4V4Zm9 0h7v4h-7V4ZM4 13h4v7H4v-7Zm6 3h10v4H10v-4Zm3-6h7v4h-7v-4Z"/>
+    </symbol>
+    <symbol id="icon-cube" viewBox="0 0 24 24">
+      <path fill="currentColor" d="m12 2 8 4.5v11L12 22l-8-4.5v-11L12 2Zm0 2.3L6.2 7.5 12 10.7l5.8-3.2L12 4.3Zm-6 4.9v7.1l5 2.8v-7.1l-5-2.8Zm7 9.9 5-2.8V9.2l-5 2.8v7.1Z"/>
+    </symbol>
+    <symbol id="icon-link" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M10.6 13.4a1 1 0 0 1 0-1.4l2.8-2.8a1 1 0 1 1 1.4 1.4L12 13.4a1 1 0 0 1-1.4 0ZM7.8 17.6a4 4 0 0 1 0-5.6l2.8-2.8a4 4 0 1 1 5.6 5.6l-.7.7a1 1 0 1 1-1.4-1.4l.7-.7a2 2 0 1 0-2.8-2.8L9.2 13.4a2 2 0 0 0 2.8 2.8l.7-.7a1 1 0 1 1 1.4 1.4l-.7.7a4 4 0 0 1-5.6 0Z"/>
+    </symbol>
+    <symbol id="icon-queue" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M4 5h16v4H4V5Zm0 5h12v4H4v-4Zm0 5h16v4H4v-4Z"/>
+    </symbol>
+  </svg>
+
+  <main class="deck">
+    <section class="slide active" data-title="Cover">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">FarmIQ Project Presentation</span>
+          <div class="tag-row">
+            <span class="time-chip">20-30 min deck</span>
+            <span class="source-chip">Evidence snapshot up to July 20, 2026</span>
+          </div>
+        </div>
+
+        <div class="hero-grid" style="height:calc(100% - 72px);align-items:center;">
+          <div class="stack stagger">
+            <div class="cover-mark" style="--d:0.05s;">
+              <span class="brand-box"></span>
+              <span>FarmIQ</span>
+            </div>
+            <div style="--d:0.12s;">
+              <h1>End-to-End<br>Smart Farm Platform</h1>
+            </div>
+            <p class="subtitle" style="--d:0.18s;">
+              จุดแข็งของ FarmIQ ไม่ใช่แค่ "AI นับไก่" แต่คือแพลตฟอร์มที่เชื่อม <strong>AI, IoT, Edge Computing, Cloud Analytics และ Business Dashboard</strong> ไว้ใน operational flow เดียวกัน
+            </p>
+            <div class="big-pill-row" style="--d:0.24s;">
+              <span class="big-pill">AI Weight Estimation</span>
+              <span class="big-pill">IoT + MQTT</span>
+              <span class="big-pill">Edge AI Runtime</span>
+              <span class="big-pill">Cloud Sync</span>
+              <span class="big-pill">Farm Dashboard</span>
+            </div>
+            <p class="kicker" style="--d:0.3s;">
+              This is not just chicken detection. This is a full operational platform for poultry intelligence.
+            </p>
+          </div>
+
+          <div class="panel soft stagger" style="padding:26px;min-height:540px;display:grid;gap:18px;--d:0.18s;">
+            <div class="panel-title">Platform Spine</div>
+            <div class="feature-grid">
+              <div class="feature-box">
+                <span class="icon-box"><svg><use href="#icon-camera"></use></svg></span>
+                <div>
+                  <strong>Capture</strong>
+                  <span>Camera and device-side acquisition in barn environment</span>
+                </div>
+              </div>
+              <div class="feature-box">
+                <span class="icon-box"><svg><use href="#icon-chip"></use></svg></span>
+                <div>
+                  <strong>Edge AI</strong>
+                  <span>YOLO26 segmentation plus local inference and metadata extraction</span>
+                </div>
+              </div>
+              <div class="feature-box">
+                <span class="icon-box"><svg><use href="#icon-queue"></use></svg></span>
+                <div>
+                  <strong>Messaging</strong>
+                  <span>MQTT, RabbitMQ, outbox sync, and event-driven traceability</span>
+                </div>
+              </div>
+              <div class="feature-box">
+                <span class="icon-box"><svg><use href="#icon-db"></use></svg></span>
+                <div>
+                  <strong>Data Layer</strong>
+                  <span>PostgreSQL, MinIO, raw metadata, and model package registry</span>
+                </div>
+              </div>
+              <div class="feature-box">
+                <span class="icon-box"><svg><use href="#icon-cloud"></use></svg></span>
+                <div>
+                  <strong>Cloud</strong>
+                  <span>Multi-tenant SaaS, analytics services, and model lifecycle</span>
+                </div>
+              </div>
+              <div class="feature-box">
+                <span class="icon-box"><svg><use href="#icon-dashboard"></use></svg></span>
+                <div>
+                  <strong>Dashboard</strong>
+                  <span>Business visibility, operational records, and decision support</span>
+                </div>
+              </div>
+            </div>
+            <div class="highlight-banner">
+              <strong>Presentation takeaway:</strong> FarmIQ connects camera capture to actionable dashboard in one architecture.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Pain Point">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">1. Pain Point</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>ปัญหาเริ่มจากหน้างาน ไม่ใช่จาก architecture</h2>
+        <div class="problem-grid" style="height:calc(100% - 132px);align-items:stretch;">
+          <div class="stack stagger">
+            <p class="subtitle" style="--d:0.08s;">
+              ฟาร์มไก่ขนาดใหญ่มีไก่หลายหมื่นตัวต่อโรงเรือน แต่การชั่งน้ำหนักยังพึ่งการสุ่มจับและแรงงานคนเป็นหลัก
+            </p>
+            <ul class="bullet-list" style="margin-top:18px;">
+              <li style="--d:0.14s;">ต้องสุ่มจับไก่ขึ้นเครื่องชั่งทีละรอบ ไม่สามารถครอบคลุมทั้งฝูง</li>
+              <li style="--d:0.2s;">ใช้แรงงานจำนวนมาก และเพิ่มความเครียดให้สัตว์</li>
+              <li style="--d:0.26s;">มีโอกาสผิดพลาดจาก sampling bias และ human handling</li>
+              <li style="--d:0.32s;">ผู้จัดการฟาร์มไม่เห็นการเติบโตแบบ real-time</li>
+              <li style="--d:0.38s;">การตัดสินใจเรื่อง feed, flock health และ performance จึงช้ากว่าความจริงหน้างาน</li>
+            </ul>
+            <div class="highlight-banner" style="--d:0.44s;">
+              <strong>Operational pain:</strong> ข้อมูลน้ำหนักไม่ได้ไหลเข้า dashboard อัตโนมัติ จึงปิด loop การตัดสินใจไม่ได้
+            </div>
+          </div>
+
+          <div class="image-grid stagger">
+            <div class="image-card large" style="--d:0.12s;">
+              <img src="../iot-layer/evidence/batch3-yolo26-benchmark/frozen_dataset/test/images/00ea3f95-0c81-48ef-9f06-5ef91ef80696_jpg.rf.a3d60c65d7b58ccb1b4dfaede6caa249.jpg" alt="Real farm frame">
+              <span class="image-label">Real barn image</span>
+            </div>
+            <div class="image-card" style="--d:0.18s;">
+              <img src="../iot-layer/evidence/batch3-yolo26-benchmark/frozen_dataset/test/images/009801c5-dad2-41ef-97c1-d93359c657b5_jpg.rf.9b1ba6d33032c2a2fe8baeda5fe9b3f4.jpg" alt="Chicken flock">
+              <span class="image-label">Dense flock condition</span>
+            </div>
+            <div class="image-card" style="--d:0.24s;">
+              <img src="../../iot-layer/docs/iot-layer/evidence/Real-Iot-layer/IMG_20260420_115142_781.jpeg" alt="Real WeighVision setup">
+              <span class="image-label">Real WeighVision setup</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Vision">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">2. Vision</span>
+          <span class="time-chip">1 min</span>
+        </div>
+        <div class="stack" style="height:calc(100% - 72px);justify-content:center;">
+          <div class="stagger">
+            <p class="panel-title" style="--d:0.05s;">If we can...</p>
+            <div class="quote" style="margin:8px 0 18px;--d:0.1s;">
+              เดินผ่านโรงเรือน แล้วให้กล้องถ่ายภาพ,<br>
+              AI วิเคราะห์, น้ำหนักออกอัตโนมัติ,<br>
+              และ dashboard อัปเดตทันที
+            </div>
+            <div class="highlight-banner" style="--d:0.18s;">
+              <strong>AI Weight Estimation without Handling Chicken</strong>
+            </div>
+          </div>
+
+          <div class="three-col" style="margin-top:28px;">
+            <div class="vision-stage stagger" style="--d:0.22s;"><span class="icon-box"><svg><use href="#icon-camera"></use></svg></span>กล้องเก็บภาพจริงใน barn</div>
+            <div class="vision-stage stagger" style="--d:0.28s;"><span class="icon-box"><svg><use href="#icon-chip"></use></svg></span>Edge AI แยกตัวไก่และดึง metadata</div>
+            <div class="vision-stage stagger" style="--d:0.34s;"><span class="icon-box"><svg><use href="#icon-dashboard"></use></svg></span>Dashboard เห็นผลลัพธ์ทันทีเพื่อใช้งานจริง</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Why FarmIQ">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">3. Why FarmIQ</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>สิ่งที่ทำให้ FarmIQ ต่างจากโปรเจกต์ "AI นับไก่" ทั่วไป</h2>
+        <div class="two-col" style="height:calc(100% - 130px);align-items:start;">
+          <div class="stack stagger">
+            <p class="subtitle" style="--d:0.08s;">
+              หลายโปรเจกต์จบที่ model inference แต่ FarmIQ วางระบบตั้งแต่ data capture ถึง business output ไว้ครบใน flow เดียว
+            </p>
+            <div class="highlight-banner" style="--d:0.16s;">
+              <strong>Core differentiation</strong><br>
+              AI เป็นเพียงหนึ่งส่วนของระบบ แต่ platform เป็นตัวที่ทำให้ข้อมูลนั้นเกิดคุณค่าทางธุรกิจจริง
+            </div>
+            <div class="feature-grid">
+              <div class="feature-box" style="--d:0.24s;">
+                <span class="icon-box"><svg><use href="#icon-chip"></use></svg></span>
+                <div><strong>Edge AI</strong><span>Run near the barn, not only in cloud notebooks</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.28s;">
+                <span class="icon-box"><svg><use href="#icon-link"></use></svg></span>
+                <div><strong>Metadata Extraction</strong><span>Area, height, length, depth, confidence, raw trace</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.32s;">
+                <span class="icon-box"><svg><use href="#icon-queue"></use></svg></span>
+                <div><strong>Event-Driven Pipeline</strong><span>MQTT, RabbitMQ, outbox sync, idempotent flow</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.36s;">
+                <span class="icon-box"><svg><use href="#icon-dashboard"></use></svg></span>
+                <div><strong>Business Dashboard</strong><span>Operational UI instead of isolated model output</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel soft stagger" style="padding:26px;--d:0.16s;">
+            <div class="panel-title">Highlight stack</div>
+            <div class="feature-list">
+              <div class="feature-item" style="--d:0.22s;">YOLO26 Segmentation</div>
+              <div class="feature-item" style="--d:0.26s;">Regression Weight Prediction</div>
+              <div class="feature-item" style="--d:0.3s;">Docker Microservices</div>
+              <div class="feature-item" style="--d:0.34s;">MQTT + RabbitMQ</div>
+              <div class="feature-item" style="--d:0.38s;">MinIO + PostgreSQL</div>
+              <div class="feature-item" style="--d:0.42s;">Dashboard + Ops Visibility</div>
+              <div class="feature-item" style="--d:0.46s;">Auto calibration and traceability packs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Solution Overview">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">4. Solution Overview</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>ภาพเดียวที่อธิบายทั้งระบบ</h2>
+        <p class="subtitle">Presentation นี้ไม่โชว์โค้ด แต่โชว์ operational flow ว่าข้อมูลเคลื่อนจากหน้างานไปสู่ decision support อย่างไร</p>
+        <div class="flow-lane stagger" style="margin-top:30px;">
+          <div class="flow-card" style="--d:0.08s;">
+            <span class="icon-box" style="margin:0 auto;"><svg><use href="#icon-camera"></use></svg></span>
+            <h3>Camera</h3>
+            <span class="small">ภาพจากโรงเรือนและจุดชั่ง</span>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="flow-card" style="--d:0.16s;">
+            <span class="icon-box" style="margin:0 auto;"><svg><use href="#icon-chip"></use></svg></span>
+            <h3>Edge AI</h3>
+            <span class="small">YOLO26 segmentation + metadata extraction</span>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="flow-card" style="--d:0.24s;">
+            <span class="icon-box" style="margin:0 auto;"><svg><use href="#icon-db"></use></svg></span>
+            <h3>Weight Estimation</h3>
+            <span class="small">geometry features + regression / scale validation</span>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="flow-card" style="--d:0.32s;">
+            <span class="icon-box" style="margin:0 auto;"><svg><use href="#icon-cloud"></use></svg></span>
+            <h3>Cloud</h3>
+            <span class="small">multi-tenant analytics and model lifecycle</span>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="flow-card" style="--d:0.4s;">
+            <span class="icon-box" style="margin:0 auto;"><svg><use href="#icon-dashboard"></use></svg></span>
+            <h3>Dashboard</h3>
+            <span class="small">farm records, context, KPI and operational visibility</span>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="flow-card" style="--d:0.48s;">
+            <span class="icon-box" style="margin:0 auto;"><svg><use href="#icon-link"></use></svg></span>
+            <h3>Decision Support</h3>
+            <span class="small">faster reaction for farm management</span>
+          </div>
+        </div>
+        <div class="highlight-banner" style="margin-top:28px;">
+          <strong>Key point:</strong> Local-first processing at edge, centralized visibility in cloud.
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Architecture">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">5. Architecture</span>
+          <span class="time-chip">3 min</span>
+        </div>
+        <h2>Architecture ที่ออกแบบให้ใช้จริงในฟาร์ม</h2>
+        <div class="arch-layout compact stagger" style="height:calc(100% - 128px);">
+          <div class="arch-card iot" style="--d:0.08s;">
+            <div class="panel-title">IoT Layer</div>
+            <h3>Device &amp; agent side</h3>
+            <div class="arch-list">
+              <div class="arch-pill">iot-weighvision-agent<span>session capture, image pipeline, and device-side coordination</span></div>
+              <div class="arch-pill">Camera + scale station<span>physical evidence source from real barn experiments</span></div>
+              <div class="arch-pill">MQTT event publishing<span>lightweight uplink for telemetry, session, and status flow</span></div>
+              <div class="arch-pill">Offline buffer<span>persist across connectivity loss and reboot windows</span></div>
+            </div>
+            <div class="bridge">Responsibility: collect and send reliable raw events</div>
+          </div>
+          <div class="arch-card edge" style="--d:0.16s;">
+            <div class="panel-title">Edge Layer</div>
+            <h3>Offline-first operational compute</h3>
+            <div class="arch-list">
+              <div class="arch-pill">edge-mqtt-broker + ingress<span>device ingress, validation, dedupe, and internal routing</span></div>
+              <div class="arch-pill">edge-weighvision-session<span>session owner, final weight path, and raw metadata binding</span></div>
+              <div class="arch-pill">edge-media-store + MinIO<span>image/media ownership and evidence persistence</span></div>
+              <div class="arch-pill">edge-vision-inference<span>local AI runtime, shadow prediction, and package activation</span></div>
+              <div class="arch-pill">edge-sync-forwarder + outbox<span>reliable transfer to cloud even when connectivity is unstable</span></div>
+            </div>
+            <div class="bridge">Responsibility: run the farm even when cloud is not nearby</div>
+          </div>
+          <div class="arch-card cloud" style="--d:0.24s;">
+            <div class="panel-title">Cloud Layer</div>
+            <h3>Source of truth and analytics</h3>
+            <div class="arch-list">
+              <div class="arch-pill">cloud-ingestion + RabbitMQ<span>single edge entry point and event distribution for cloud workloads</span></div>
+              <div class="arch-pill">cloud-analytics-service<span>KPI, insight orchestration, and cross-service aggregation</span></div>
+              <div class="arch-pill">cloud-ml-model-service<span>dataset contract, training route, package registry, subscription API</span></div>
+              <div class="arch-pill">cloud-api-gateway-bff<span>public API surface for dashboard and downstream clients</span></div>
+              <div class="arch-pill">dashboard-web<span>business-facing UI for operators, records, and farm context</span></div>
+            </div>
+            <div class="bridge">Responsibility: multi-tenant visibility, analytics, and governance</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="AI Model">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">6. AI Model</span>
+          <span class="time-chip">4 min</span>
+        </div>
+        <h2>AI Model: จากภาพสู่ข้อมูลที่นำไปทำนายน้ำหนักได้</h2>
+        <p class="subtitle">FarmIQ พัฒนา model อยู่ 2 ประเภทชัดเจน: <strong>object detection / segmentation model</strong> คือ <strong>YOLO26n-seg</strong> สำหรับแยกตัวไก่และสร้าง metadata ที่หน้างาน และ <strong>weight prediction model</strong> คือ <strong>baseline-v1 python-linear-regression</strong> สำหรับทำนายน้ำหนักจาก feature set ใน Cloud/Edge shadow path</p>
+        <div class="two-col" style="height:calc(100% - 128px);align-items:start;">
+          <div class="stack stagger">
+            <div class="process-rail">
+              <div class="rail-step" style="--d:0.08s;">
+                <span class="rail-index">1</span>
+                <div><strong>Input image</strong><p>รับภาพจากจุด capture หรือ frame ที่ใช้งานจริงในโรงเรือน</p></div>
+              </div>
+              <div class="rail-step" style="--d:0.14s;">
+                <span class="rail-index">2</span>
+                <div><strong>Object detection / segmentation model: YOLO26n-seg</strong><p>instance segmentation สำหรับแยก object และสร้าง mask ของไก่แบบ pixel-level ใน capture runtime</p></div>
+              </div>
+              <div class="rail-step" style="--d:0.2s;">
+                <span class="rail-index">3</span>
+                <div><strong>Metadata extraction</strong><p>ดึง area, height, width, length, depth, confidence และบริบทการ capture ตาม feature schema v1</p></div>
+              </div>
+              <div class="rail-step" style="--d:0.26s;">
+                <span class="rail-index">4</span>
+                <div><strong>Weight prediction model: baseline-v1 regression</strong><p>ใช้ feature set เหล่านี้ในการ estimate น้ำหนัก โดย runtime family ปัจจุบันคือ <code>python-linear-regression</code> และยังอยู่ใน shadow mode</p></div>
+              </div>
+              <div class="rail-step" style="--d:0.32s;">
+                <span class="rail-index">5</span>
+                <div><strong>Session + cloud traceability</strong><p>ผลลัพธ์ไม่หายไปกับ model output แต่ผูกกับ session และ event pipeline ต่อได้</p></div>
+              </div>
+            </div>
+          </div>
+          <div class="stack stagger">
+            <div class="wide-image-card" style="--d:0.12s;">
+              <img src="../../iot-layer/docs/iot-layer/evidence/Real-Iot-layer/IMG_20260420_130237_764.jpeg" alt="Real segmentation capture from experiment">
+              <span class="image-label">Real capture UI + segmentation evidence</span>
+            </div>
+            <div class="metric-grid">
+              <div class="metric-card" style="--d:0.2s;">
+                <div class="label">Confidence</div>
+                <div class="value">0.95</div>
+                <div class="meta">ตัวอย่างจาก frame overlay ที่ใช้ใน runtime evidence</div>
+              </div>
+              <div class="metric-card" style="--d:0.24s;">
+                <div class="label">Length</div>
+                <div class="value">376.6 mm</div>
+                <div class="meta">feature ที่ใช้ต่อยอดใน weight model</div>
+              </div>
+              <div class="metric-card" style="--d:0.28s;">
+                <div class="label">Area</div>
+                <div class="value">47,681 mm²</div>
+                <div class="meta">mask-derived area for downstream regression</div>
+              </div>
+            </div>
+            <div class="highlight-banner" style="--d:0.34s;">
+              <strong>Important:</strong> AI slide นี้ไม่ขายแค่ detector แต่ขาย "feature generation pipeline" ที่เชื่อมเข้า platform ได้จริง
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="IoT and Edge">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">7. IoT / Edge Runtime</span>
+          <span class="time-chip">3 min</span>
+        </div>
+        <h2>IoT Layer และ Edge Runtime คือหัวใจของความเป็น platform</h2>
+        <div class="demo-grid" style="height:calc(100% - 128px);align-items:start;">
+          <div class="stack stagger">
+            <div class="screenshot-shell" style="--d:0.12s;">
+              <img src="../../iot-layer/docs/iot-layer/evidence/Real-Iot-layer/IMG_20260420_115142_781.jpeg" alt="Real capture station">
+            </div>
+            <div class="bridge" style="--d:0.18s;">
+              Camera → MQTT → Edge service → Queue / storage → Sync → Dashboard
+            </div>
+          </div>
+          <div class="stack stagger">
+            <div class="feature-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+              <div class="feature-box" style="--d:0.16s;">
+                <span class="icon-box"><svg><use href="#icon-camera"></use></svg></span>
+                <div><strong>Camera / capture</strong><span>image frames and session-level evidence</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.2s;">
+                <span class="icon-box"><svg><use href="#icon-queue"></use></svg></span>
+                <div><strong>MQTT</strong><span>device-friendly transport at the farm edge</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.24s;">
+                <span class="icon-box"><svg><use href="#icon-db"></use></svg></span>
+                <div><strong>MinIO + PostgreSQL</strong><span>media + session + metadata persistence</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.28s;">
+                <span class="icon-box"><svg><use href="#icon-cube"></use></svg></span>
+                <div><strong>Docker microservices</strong><span>reproducible local runtime and deployment isolation</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.32s;">
+                <span class="icon-box"><svg><use href="#icon-chip"></use></svg></span>
+                <div><strong>Edge inference</strong><span>near-device feedback without waiting for cloud</span></div>
+              </div>
+              <div class="feature-box" style="--d:0.36s;">
+                <span class="icon-box"><svg><use href="#icon-cloud"></use></svg></span>
+                <div><strong>Cloud sync</strong><span>outbox-based reliable transfer to SaaS layer</span></div>
+              </div>
+            </div>
+            <div class="highlight-banner" style="--d:0.42s;">
+              <strong>Message to audience:</strong> FarmIQ is engineered as an operational system, not only as a CV experiment.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Evidence">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">8. Evidence Base</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>ข้อมูลอ้างอิงใน deck นี้มาจาก artifact จริงใน repo</h2>
+        <div class="four-col stagger" style="margin-top:22px;">
+          <div class="number-card panel" style="--d:0.08s;">
+            <div class="panel-title">Field audit</div>
+            <strong>129</strong>
+            <span>field metadata captures audited in Batch 2 weight anomaly pack</span>
+          </div>
+          <div class="number-card panel" style="--d:0.14s;">
+            <div class="panel-title">Scale linked</div>
+            <strong>108</strong>
+            <span>captures contain <code>scale.weight_kg</code> in the evidence set</span>
+          </div>
+          <div class="number-card panel" style="--d:0.2s;">
+            <div class="panel-title">Frozen benchmark</div>
+            <strong>16</strong>
+            <span>test images used for YOLO12 vs YOLO26 comparison on July 14, 2026</span>
+          </div>
+          <div class="number-card panel" style="--d:0.26s;">
+            <div class="panel-title">Model package</div>
+            <strong>v1</strong>
+            <span>shadow baseline package exported as <code>wv-shadow-field-baseline-2026.07.14</code></span>
+          </div>
+        </div>
+
+        <div class="three-col stagger" style="margin-top:20px;">
+          <div class="panel soft" style="--d:0.32s;">
+            <div class="panel-title">Captured features</div>
+            <p class="subtitle" style="font-size:1rem;max-width:none;">segmentation, bounding boxes, depth, height, width, area, calibration context, optional scale weight</p>
+          </div>
+          <div class="panel soft" style="--d:0.38s;">
+            <div class="panel-title">Traceability</div>
+            <p class="subtitle" style="font-size:1rem;max-width:none;">raw metadata → edge session persistence → outbox → cloud read model</p>
+          </div>
+          <div class="panel soft" style="--d:0.44s;">
+            <div class="panel-title">Governance</div>
+            <p class="subtitle" style="font-size:1rem;max-width:none;">benchmarked models, controlled promotion, shadow-only package when MAE is not good enough</p>
+          </div>
+        </div>
+
+        <p class="footnote">Sources: <code>docs/iot-layer/08-weight-estimation-audit-pack.md</code>, <code>docs/iot-layer/10-yolo26-upgrade-pack.md</code>, <code>docs/iot-layer/work-orders/WO-IOT-FD-015-baseline-weight-prediction-models.md</code></p>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Benchmark Results">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">9. Results</span>
+          <span class="time-chip">5 min</span>
+        </div>
+        <h2>YOLO26 benchmark: ชนะทั้งคุณภาพ segmentation และ latency</h2>
+        <div class="results-grid" style="height:calc(100% - 128px);align-items:start;">
+          <div class="stack stagger">
+            <div class="compare-card" style="--d:0.1s;">
+              <div class="compare-head">
+                <strong>Quality metrics</strong>
+                <span>candidate vs baseline</span>
+              </div>
+              <div class="meter">
+                <div class="meter-row">
+                  <span>Precision@0.5</span>
+                  <div class="meter-track"><div class="meter-fill fill-green" style="--value:0.7853;"></div></div>
+                  <strong>0.7853</strong>
+                </div>
+                <div class="meter-row">
+                  <span>Recall@0.5</span>
+                  <div class="meter-track"><div class="meter-fill fill-green" style="--value:0.8994;"></div></div>
+                  <strong>0.8994</strong>
+                </div>
+                <div class="meter-row">
+                  <span>Best IoU</span>
+                  <div class="meter-track"><div class="meter-fill fill-blue" style="--value:0.7907;"></div></div>
+                  <strong>0.7907</strong>
+                </div>
+                <div class="meter-row">
+                  <span>Detections / img</span>
+                  <div class="meter-track"><div class="meter-fill fill-blue" style="--value:0.8925;"></div></div>
+                  <strong>22.31</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="compare-card" style="--d:0.18s;">
+              <div class="compare-head">
+                <strong>Latency and throughput</strong>
+                <span>derived FPS from avg latency</span>
+              </div>
+              <div class="meter">
+                <div class="meter-row">
+                  <span>YOLO12 latency</span>
+                  <div class="meter-track"><div class="meter-fill fill-gray" style="--value:0.90;"></div></div>
+                  <strong>1565.52 ms</strong>
+                </div>
+                <div class="meter-row">
+                  <span>YOLO26 latency</span>
+                  <div class="meter-track"><div class="meter-fill fill-green" style="--value:0.25;"></div></div>
+                  <strong>391.40 ms</strong>
+                </div>
+                <div class="meter-row">
+                  <span>YOLO12 FPS</span>
+                  <div class="meter-track"><div class="meter-fill fill-gray" style="--value:0.25;"></div></div>
+                  <strong>0.64</strong>
+                </div>
+                <div class="meter-row">
+                  <span>YOLO26 FPS</span>
+                  <div class="meter-track"><div class="meter-fill fill-green" style="--value:1;"></div></div>
+                  <strong>2.55</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="verdict stagger" style="--d:0.22s;">
+            <span class="status">Measured on July 14, 2026</span>
+            <h3>Interpretation</h3>
+            <p>
+              บน frozen test set จำนวน 16 ภาพ YOLO26 candidate ให้ผลที่ดีกว่า baseline เดิมอย่างมีนัยสำคัญทั้งด้าน segmentation quality และ average inference latency
+            </p>
+            <ul>
+              <li>Precision เพิ่มจาก <strong>0.4286</strong> เป็น <strong>0.7853</strong></li>
+              <li>Recall เพิ่มจาก <strong>0.0100</strong> เป็น <strong>0.8994</strong></li>
+              <li>Mean best IoU เพิ่มจาก <strong>0.0074</strong> เป็น <strong>0.7907</strong></li>
+              <li>Latency ลดจาก <strong>1565.52 ms</strong> เหลือ <strong>391.40 ms</strong></li>
+            </ul>
+            <p>
+              นี่คือเหตุผลที่ candidate ถูก promote เข้า runtime path <code>camera-config/model/best.pt</code> ภายใต้ rollout control ที่กำหนดไว้
+            </p>
+            <p class="footnote" style="color:rgba(247,254,255,0.72);padding-top:0;">
+              Source: <code>docs/iot-layer/evidence/batch3-yolo26-benchmark/benchmark-report.json</code>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Weight Model Results">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">10. Weight Prediction Reality</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>ผลลัพธ์ที่ดีไม่ได้แปลว่าเราควร overclaim</h2>
+        <div class="results-grid" style="height:calc(100% - 128px);align-items:start;">
+          <div class="stack stagger">
+            <div class="metric-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+              <div class="metric-card" style="--d:0.08s;">
+                <div class="label">Train MAE</div>
+                <div class="value">2.78364 kg</div>
+                <div class="meta">baseline-v1 real field-audit training result</div>
+              </div>
+              <div class="metric-card" style="--d:0.14s;">
+                <div class="label">Validation MAE</div>
+                <div class="value">7.49596 kg</div>
+                <div class="meta">ยังไม่ดีพอสำหรับ production promotion</div>
+              </div>
+              <div class="metric-card" style="--d:0.2s;">
+                <div class="label">Naive comparator</div>
+                <div class="value">2.647279 kg</div>
+                <div class="meta">validation ยังแย่กว่าวิธีง่ายกว่า</div>
+              </div>
+              <div class="metric-card" style="--d:0.26s;">
+                <div class="label">Package status</div>
+                <div class="value">Shadow only</div>
+                <div class="meta">deployable package exists, but not promoted as final truth</div>
+              </div>
+            </div>
+            <div class="highlight-banner" style="--d:0.32s;">
+              <strong>Professional takeaway:</strong> FarmIQ มี model governance ชัดเจน เราไม่ดันโมเดลขึ้น production ถ้า metric ยังไม่ผ่าน
+            </div>
+          </div>
+
+          <div class="verdict stagger" style="--d:0.18s;background:linear-gradient(135deg, rgba(4,120,87,0.96), rgba(8,19,22,0.94));">
+            <span class="status">Honest engineering</span>
+            <h3>สิ่งที่ควรพูดกับกรรมการ</h3>
+            <ul>
+              <li>Segmentation pipeline พร้อมและมี benchmark ที่แข็งแรง</li>
+              <li>Training และ packaging pipeline ฝั่ง cloud เสร็จแล้ว</li>
+              <li>Weight regression baseline ตัวแรกยังไม่พร้อม promote เพราะ validation MAE ยังสูง</li>
+              <li>นี่ไม่ใช่ weakness ของโปรเจกต์ แต่เป็น proof ว่าระบบมี audit trail และ model lifecycle ที่รัดกุม</li>
+            </ul>
+            <p>
+              ถ้าพูดแบบนี้ งานจะดูน่าเชื่อถือกว่าการโชว์ตัวเลขสวย ๆ ที่ยังตรวจสอบไม่ได้
+            </p>
+            <p class="footnote" style="color:rgba(247,254,255,0.72);padding-top:0;">
+              Source: <code>docs/iot-layer/work-orders/WO-IOT-FD-015-baseline-weight-prediction-models.md</code>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Dashboard">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">11. Dashboard</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>FarmIQ dashboard คือจุดที่ AI กลายเป็นการตัดสินใจทางธุรกิจ</h2>
+        <div class="two-col" style="height:calc(100% - 128px);align-items:start;">
+          <div class="screenshot-shell stagger" style="--d:0.12s;">
+            <img src="../../apps/dashboard-web/apps/dashboard-web/evidence/smoke/screens/barns_records.png" alt="Dashboard screenshot">
+          </div>
+          <div class="stack stagger">
+            <div class="value-points">
+              <div class="point" style="--d:0.16s;">
+                <strong>Context-aware operations</strong>
+                <span>ข้อมูลถูกผูกกับ farm, barn, batch และ record flow ไม่ใช่ลอยอยู่เป็นแค่ prediction sample</span>
+              </div>
+              <div class="point" style="--d:0.22s;">
+                <strong>Unified platform</strong>
+                <span>AI, feeding, sensor data และ barn records อยู่ใน ecosystem เดียวกัน</span>
+              </div>
+              <div class="point" style="--d:0.28s;">
+                <strong>Decision support ready</strong>
+                <span>เมื่อข้อมูลสะสมพอ สามารถต่อยอดไปสู่ alert, KPI, forecast และ farm optimization ได้</span>
+              </div>
+            </div>
+            <div class="highlight-banner" style="--d:0.34s;">
+              <strong>Business framing:</strong> ลูกค้าไม่ได้ซื้อ model อย่างเดียว ลูกค้าซื้อระบบที่ทำให้การจัดการฟาร์มเร็วขึ้นและแม่นขึ้น
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Current Status">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">12. Current Status</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>สถานะงานปัจจุบัน และหลักฐานว่ามีการทดลองจริง</h2>
+        <div class="two-col" style="height:calc(100% - 128px);align-items:start;grid-template-columns:1.08fr 0.92fr;">
+          <div class="evidence-stage stagger">
+            <div class="wide-image-card" style="--d:0.12s;">
+              <img src="../../iot-layer/docs/iot-layer/evidence/Real-Iot-layer/IMG_20260420_115142_781.jpeg" alt="Real IoT layer hardware setup">
+              <span class="image-label">Real IoT-layer experiment setup</span>
+            </div>
+          </div>
+          <div class="stack stagger">
+            <div class="highlight-banner" style="--d:0.16s;">
+              <strong>Current project state:</strong> platform foundation พร้อมในระดับ local proof และ field experiment evidence แล้ว โดย current focus คือ model-quality improvement และ production promotion gating
+            </div>
+            <div class="status-grid">
+              <div class="status-card" style="--d:0.22s;">
+                <span class="status-badge">Completed</span>
+                <strong>Object detection / segmentation model ready: YOLO26n-seg</strong>
+                <p>segmentation runtime, benchmark, rollout/rollback, และ metadata traceability ครบแล้ว โดย active runtime อ่านจาก <code>camera-config/model/best.pt</code></p>
+              </div>
+              <div class="status-card" style="--d:0.28s;">
+                <span class="status-badge warn">In Progress</span>
+                <strong>Weight prediction model in development: baseline-v1</strong>
+                <p>Cloud train/export/subscription path พร้อมแล้ว แต่ package <code>wv-shadow-field-baseline-2026.07.14</code> ยังเป็น <code>python-linear-regression</code> ใน shadow mode และยังไม่พร้อม promote</p>
+              </div>
+            </div>
+            <div class="status-summary" style="--d:0.34s;">
+              <div class="summary-row"><strong>Blocker:</strong> baseline-v1 ยังไม่พร้อม promote เพราะ validation MAE <code>7.49596 kg</code> แย่กว่า naive comparator <code>2.647279 kg</code></div>
+              <div class="summary-row"><strong>Field issues:</strong> ยังมี unit mismatch, การเคลื่อนไหวของไก่ระหว่าง capture, segmentation ambiguity, และ depth / geometry defect</div>
+              <div class="summary-row"><strong>Now developing:</strong> เพิ่มข้อมูลจริงใน training set, benchmark model family ที่แรงกว่า linear regression, ขยาย shadow execution, และกำหนด promotion criteria ก่อนใช้จริง</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Challenges">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">13. Challenges</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>ปัญหาที่เจอจริง และวิธีที่ทีมแก้</h2>
+        <p class="subtitle">สไลด์นี้สำคัญ เพราะแสดงว่าโปรเจกต์ไม่ได้หลบปัญหาภาคสนาม แต่แยก root cause และออกมาตรการแก้แบบ measurable</p>
+        <div class="issues-grid stagger">
+          <div class="issue-card" style="--d:0.08s;">
+            <strong>Unit mismatch / overweight</strong>
+            <div class="count">37</div>
+            <p>ปัญหา: บาง session ไก่ยังเคลื่อนที่ระหว่าง capture ทำให้ภาพกับน้ำหนักไม่สัมพันธ์กัน และมีบางเคสที่ค่าหน่วยน้ำหนักผิดเพี้ยน<br>วิธีแก้: ปรับโค้ด stable-window, จับเวลา image/scale ให้ sync กันมากขึ้น, และ harden final-weight binding ใน pipeline</p>
+          </div>
+          <div class="issue-card" style="--d:0.14s;">
+            <strong>Multi-detection in ROI</strong>
+            <div class="count">10</div>
+            <p>ปัญหา: มีไก่มากกว่าหนึ่งตัวเข้ามาใน ROI ทำให้เลือก object เป้าหมายผิดได้<br>วิธีแก้: ปรับ code ฝั่ง train/inference ด้วยข้อมูลจริงที่มากขึ้น และคัด training set ที่สะท้อนสภาพหน้างานจริง</p>
+          </div>
+          <div class="issue-card" style="--d:0.2s;">
+            <strong>Low-confidence segmentation</strong>
+            <div class="count">43</div>
+            <p>ปัญหา: segmentation confidence ต่ำเมื่อภาพจริงมีทับซ้อน แสงไม่นิ่ง หรือมุมมองไม่สมบูรณ์<br>วิธีแก้: retrain AI model ด้วยข้อมูลจริงที่มากขึ้นและเพิ่มตัวอย่างจาก field experiment จริง</p>
+          </div>
+          <div class="issue-card" style="--d:0.26s;">
+            <strong>Depth / geometry defects</strong>
+            <div class="count">36 / 10</div>
+            <p>ปัญหา: วัตถุจริงเคลื่อนที่ ทำให้กล้องโฟกัสหรือความลึกคลาดเคลื่อน ส่งผลต่อ geometry feature<br>วิธีแก้: แยก class ของ model ให้ detect ไก่ที่เห็นตัวสมบูรณ์และเต็มตัวก่อนนำไปคำนวณน้ำหนัก</p>
+          </div>
+          <div class="issue-card" style="--d:0.32s;">
+            <strong>Code / model improvements</strong>
+            <div class="count">4</div>
+            <p>สิ่งที่ทีมทำต่อชัดเจนมี 4 เรื่อง: ปรับ capture logic, retrain model ด้วยข้อมูลจริง, เพิ่มเกณฑ์เลือกไก่เต็มตัว, และปรับ validation ให้สะท้อน field behavior จริง</p>
+          </div>
+        </div>
+        <p class="footnote">Source: <code>docs/iot-layer/08-weight-estimation-audit-pack.md</code>, updated July 14, 2026</p>
+      </div>
+    </section>
+
+    <section class="slide" data-title="AI Audit Findings">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">14. AI Audit Findings</span>
+          <span class="time-chip">3 min</span>
+        </div>
+        <h2>ปัญหาที่เจอจริงใน NCK segmentation และวิธีที่ทีมแก้</h2>
+        <p class="subtitle">Audit จาก test split จริง 303 ภาพของ <code>Chicken Segmentation.v4i.yolo26</code> ด้วย model <code>20260707_083300/best.pt</code> ที่ <code>conf=0.40</code>, <code>nms_iou=0.45</code>, <code>match_iou=0.50</code></p>
+        <div class="metric-grid stagger" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-top:18px;">
+          <div class="metric-card" style="--d:0.08s;">
+            <div class="label">NCK Ground Truth</div>
+            <div class="value">3554</div>
+            <div class="meta">instances ใน test split ที่ใช้ evaluate จริง</div>
+          </div>
+          <div class="metric-card" style="--d:0.14s;">
+            <div class="label">NCK False Negative</div>
+            <div class="value">614</div>
+            <div class="meta">GT เป็น NCK แต่ model หลุดเป็น background</div>
+          </div>
+          <div class="metric-card" style="--d:0.2s;">
+            <div class="label">NCK False Positive</div>
+            <div class="value">504</div>
+            <div class="meta">model ทาย NCK แต่ไม่มี GT match ได้</div>
+          </div>
+          <div class="metric-card" style="--d:0.26s;">
+            <div class="label">Invalid Labels</div>
+            <div class="value">15</div>
+            <div class="meta">พบ invalid label rows ต้อง cleanup dataset</div>
+          </div>
+        </div>
+        <div class="issues-grid stagger" style="margin-top:18px;">
+          <div class="issue-card" style="--d:0.3s;">
+            <strong>ภาพยากจริง: เล็ก, ติดขอบ, บังกัน</strong>
+            <div class="count">56% / 33% / 18%</div>
+            <p>สิ่งที่เจอจริง: NCK ทั้งชุดมี <strong>56.2%</strong> ติดขอบภาพ, <strong>33.2%</strong> เล็กกว่า 0.5% ของภาพ, และ <strong>18.5%</strong> อยู่ในสภาพ crowded จึงเป็นสาเหตุหลักของ <code>NCK -&gt; background</code></p>
+          </div>
+          <div class="issue-card" style="--d:0.36s;">
+            <strong>False negative มาจาก object ยาก ไม่ใช่ threshold อย่างเดียว</strong>
+            <div class="count">614</div>
+            <p>ใน NCK false negative พบว่า <strong>56.5%</strong> ติดขอบภาพ, <strong>52.8%</strong> เล็กมาก, และ <strong>21.5%</strong> อยู่ในฉากที่ซ้อนกัน แปลว่า root cause คือ visibility และ segmentation difficulty</p>
+          </div>
+          <div class="issue-card" style="--d:0.42s;">
+            <strong>False positive บางส่วนเป็น model มั่นใจผิดจริง</strong>
+            <div class="count">46%</div>
+            <p>ใน NCK false positive มีถึง <strong>46.0%</strong> ที่ confidence ตั้งแต่ 0.6 ขึ้นไป จึงไม่ใช่แค่ตั้ง threshold ต่ำ แต่มี bias ไปทางทาย NCK เกินจริงในบริเวณขอบภาพหรือ object ซ้อนกัน</p>
+          </div>
+          <div class="issue-card" style="--d:0.48s;">
+            <strong>มีสัญญาณเรื่อง label consistency</strong>
+            <div class="count">review required</div>
+            <p>จาก sample audit พบหลายเคสที่ภาพมีตัวไก่จริง แต่ GT ไม่ครอบตำแหน่งหรือ contour ตามที่ model ทาย จึงต้อง review เพิ่มว่าเป็น <em>annotation policy</em> ไม่สม่ำเสมอหรือไม่</p>
+          </div>
+        </div>
+        <div class="status-summary" style="margin-top:18px;">
+          <div class="summary-row"><strong>สิ่งที่ทีมแก้แล้ว:</strong> แยก evaluate ออกเป็น <code>standard validation</code> และ <code>operational IoU matching</code>, เพิ่ม confusion-matrix analysis ที่อ่าน <code>background</code> ได้ถูกต้อง, และเพิ่ม full evaluation report สำหรับ TP/FP/FN จริง</div>
+          <div class="summary-row"><strong>สิ่งที่ทีมแก้ใน training pipeline:</strong> เพิ่ม <code>auto-balance</code>, oversample class <code>CK-S</code>, class weighting, และ copy-paste augmentation เพื่อแก้ class imbalance ที่ชัดเจนใน dataset</div>
+          <div class="summary-row"><strong>สิ่งที่ทีมต้องทำต่อ:</strong> cleanup <code>15 invalid label rows</code>, review ภาพ NCK ที่ติดขอบหรือโดนบัง, ทำ annotation policy ให้สม่ำเสมอ, และ retrain ด้วยข้อมูลจริงที่ balance และยากพอสำหรับ edge/occlusion cases</div>
+          <div class="summary-row"><strong>ข้อสรุปเชิงวิศวกรรม:</strong> ปัญหาหลักไม่ใช่การซ่อน background ใน confusion matrix แต่คือ dataset difficulty, label consistency, และ model bias ต่อ NCK ที่ต้องแก้ทั้ง data และ training pipeline</div>
+        </div>
+        <p class="footnote">Source: <code>iot-layer/weight-vision-train-model-yolo26/runs/label_audit_20260720/audit_summary.json</code>, <code>sample_manifest.json</code>, updated July 20, 2026</p>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Roadmap">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">15. Roadmap</span>
+          <span class="time-chip">2 min</span>
+        </div>
+        <h2>Roadmap: จาก AI Weight ไปสู่ Smart Farm Platform เต็มรูปแบบ</h2>
+        <div class="highlight-banner" style="margin-top:18px;">
+          <strong>Current position:</strong> platform foundation พร้อมแล้วทั้ง capture, edge, cloud, dashboard และ model governance
+        </div>
+        <div class="roadmap stagger">
+          <div class="road-card" style="--d:0.08s;">
+            <div class="stage">V1</div>
+            <strong>AI Weight</strong>
+            <span>segmentation, metadata extraction, baseline prediction, session traceability</span>
+          </div>
+          <div class="road-card" style="--d:0.14s;">
+            <div class="stage">V2</div>
+            <strong>Behavior Detection</strong>
+            <span>movement pattern, activity anomalies, crowding and welfare cues</span>
+          </div>
+          <div class="road-card" style="--d:0.2s;">
+            <div class="stage">V3</div>
+            <strong>Disease Detection</strong>
+            <span>health-risk screening from visual and contextual farm signals</span>
+          </div>
+          <div class="road-card" style="--d:0.26s;">
+            <div class="stage">V4</div>
+            <strong>Digital Twin</strong>
+            <span>simulate flock condition, environment impact, and operational scenarios</span>
+          </div>
+          <div class="road-card" style="--d:0.32s;">
+            <div class="stage">V5</div>
+            <strong>Smart Farm Platform</strong>
+            <span>closed-loop visibility, analytics, AI services, and enterprise farm operations</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Demo">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">16. Demo</span>
+          <span class="time-chip">3 min</span>
+        </div>
+        <h2>Demo script ที่ควรโชว์</h2>
+        <div class="demo-grid" style="height:calc(100% - 128px);align-items:start;">
+          <div class="stack stagger">
+            <div class="wide-image-card" style="--d:0.12s;">
+              <img src="../../iot-layer/docs/iot-layer/evidence/Real-Iot-layer/IMG_20260420_130237_764.jpeg" alt="Real demo frame">
+              <span class="image-label">Real capture UI → segmentation → metadata</span>
+            </div>
+            <div class="wide-image-card" style="--d:0.18s;min-height:240px;">
+              <img src="../../apps/dashboard-web/apps/dashboard-web/evidence/smoke/screens/barns_records.png" alt="Dashboard demo">
+              <span class="image-label">Session / dashboard context</span>
+            </div>
+          </div>
+          <div class="stack stagger">
+            <div class="demo-list">
+              <div class="demo-step" style="--d:0.16s;">
+                <strong>1. Show camera input</strong>
+                <p>เปิดภาพหรือ stream ที่สะท้อนสภาพจริงในโรงเรือนหรือจุดชั่ง</p>
+              </div>
+              <div class="demo-step" style="--d:0.22s;">
+                <strong>2. Show detection + mask</strong>
+                <p>ให้ผู้ชมเห็นว่าโมเดลไม่ได้แค่ detect แต่สร้าง mask และ geometry metadata ได้</p>
+              </div>
+              <div class="demo-step" style="--d:0.28s;">
+                <strong>3. Show weight / session event</strong>
+                <p>อธิบายว่า event ถูกผูกกับ session และวิ่งผ่าน edge-to-cloud pipeline อย่างไร</p>
+              </div>
+              <div class="demo-step" style="--d:0.34s;">
+                <strong>4. Show dashboard update</strong>
+                <p>ปิดท้ายด้วย business view ว่าข้อมูลเข้าไปอยู่ในระบบปฏิบัติการฟาร์มแล้ว</p>
+              </div>
+            </div>
+            <div class="highlight-banner" style="--d:0.4s;">
+              <strong>Why demo matters:</strong> คนเชื่อระบบที่เห็น flow จริง มากกว่าระบบที่มีแต่สไลด์สวย
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Conclusion">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">17. Conclusion</span>
+          <span class="time-chip">1 min</span>
+        </div>
+        <h2>บทสรุปที่ควรให้ผู้ฟังจำได้</h2>
+        <div class="closing-grid" style="height:calc(100% - 128px);align-items:start;">
+          <div class="stack stagger">
+            <div class="quote" style="--d:0.08s;">
+              FarmIQ is not a chicken-counting demo.<br>
+              It is an end-to-end smart farm platform.
+            </div>
+            <div class="takeaway-list">
+              <div class="takeaway" style="--d:0.16s;">
+                <strong>Problem-first narrative</strong>
+                <span>เริ่มจาก pain point ของฟาร์มจริง แล้วค่อยพาไปสู่ solution และ architecture</span>
+              </div>
+              <div class="takeaway" style="--d:0.22s;">
+                <strong>Platform thinking</strong>
+                <span>AI, IoT, Edge, Cloud และ Dashboard ถูกออกแบบให้ทำงานเป็นระบบเดียว</span>
+              </div>
+              <div class="takeaway" style="--d:0.28s;">
+                <strong>Evidence-based credibility</strong>
+                <span>มี benchmark, audit pack, rollback path, และ model governance ชัดเจน</span>
+              </div>
+            </div>
+          </div>
+          <div class="verdict stagger" style="--d:0.14s;">
+            <span class="status">Closing message</span>
+            <h3>ประโยคปิดที่แนะนำ</h3>
+            <p>
+              "FarmIQ ไม่ได้แก้แค่การชั่งน้ำหนักไก่ แต่กำลังวางรากฐานของ Smart Farm Platform ที่เชื่อมข้อมูลจากหน้างานไปสู่การตัดสินใจเชิงธุรกิจแบบ end-to-end"
+            </p>
+            <p>
+              ถ้าต้องย่อให้จำง่ายที่สุด:
+            </p>
+            <div class="highlight-banner" style="margin-top:4px;">
+              <strong>AI Weight Estimation without Handling Chicken</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-title="Appendix">
+      <div class="slide-shell">
+        <div class="meta-row">
+          <span class="eyebrow">Appendix</span>
+          <span class="time-chip">Optional backup slide</span>
+        </div>
+        <h2>Verified source points used in this deck</h2>
+        <div class="three-col stagger" style="margin-top:22px;">
+          <div class="panel" style="--d:0.08s;">
+            <div class="panel-title">Benchmark pack</div>
+            <p class="subtitle" style="font-size:1rem;max-width:none;"><code>docs/iot-layer/10-yolo26-upgrade-pack.md</code></p>
+            <p class="subtitle" style="font-size:0.98rem;max-width:none;margin-top:10px;">Updated July 14, 2026. Provides latency, precision, recall and IoU comparison.</p>
+          </div>
+          <div class="panel" style="--d:0.14s;">
+            <div class="panel-title">Weight audit pack</div>
+            <p class="subtitle" style="font-size:1rem;max-width:none;"><code>docs/iot-layer/08-weight-estimation-audit-pack.md</code></p>
+            <p class="subtitle" style="font-size:0.98rem;max-width:none;margin-top:10px;">Updated July 14, 2026. Provides root-cause categories and field issue counts.</p>
+          </div>
+          <div class="panel" style="--d:0.2s;">
+            <div class="panel-title">Baseline package metrics</div>
+            <p class="subtitle" style="font-size:1rem;max-width:none;"><code>docs/iot-layer/work-orders/WO-IOT-FD-015-baseline-weight-prediction-models.md</code></p>
+            <p class="subtitle" style="font-size:0.98rem;max-width:none;margin-top:10px;">Updated July 14, 2026. Provides train/validation MAE and package status.</p>
+          </div>
+        </div>
+        <p class="footnote">Keyboard: <code>Arrow Left</code>, <code>Arrow Right</code>, <code>Space</code>, <code>Home</code>, <code>End</code>. This file is standalone HTML and can be opened directly from the repository.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="nav-ui" aria-hidden="false">
+    <div class="nav-panel">
+      <button class="nav-button" data-action="prev" aria-label="Previous slide">&#8592;</button>
+      <div class="counter"><span id="counter">1 / 18</span></div>
+      <button class="nav-button" data-action="next" aria-label="Next slide">&#8594;</button>
+    </div>
+    <div class="nav-panel" style="flex:1;justify-content:center;">
+      <span class="slide-title-indicator" id="slide-title-indicator">Cover</span>
+      <div class="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+    </div>
+    <div class="nav-panel dots" id="dots"></div>
+  </div>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const counter = document.getElementById('counter');
+    const progressBar = document.getElementById('progress-bar');
+    const titleIndicator = document.getElementById('slide-title-indicator');
+    const dotsContainer = document.getElementById('dots');
+
+    let currentIndex = 0;
+
+    slides.forEach((slide, index) => {
+      const dot = document.createElement('button');
+      dot.className = 'dot';
+      dot.setAttribute('aria-label', `Go to slide ${index + 1}`);
+      dot.addEventListener('click', () => setSlide(index));
+      dotsContainer.appendChild(dot);
+    });
+
+    const dots = Array.from(document.querySelectorAll('.dot'));
+
+    function parseHash() {
+      const value = window.location.hash.replace('#slide-', '');
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? Math.min(Math.max(parsed - 1, 0), slides.length - 1) : 0;
+    }
+
+    function setSlide(index) {
+      currentIndex = Math.min(Math.max(index, 0), slides.length - 1);
+      slides.forEach((slide, slideIndex) => {
+        slide.classList.toggle('active', slideIndex === currentIndex);
+      });
+      dots.forEach((dot, dotIndex) => {
+        dot.classList.toggle('active', dotIndex === currentIndex);
+      });
+
+      counter.textContent = `${currentIndex + 1} / ${slides.length}`;
+      titleIndicator.textContent = slides[currentIndex].dataset.title || `Slide ${currentIndex + 1}`;
+      progressBar.style.width = `${((currentIndex + 1) / slides.length) * 100}%`;
+      window.history.replaceState(null, '', `#slide-${currentIndex + 1}`);
+    }
+
+    function nextSlide() {
+      setSlide(Math.min(currentIndex + 1, slides.length - 1));
+    }
+
+    function prevSlide() {
+      setSlide(Math.max(currentIndex - 1, 0));
+    }
+
+    document.querySelector('[data-action="next"]').addEventListener('click', nextSlide);
+    document.querySelector('[data-action="prev"]').addEventListener('click', prevSlide);
+
+    window.addEventListener('keydown', (event) => {
+      if (['ArrowRight', 'PageDown', ' '].includes(event.key)) {
+        event.preventDefault();
+        nextSlide();
+      } else if (['ArrowLeft', 'PageUp'].includes(event.key)) {
+        event.preventDefault();
+        prevSlide();
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        setSlide(0);
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        setSlide(slides.length - 1);
+      }
+    });
+
+    let touchStartX = 0;
+    window.addEventListener('touchstart', (event) => {
+      touchStartX = event.changedTouches[0].screenX;
+    }, { passive: true });
+
+    window.addEventListener('touchend', (event) => {
+      const delta = event.changedTouches[0].screenX - touchStartX;
+      if (Math.abs(delta) < 60) {
+        return;
+      }
+      if (delta < 0) {
+        nextSlide();
+      } else {
+        prevSlide();
+      }
+    }, { passive: true });
+
+    window.addEventListener('hashchange', () => {
+      setSlide(parseHash());
+    });
+
+    setSlide(parseHash());
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "packageVersion": "wv-shadow-iot-origin-20260716-133021",
+  "modelFamily": "weighvision-weight-predictor",
+  "runtimeFamily": "python-linear-regression",
+  "runtimeVersion": "1.0.0",
+  "featureSchemaVersion": "wv-feature-schema-v1",
+  "entrypoint": "model/model.json",
+  "channel": "stable",
+  "metadata": {
+    "model_version": "wv-shadow-iot-origin-20260716-133021",
+    "algorithm": "linear_regression",
+    "dataset_rows": 105,
+    "training_rows": 84,
+    "validation_rows": 21,
+    "train_metrics": {
+      "mae_kg": 2.78364,
+      "rmse_kg": 3.57635,
+      "r2": 0.865122
+    },
+    "validation_metrics": {
+      "mae_kg": 7.49596,
+      "rmse_kg": 7.857154,
+      "r2": -10.758159
+    },
+    "naive_metrics": {
+      "mae_kg": 2.647279,
+      "rmse_kg": 3.178186,
+      "r2": -0.923833
+    },
+    "shadow_mode_only": true
+  }
+}

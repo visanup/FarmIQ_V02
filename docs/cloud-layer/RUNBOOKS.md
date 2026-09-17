@@ -6,6 +6,11 @@ Last updated: 2025-12-27
 
 # Cloud Runbooks
 
+Canonical deploy flow:
+- `docs/cloud-layer/05-deployment-runbook.md`
+- `cloud-layer/scripts/deploy.ps1`
+- `cloud-layer/scripts/deploy.sh`
+
 ## Health and readiness
 
 All services should expose:
@@ -52,4 +57,3 @@ Standards reference: `docs/shared/01-api-standards.md`
 - Notification service: readiness failures (DB/Rabbit)
 
 Back to index: `docs/00-index.md`
-

@@ -1,19 +1,26 @@
 """Job service for managing inference jobs."""
 import logging
+import math
 import uuid
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import tempfile
 import json
 import urllib.request
 import urllib.parse
 import asyncio
+import time
+from PIL import Image
 from app.db import InferenceDb
 from app.inference_service import InferenceService
 from app.config import Config
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now_iso_z() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 class JobService:
@@ -30,10 +37,14 @@ class JobService:
         farm_id: str,
         barn_id: str,
         device_id: str,
+        station_id: str = "",
         media_id: Optional[str] = None,
         object_key: Optional[str] = None,
         session_id: Optional[str] = None,
-        trace_id: Optional[str] = None
+        trace_id: Optional[str] = None,
+        per_chicken_records: Optional[list[Dict[str, Any]]] = None,
+        session_aggregate: Optional[Dict[str, Any]] = None,
+        filtering_summary: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Create a new inference job."""
         if not media_id and not object_key:
@@ -46,13 +57,17 @@ class JobService:
             "farm_id": farm_id,
             "barn_id": barn_id,
             "device_id": device_id,
+            "station_id": station_id,
             "media_id": media_id,
             "object_key": object_key,
             "session_id": session_id,
             "trace_id": trace_id or Config.new_id(),
+            "per_chicken_records": per_chicken_records or [],
+            "session_aggregate": session_aggregate,
+            "filtering_summary": filtering_summary,
             "status": "pending",
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "created_at": _utc_now_iso_z(),
+            "updated_at": _utc_now_iso_z()
         }
         
         self.jobs[job_id] = job
@@ -71,20 +86,46 @@ class JobService:
         
         try:
             job["status"] = "processing"
-            job["updated_at"] = datetime.utcnow().isoformat()
+            job["updated_at"] = _utc_now_iso_z()
+            session_features = None
+            if not job.get("per_chicken_records"):
+                session_features = await self._fetch_session_features(job)
 
             tmp_path = None
             try:
                 tmp_path = await self._fetch_media_to_tmp(job)
 
-                inference_result = await self.inference_service.run_inference(
-                    tmp_path,
-                    metadata={
-                        "job_id": job_id,
-                        "media_id": job.get("media_id"),
-                        "session_id": job.get("session_id")
-                    }
-                )
+                contexts = self._build_record_contexts(job) if job.get("per_chicken_records") else session_features.pop("detection_contexts", None)
+                if contexts is None:
+                    contexts = [session_features]  # Legacy jobs without capture detections.
+                results = []
+                for context in contexts:
+                    inference_path = tmp_path
+                    crop_path = None
+                    processing_started = time.perf_counter()
+                    try:
+                        if context.get("record_id"):
+                            crop_path = self._crop_media_to_tmp(tmp_path, context["bbox_xyxy"])
+                            inference_path = crop_path
+                        result = await self.inference_service.run_inference(
+                            inference_path,
+                            metadata={
+                                "job_id": job_id,
+                                "media_id": job.get("media_id"),
+                                "session_id": job.get("session_id"),
+                                **context,
+                            },
+                        )
+                    finally:
+                        if crop_path and os.path.exists(crop_path):
+                            os.unlink(crop_path)
+                    # Keep object identity even when an inference implementation omits it.
+                    result["metadata"] = {**context, **(result.get("metadata") or {})}
+                    result["metadata"]["processed_at"] = _utc_now_iso_z()
+                    result["metadata"]["processing_duration_ms"] = round(
+                        (time.perf_counter() - processing_started) * 1000, 3
+                    )
+                    results.append(result)
             finally:
                 if tmp_path and os.path.exists(tmp_path):
                     try:
@@ -92,63 +133,94 @@ class JobService:
                     except Exception:
                         pass
             
-            # Save inference result to database
-            result_id = await self.db.create_inference_result(
-                result_id=job_id,
-                tenant_id=job["tenant_id"],
-                farm_id=job["farm_id"],
-                barn_id=job["barn_id"],
-                device_id=job["device_id"],
-                session_id=job.get("session_id"),
-                media_id=job.get("media_id") or None,
-                predicted_weight_kg=inference_result["predicted_weight_kg"],
-                confidence=inference_result["confidence"],
-                model_version=inference_result["model_version"],
-                metadata=inference_result.get("metadata")
-            )
+            result_ids = []
+            for inference_result in results:
+                result_key = self._detection_result_id(job, inference_result)
+                # Save inference result to database
+                result_id = await self.db.create_inference_result(
+                    result_id=result_key,
+                    tenant_id=job["tenant_id"],
+                    farm_id=job["farm_id"],
+                    barn_id=job["barn_id"],
+                    device_id=job["device_id"],
+                    session_id=job.get("session_id"),
+                    record_id=inference_result.get("metadata", {}).get("record_id"),
+                    media_id=job.get("media_id") or None,
+                    predicted_weight_kg=inference_result["predicted_weight_kg"],
+                    confidence=inference_result["confidence"],
+                    model_version=inference_result["model_version"],
+                    metadata=inference_result.get("metadata")
+                )
             
-            # Create outbox event
-            occurred_at = datetime.utcnow().isoformat()
-            await self.db.create_outbox_event(
-                event_id=job_id,
-                tenant_id=job["tenant_id"],
-                farm_id=job["farm_id"],
-                barn_id=job["barn_id"],
-                device_id=job["device_id"],
-                session_id=job.get("session_id"),
-                event_type="inference.completed",
-                payload={
-                    "inference_result_id": result_id,
-                    "media_id": job.get("media_id") or None,
-                    "session_id": job.get("session_id"),
-                    "predicted_weight_kg": inference_result["predicted_weight_kg"],
-                    "confidence": inference_result["confidence"],
-                    "model_version": inference_result["model_version"],
-                    "occurred_at": occurred_at,
-                    "tenant_id": job["tenant_id"] or None,
-                    "farm_id": job.get("farm_id") or None,
-                    "barn_id": job.get("barn_id") or None,
-                    "device_id": job.get("device_id") or None,
-                },
-                trace_id=job["trace_id"]
-            )
+                # Create outbox event
+                occurred_at = _utc_now_iso_z()
+                await self.db.create_outbox_event(
+                    event_id=result_key,
+                    tenant_id=job["tenant_id"],
+                    farm_id=job["farm_id"],
+                    barn_id=job["barn_id"],
+                    device_id=job["device_id"],
+                    session_id=job.get("session_id"),
+                    event_type="inference.completed",
+                    payload={
+                        "inference_result_id": result_id,
+                        "capture_metadata_id": inference_result.get("metadata", {}).get("capture_metadata_id"),
+                        "detection_index": inference_result.get("metadata", {}).get("detection_index"),
+                        "detection_count": inference_result.get("metadata", {}).get("detection_count"),
+                        "record_id": inference_result.get("metadata", {}).get("record_id"),
+                        "chicken_index": inference_result.get("metadata", {}).get("chicken_index"),
+                        "chicken_count": inference_result.get("metadata", {}).get("chicken_count"),
+                        "quality": inference_result.get("metadata", {}).get("quality"),
+                        "processed_at": inference_result.get("metadata", {}).get("processed_at"),
+                        "processing_duration_ms": inference_result.get("metadata", {}).get("processing_duration_ms"),
+                        "detection": inference_result.get("metadata", {}).get("detection"),
+                        "media_id": job.get("media_id") or None,
+                        "session_id": job.get("session_id"),
+                        "predicted_weight_kg": inference_result["predicted_weight_kg"],
+                        "confidence": inference_result["confidence"],
+                        "model_version": inference_result["model_version"],
+                        "package_id": inference_result.get("metadata", {}).get("package_id"),
+                        "package_version": inference_result.get("metadata", {}).get("package_version"),
+                        "feature_schema_version": inference_result.get("metadata", {}).get("feature_schema_version"),
+                        "activation_source": inference_result.get("metadata", {}).get("activation_source"),
+                        "fallback_engaged": inference_result.get("metadata", {}).get("fallback_engaged"),
+                        "prediction_mode": inference_result.get("metadata", {}).get("prediction_mode"),
+                        "features_used": inference_result.get("metadata", {}).get("features_used"),
+                        "occurred_at": occurred_at,
+                        "tenant_id": job["tenant_id"] or None,
+                        "farm_id": job.get("farm_id") or None,
+                        "barn_id": job.get("barn_id") or None,
+                        "device_id": job.get("device_id") or None,
+                    },
+                    trace_id=job["trace_id"]
+                )
 
-            # Best-effort session attach (does not emit outbox).
-            if job.get("session_id"):
-                await self._attach_to_session(job, result_id)
+                # Best-effort session attach (does not emit outbox).
+                if job.get("session_id"):
+                    await self._attach_to_session(job, result_id)
+                    await self._publish_prediction_outcome_to_session(
+                        job=job,
+                        inference_result_id=result_id,
+                        inference_result=inference_result,
+                        occurred_at=occurred_at,
+                    )
             
+                result_ids.append(result_id)
+
             # Update job status
             job["status"] = "completed"
-            job["result_id"] = result_id
-            job["updated_at"] = datetime.utcnow().isoformat()
+            job["result_id"] = result_ids[-1] if result_ids else None
+            job["result_ids"] = result_ids
+            job["detection_count"] = len(result_ids)
+            job["updated_at"] = _utc_now_iso_z()
             
-            logger.info("Job completed", extra={"job_id": job_id, "result_id": result_id, "trace_id": job.get("trace_id")})
+            logger.info("Job completed", extra={"job_id": job_id, "result_ids": result_ids, "trace_id": job.get("trace_id")})
             
         except Exception as e:
             logger.error("Job failed", extra={"job_id": job_id, "error": str(e)}, exc_info=True)
             job["status"] = "failed"
             job["error"] = str(e)
-            job["updated_at"] = datetime.utcnow().isoformat()
+            job["updated_at"] = _utc_now_iso_z()
 
     async def _fetch_media_to_tmp(self, job: Dict[str, Any]) -> str:
         tenant_id = job.get("tenant_id")
@@ -180,6 +252,204 @@ class JobService:
             f.write(data)
         return path
 
+    async def _fetch_session_features(self, job: Dict[str, Any]) -> Dict[str, Any]:
+        tenant_id = job.get("tenant_id")
+        session_id = job.get("session_id")
+        if not tenant_id or not session_id:
+            return {}
+
+        url = f"{Config().WEIGHVISION_SESSION_URL}/api/v1/weighvision/sessions/{session_id}"
+        query = urllib.parse.urlencode({"tenantId": tenant_id})
+        headers = {
+            "x-tenant-id": tenant_id,
+            "x-request-id": job.get("job_id", Config.new_id()),
+            "x-trace-id": job.get("trace_id", Config.new_id()),
+        }
+
+        def _load() -> Dict[str, Any]:
+            request = urllib.request.Request(f"{url}?{query}", headers=headers, method="GET")
+            with urllib.request.urlopen(request, timeout=10) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+
+            capture_metadata = payload.get("captureMetadata") or []
+            if not capture_metadata:
+                raise ValueError("Capture metadata is not available yet")
+
+            if job.get("media_id"):
+                capture_metadata = [capture for capture in capture_metadata
+                                    if job["media_id"] in (capture.get("mediaIds") or [])]
+                if not capture_metadata:
+                    raise ValueError("No capture metadata matches this media_id")
+            latest_capture = capture_metadata[-1]
+            return {"detection_contexts": self._build_detection_contexts(latest_capture)}
+
+        # Upload completion can trigger inference before MQTT metadata reaches Edge.
+        last_error = None
+        for attempt in range(10):
+            try:
+                return await asyncio.to_thread(_load)
+            except Exception as exc:
+                last_error = exc
+                if attempt < 9:
+                    await asyncio.sleep(1)
+        raise ValueError(f"Unable to load capture metadata: {last_error}") from last_error
+
+    @staticmethod
+    def _detection_result_id(job: Dict[str, Any], result: Dict[str, Any]) -> str:
+        metadata = result.get("metadata") or {}
+        if metadata.get("record_id"):
+            identity = json.dumps([
+                job["tenant_id"], job.get("session_id"), metadata["record_id"],
+            ], separators=(",", ":"))
+            return str(uuid.uuid5(uuid.NAMESPACE_URL, identity))
+        if metadata.get("detection_index") is None:
+            return job["job_id"]
+        # Multiple uploaded views and retried jobs must not duplicate an object result.
+        identity = json.dumps([
+            job["tenant_id"], job.get("session_id"),
+            metadata["capture_metadata_id"], metadata["detection_index"],
+            result["model_version"], metadata.get("package_id"),
+            metadata.get("package_version"),
+        ], separators=(",", ":"))
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, identity))
+
+    def _build_record_contexts(self, job: Dict[str, Any]) -> list[Dict[str, Any]]:
+        records = job.get("per_chicken_records") or []
+        contexts = []
+        for record in records:
+            bbox = record.get("bbox_xyxy")
+            if not isinstance(bbox, list) or len(bbox) != 4:
+                raise ValueError("Each perChickenRecords entry requires bbox_xyxy with four values")
+            try:
+                x1, y1, x2, y2 = [float(value) for value in bbox]
+            except (TypeError, ValueError) as exc:
+                raise ValueError("perChickenRecords bbox_xyxy must be numeric") from exc
+            if not all(math.isfinite(value) for value in (x1, y1, x2, y2)) or x2 <= x1 or y2 <= y1:
+                raise ValueError("perChickenRecords bbox_xyxy must have positive finite area")
+            confidence = record.get("confidence_score")
+            features = {
+                "selected_area_mm2": (x2 - x1) * (y2 - y1),
+                "selected_confidence": confidence,
+                "detection_count": len(records),
+            }
+            contexts.append({
+                "record_id": record["record_id"],
+                "chicken_index": record.get("chicken_index"),
+                "chicken_count": record.get("chicken_count"),
+                "bbox_xyxy": [x1, y1, x2, y2],
+                "detection": {"bbox_xyxy": [x1, y1, x2, y2]},
+                "quality": {"detection_confidence": confidence},
+                "weight_label_type": record.get("weight_label_type"),
+                "features": {key: value for key, value in features.items() if value is not None},
+                "detection_count": len(records),
+                "require_model": True,
+                "session_aggregate": job.get("session_aggregate"),
+                "filtering_summary": job.get("filtering_summary"),
+            })
+        return contexts
+
+    @staticmethod
+    def _crop_media_to_tmp(media_path: str, bbox: list[float]) -> str:
+        """Crop the downloaded media locally; never dereference capture-side mask_path."""
+        with Image.open(media_path) as image:
+            width, height = image.size
+            left = max(0, min(width, math.floor(bbox[0])))
+            top = max(0, min(height, math.floor(bbox[1])))
+            right = max(0, min(width, math.ceil(bbox[2])))
+            bottom = max(0, min(height, math.ceil(bbox[3])))
+            if right <= left or bottom <= top:
+                raise ValueError("perChickenRecords bbox_xyxy is outside media bounds")
+            suffix = ".png" if image.format == "PNG" else ".jpg"
+            fd, crop_path = tempfile.mkstemp(prefix="farmiq-infer-crop-", suffix=suffix)
+            os.close(fd)
+            try:
+                image.crop((left, top, right, bottom)).save(crop_path)
+            except Exception:
+                os.unlink(crop_path)
+                raise
+            return crop_path
+
+    def _build_detection_contexts(self, capture: Dict[str, Any]) -> list:
+        raw = capture.get("rawMetadata") or {}
+        detections = raw.get("detections")
+        if not isinstance(detections, list):
+            raise ValueError("Capture metadata must contain a detections array")
+        if not all(isinstance(detection, dict) for detection in detections):
+            raise ValueError("Each detection must be an object")
+        declared = capture.get("detectionCount")
+        if declared is not None and declared != len(detections):
+            raise ValueError("detection_count does not match the detections array")
+        capture_id = capture.get("captureId") or raw.get("capture_id") or raw.get("image_id")
+        if not capture_id:
+            raise ValueError("Capture identity is required for per-object inference")
+        contexts = []
+        for index, detection in enumerate(detections):
+            depth_stats = detection.get("depth_statistics") or {}
+            depth = next((value for value in [
+                detection.get("distance_mm"), detection.get("average_depth_mm"),
+                depth_stats.get("average_mm"), detection.get("median_depth_mm"),
+                depth_stats.get("median_mm"), detection.get("depth_mm"),
+            ] if value is not None), None)
+            features = self._build_shadow_features({
+                "rawMetadata": raw,
+                "normalizedFeatures": {
+                    "area_mm2": detection.get("area_xy_mm2"),
+                    "confidence_score": detection.get("confidence"),
+                    "distance_mm": depth,
+                    "object_height_mm": detection.get("height_mm"),
+                    "object_width_mm": detection.get("width_mm"),
+                    "object_length_mm": detection.get("length_mm"),
+                    "roi_count": raw.get("roi_count"),
+                    "detection_count": len(detections),
+                },
+            })
+            contexts.append({
+                "features": features,
+                "feature_schema_version": capture.get("featureSchemaVersion"),
+                "capture_metadata_id": capture_id,
+                "detection_index": index,
+                "detection_count": len(detections),
+                "detection": detection,
+                "require_model": True,
+            })
+        return contexts
+
+    def _build_shadow_features(self, capture_metadata: Dict[str, Any]) -> Dict[str, float]:
+        normalized = capture_metadata.get("normalizedFeatures") or {}
+        raw_metadata = capture_metadata.get("rawMetadata") or {}
+        height_estimation = raw_metadata.get("height_estimation") or {}
+
+        def _to_float(value: Any) -> Optional[float]:
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str) and value.strip():
+                try:
+                    return float(value)
+                except ValueError:
+                    return None
+            return None
+
+        feature_map = {
+            "selected_area_mm2": normalized.get("area_mm2"),
+            "selected_confidence": normalized.get("confidence_score"),
+            "selected_depth_mm": next((normalized.get(key) for key in
+                                       ("distance_mm", "average_depth_mm", "median_depth_mm")
+                                       if normalized.get(key) is not None), None),
+            "selected_height_mm": normalized.get("object_height_mm"),
+            "selected_width_mm": normalized.get("object_width_mm"),
+            "selected_length_mm": normalized.get("object_length_mm"),
+            "floor_depth_mm": height_estimation.get("floor_depth_mm"),
+            "roi_count": normalized.get("roi_count"),
+            "detection_count": normalized.get("detection_count"),
+        }
+
+        result: Dict[str, float] = {}
+        for key, value in feature_map.items():
+            parsed = _to_float(value)
+            if parsed is not None and math.isfinite(parsed):
+                result[key] = parsed
+        return result
+
     async def _attach_to_session(self, job: Dict[str, Any], inference_result_id: str) -> None:
         tenant_id = job.get("tenant_id")
         session_id = job.get("session_id")
@@ -207,6 +477,78 @@ class JobService:
             await asyncio.to_thread(_post)
         except Exception as e:
             logger.warning(f"Attach failed: {e}")
+
+    async def _publish_prediction_outcome_to_session(
+        self,
+        job: Dict[str, Any],
+        inference_result_id: str,
+        inference_result: Dict[str, Any],
+        occurred_at: str,
+    ) -> None:
+        tenant_id = job.get("tenant_id")
+        session_id = job.get("session_id")
+        if not tenant_id or not session_id:
+            return
+
+        metadata = inference_result.get("metadata") or {}
+        url = (
+            f"{Config().WEIGHVISION_SESSION_URL}/api/v1/weighvision/sessions/"
+            f"{session_id}/inference-outcome"
+        )
+        payload = {
+            "tenantId": tenant_id,
+            "farmId": job.get("farm_id"),
+            "barnId": job.get("barn_id"),
+            "deviceId": job.get("device_id"),
+            "stationId": job.get("station_id"),
+            "eventId": inference_result_id,
+            "occurredAt": occurred_at,
+            "inferenceResultId": inference_result_id,
+            "mediaId": job.get("media_id"),
+            "captureMetadataId": metadata.get("capture_metadata_id"),
+            "detectionIndex": metadata.get("detection_index"),
+            "detectionCount": metadata.get("detection_count"),
+            "detection": metadata.get("detection"),
+            "recordId": metadata.get("record_id"),
+            "chickenIndex": metadata.get("chicken_index"),
+            "chickenCount": metadata.get("chicken_count"),
+            "quality": metadata.get("quality"),
+            "processedAt": metadata.get("processed_at"),
+            "processingDurationMs": metadata.get("processing_duration_ms"),
+            "predictedWeightKg": inference_result.get("predicted_weight_kg"),
+            "confidence": inference_result.get("confidence"),
+            "modelVersion": inference_result.get("model_version"),
+            "packageId": metadata.get("package_id"),
+            "packageVersion": metadata.get("package_version"),
+            "featureSchemaVersion": metadata.get("feature_schema_version"),
+            "activationSource": metadata.get("activation_source"),
+            "fallbackEngaged": metadata.get("fallback_engaged"),
+            "predictionMode": metadata.get("prediction_mode"),
+            "featuresUsed": metadata.get("features_used"),
+        }
+        body = json.dumps(
+            {
+                key: value
+                for key, value in payload.items()
+                if value is not None and (not isinstance(value, str) or value != "")
+            }
+        ).encode("utf-8")
+        headers = {
+            "content-type": "application/json",
+            "x-tenant-id": tenant_id,
+            "x-request-id": job.get("job_id", Config.new_id()),
+            "x-trace-id": job.get("trace_id", Config.new_id()),
+        }
+
+        def _post():
+            req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                resp.read()
+
+        try:
+            await asyncio.to_thread(_post)
+        except Exception as e:
+            logger.warning(f"Prediction outcome publish failed: {e}")
     
     async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job by ID."""

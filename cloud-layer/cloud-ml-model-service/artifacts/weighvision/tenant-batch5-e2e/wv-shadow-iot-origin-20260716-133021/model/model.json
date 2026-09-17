@@ -1,0 +1,68 @@
+{
+  "model_type": "linear_regression",
+  "feature_order": [
+    "selected_area_mm2",
+    "selected_confidence",
+    "selected_depth_mm",
+    "selected_height_mm",
+    "selected_width_mm",
+    "selected_length_mm",
+    "floor_depth_mm",
+    "roi_count",
+    "detection_count"
+  ],
+  "feature_means": [
+    20950703.961165957,
+    0.53334187432414,
+    6621.419669941981,
+    -5522.220469467483,
+    1062.4689377471016,
+    1379.2991042478784,
+    1099.1992004745055,
+    1.0595238095238095,
+    1.0595238095238095
+  ],
+  "feature_stds": [
+    137882822.72955984,
+    0.2539347951006757,
+    34259.94075397611,
+    34229.542560005495,
+    4946.2944459695545,
+    6314.67553291319,
+    150.7442912081358,
+    0.23660246326609288,
+    0.23660246326609288
+  ],
+  "coefficients": [
+    2.4786047022904047,
+    -0.8768049069534105,
+    -4.040416121272212,
+    4.008168654896976,
+    10.35296236759067,
+    -4.818754050964748,
+    -8.137266232920844,
+    -0.0026858749707687544,
+    -0.002685874970768754
+  ],
+  "intercept": 16.442857142857033,
+  "trained_at": "2026-07-16T06:30:21.554716+00:00",
+  "dataset_path": "/workspace-docs/iot-layer/evidence/batch2-weight-audit-dataset.csv",
+  "dataset_rows": 105,
+  "training_rows": 84,
+  "validation_rows": 21,
+  "train_metrics": {
+    "mae_kg": 2.78364,
+    "rmse_kg": 3.57635,
+    "r2": 0.865122
+  },
+  "validation_metrics": {
+    "mae_kg": 7.49596,
+    "rmse_kg": 7.857154,
+    "r2": -10.758159
+  },
+  "naive_metrics": {
+    "mae_kg": 2.647279,
+    "rmse_kg": 3.178186,
+    "r2": -0.923833
+  }
+}

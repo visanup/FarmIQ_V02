@@ -34,11 +34,10 @@ RUN useradd -m -u 1000 dbtuser && \
     chmod -R 755 /app/logs /app/target
 USER dbtuser
 
-# Health check - use dbt version command
+# Health check - keep it aligned with the repo's standard endpoint.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD dbt --version || exit 1
+  CMD curl --fail http://localhost:8000/api/health || exit 1
 
-# Default command - keep container alive with a simple HTTP server
-# This container serves as a dbt runtime environment that Airflow can execute commands in
-# The HTTP server provides a simple health endpoint
-CMD ["python", "-m", "http.server", "8000"]
+# Default command - keep container alive and expose a simple health endpoint.
+# This container serves as a dbt runtime environment that Airflow can execute commands in.
+CMD ["python", "health_server.py"]

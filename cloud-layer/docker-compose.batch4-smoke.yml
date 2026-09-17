@@ -1,0 +1,14 @@
+services:
+  cloud-ml-model-service:
+    environment:
+      - WEIGHVISION_ARTIFACT_BASE_URL=http://host.docker.internal:5135
+      - WEIGHVISION_BASELINE_DATASET_PATH=/workspace-docs/iot-layer/evidence/batch2-weight-audit-dataset.csv
+      - WEIGHVISION_ARTIFACT_ROOT_DIR=/workspace-artifacts
+    volumes:
+      - ../docs:/workspace-docs:ro
+      - ./cloud-ml-model-service/artifacts/weighvision:/workspace-artifacts
+
+  cloud-api-gateway-bff:
+    environment:
+      - JWT_SECRET=
+      - ML_MODEL_SERVICE_BASE_URL=http://cloud-ml-model-service:8000

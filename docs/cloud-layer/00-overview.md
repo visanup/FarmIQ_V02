@@ -135,6 +135,7 @@ Notes:
 
 - `cloud-layer/01-cloud-services.md`
 - `cloud-layer/02-dashboard.md`
+- `cloud-layer/05-deployment-runbook.md`
 - `shared/00-api-catalog.md`
 
 ---
@@ -151,5 +152,4 @@ Notes:
 2) Add insights orchestrator endpoints to `cloud-analytics-service`.  
 3) Add BFF proxy endpoints for dashboard insights.  
 4) Implement `cloud-ml-model-service` (optional).  
-
 

@@ -1,0 +1,28 @@
+services:
+  edge-policy-sync:
+    environment:
+      - BFF_BASE_URL=http://host.docker.internal:5125
+      - EDGE_CLOUD_TOKEN=tenant-batch5-e2e
+      - POLICY_SYNC_INTERVAL_SECONDS=5
+      - POLICY_SYNC_TIMEOUT_SECONDS=10
+      - EDGE_CONTEXTS=[{"tenantId":"tenant-batch5-e2e","farmId":"farm-batch5-e2e","barnId":"barn-batch5-e2e","siteId":"site-batch5-e2e"}]
+
+  edge-sync-forwarder:
+    environment:
+      - DATABASE_URL=postgresql://farmiq:farmiq_dev@postgres:5432/farmiq
+      - CLOUD_INGESTION_URL=http://host.docker.internal:5122/api/v1/edge/batch
+      - CLOUD_AUTH_MODE=api_key
+      - CLOUD_API_KEY=edge-local-key
+      - CLOUD_INGESTION_URL_REQUIRED=true
+      - INTERNAL_ADMIN_ENABLED=true
+
+  edge-vision-inference:
+    environment:
+      - MODEL_SYNC_ENABLED=true
+      - POLICY_SYNC_URL=http://edge-policy-sync:3000/api/v1/edge-config
+      - EDGE_TENANT_ID=tenant-batch5-e2e
+      - EDGE_SITE_ID=site-batch5-e2e
+      - MODEL_CONTROL_BFF_URL=http://host.docker.internal:5125
+      - MODEL_CONTROL_TOKEN=tenant-batch5-e2e
+      - MODEL_CONTROL_TIMEOUT_SECONDS=15
+      - WEIGHVISION_SESSION_URL=http://edge-weighvision-session:3000

@@ -1,7 +1,7 @@
 Purpose: High-level entry point for FarmIQ platform documentation.  
 Scope: Overview of layers, services, and links to detailed design docs.  
 Owner: FarmIQ Architecture Team  
-Last updated: 2025-12-27  
+Last updated: 2026-07-14  
 
 ---
 
@@ -44,6 +44,15 @@ FarmIQ is organized into **three layers**:
   - [iot-sensor-agent](iot-layer/01-iot-sensor-agent.md)
   - [iot-weighvision-agent](iot-layer/02-iot-weighvision-agent.md)
   - [MQTT topic map](iot-layer/03-mqtt-topic-map.md)
+  - [Field deployment enhancement plan](iot-layer/04-field-deployment-enhancement-plan.md)
+  - [Field deployment ticket backlog](iot-layer/05-field-deployment-ticket-backlog.md)
+  - [Metadata verification pack](iot-layer/06-metadata-verification-pack.md)
+  - [Local traceability runbook](iot-layer/07-local-traceability-runbook.md)
+  - [Weight estimation audit pack](iot-layer/08-weight-estimation-audit-pack.md)
+  - [Final-weight local smoke runbook](iot-layer/09-final-weight-local-smoke-runbook.md)
+  - [Cloud-Edge AI control-plane pack](iot-layer/12-cloud-edge-ai-control-plane-pack.md)
+  - [Cloud-Edge AI control-plane runbook](iot-layer/13-cloud-edge-ai-control-plane-runbook.md)
+  - [Field deployment work orders](iot-layer/work-orders/README.md)
 - Edge layer
   - [Overview](edge-layer/00-overview.md)
   - [Edge services](edge-layer/01-edge-services.md)
@@ -54,6 +63,7 @@ FarmIQ is organized into **three layers**:
   - [Cloud services](cloud-layer/01-cloud-services.md)
   - [Dashboard](cloud-layer/02-dashboard.md)
   - [Dashboard Pages Design](cloud-layer/03-dashboard-pages-design.md)
+  - [Deployment runbook](cloud-layer/05-deployment-runbook.md)
   - Runbooks: `docs/cloud-layer/RUNBOOKS.md`
   - Service pages (selected):
     - `docs/cloud-layer/cloud-api-gateway-bff.md`
@@ -73,6 +83,9 @@ FarmIQ is organized into **three layers**:
     - [Ops Observability UX](cloud-layer/dashboard/07-ops-observability-ux.md)
     - [ML Analytics Roadmap](cloud-layer/dashboard/08-ml-analytics-roadmap.md)
     - [Acceptance Checklist](cloud-layer/dashboard/09-acceptance-checklist.md)
+- Apps
+  - [Overview](apps/00-overview.md)
+  - [Deployment runbook](apps/01-deployment-runbook.md)
 
 ---
 
@@ -176,6 +189,15 @@ Each service-level document below explicitly maps to one of these boilerplates.
   - [iot-layer/00-overview](iot-layer/00-overview.md)
   - [iot-layer/01-iot-sensor-agent](iot-layer/01-iot-sensor-agent.md)
   - [iot-layer/02-iot-weighvision-agent](iot-layer/02-iot-weighvision-agent.md)
+  - [iot-layer/04-field-deployment-enhancement-plan](iot-layer/04-field-deployment-enhancement-plan.md)
+  - [iot-layer/05-field-deployment-ticket-backlog](iot-layer/05-field-deployment-ticket-backlog.md)
+  - [iot-layer/06-metadata-verification-pack](iot-layer/06-metadata-verification-pack.md)
+  - [iot-layer/07-local-traceability-runbook](iot-layer/07-local-traceability-runbook.md)
+  - [iot-layer/08-weight-estimation-audit-pack](iot-layer/08-weight-estimation-audit-pack.md)
+  - [iot-layer/09-final-weight-local-smoke-runbook](iot-layer/09-final-weight-local-smoke-runbook.md)
+  - [iot-layer/12-cloud-edge-ai-control-plane-pack](iot-layer/12-cloud-edge-ai-control-plane-pack.md)
+  - [iot-layer/13-cloud-edge-ai-control-plane-runbook](iot-layer/13-cloud-edge-ai-control-plane-runbook.md)
+  - [iot-layer/work-orders/README](iot-layer/work-orders/README.md)
 
 - **Edge-layer**
   - [edge-layer/00-overview](edge-layer/00-overview.md)
@@ -189,6 +211,7 @@ Each service-level document below explicitly maps to one of these boilerplates.
   - [cloud-layer/02-dashboard](cloud-layer/02-dashboard.md)
   - [cloud-layer/03-dashboard-pages-design](cloud-layer/03-dashboard-pages-design.md)
   - [cloud-layer/04-dashboard-design-system](cloud-layer/04-dashboard-design-system.md)
+  - [cloud-layer/05-deployment-runbook](cloud-layer/05-deployment-runbook.md)
   - [cloud-layer/RUNBOOKS](cloud-layer/RUNBOOKS.md)
   - **cloud-layer/dashboard/** (Dashboard Documentation Pack)
     - [dashboard/00-dashboard-expanded-scope](cloud-layer/dashboard/00-dashboard-expanded-scope.md)
@@ -202,6 +225,10 @@ Each service-level document below explicitly maps to one of these boilerplates.
     - [dashboard/08-ml-analytics-roadmap](cloud-layer/dashboard/08-ml-analytics-roadmap.md)
     - [dashboard/09-acceptance-checklist](cloud-layer/dashboard/09-acceptance-checklist.md)
 
+- **Apps**
+  - [apps/00-overview](apps/00-overview.md)
+  - [apps/01-deployment-runbook](apps/01-deployment-runbook.md)
+
 Refer to `shared/04-security-compliance-mapping.md` for explicit mapping back to GT&D standards.
 
 ---
@@ -211,5 +238,3 @@ Refer to `shared/04-security-compliance-mapping.md` for explicit mapping back to
 - This index is the **single source of truth** for FarmIQ docs navigation.
 - Always keep links updated when adding or renaming documentation files.
 - Architecture and service diagrams must be updated if new services or data flows are introduced.
-
-

@@ -88,7 +88,7 @@ wait_health() {
 }
 
 if [ "${1:-}" = "--up" ]; then
-  "${DC[@]}" up -d --build postgres minio cloud-ingestion-mock \
+  "${DC[@]}" up -d --build postgres minio edge-cloud-ingestion-mock \
     edge-media-store edge-vision-inference edge-weighvision-session edge-sync-forwarder
 fi
 
@@ -243,7 +243,7 @@ if [ "${DLQ_TEST:-false}" = "true" ]; then
   echo "8) DLQ + redrive smoke (DLQ_TEST=true)"
 
   echo "  - Switch sync-forwarder to forced-fail endpoint (max attempts=1)"
-  CLOUD_INGESTION_URL="http://cloud-ingestion-mock:3000/api/v1/edge/batch/fail" \
+  CLOUD_INGESTION_URL="http://edge-cloud-ingestion-mock:3000/api/v1/edge/batch/fail" \
   OUTBOX_MAX_ATTEMPTS="1" \
     "${DC[@]}" up -d --force-recreate edge-sync-forwarder
 
@@ -333,7 +333,7 @@ PY
     -d '{"allDlq":true}' | python3 -m json.tool
 
   echo "  - Switch sync-forwarder back to success endpoint"
-  CLOUD_INGESTION_URL="http://cloud-ingestion-mock:3000/api/v1/edge/batch" \
+  CLOUD_INGESTION_URL="http://edge-cloud-ingestion-mock:3000/api/v1/edge/batch" \
   OUTBOX_MAX_ATTEMPTS="10" \
     "${DC[@]}" up -d --force-recreate edge-sync-forwarder
 
