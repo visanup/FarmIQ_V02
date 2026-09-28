@@ -36,12 +36,12 @@ describe('dashboardService.getServiceBaseUrls', () => {
 
     const urls = getServiceBaseUrls()
 
-    expect(urls.identityBaseUrl).toBe('http://cloud-identity-access:3000')
-    expect(urls.registryBaseUrl).toBe('http://cloud-tenant-registry:3000')
-    expect(urls.telemetryBaseUrl).toBe('http://cloud-telemetry-service:3000')
-    expect(urls.analyticsBaseUrl).toBe('http://cloud-analytics-service:8000')
+    expect(urls.identityBaseUrl).toBe('http://cloud-identity-access:5120')
+    expect(urls.registryBaseUrl).toBe('http://cloud-tenant-registry:5121')
+    expect(urls.telemetryBaseUrl).toBe('http://cloud-telemetry-service:5123')
+    expect(urls.analyticsBaseUrl).toBe('http://cloud-analytics-service:5124')
     expect(urls.weighvisionReadModelBaseUrl).toBe(
-      'http://cloud-weighvision-readmodel:3000'
+      'http://cloud-weighvision-readmodel:5132'
     )
   })
 })

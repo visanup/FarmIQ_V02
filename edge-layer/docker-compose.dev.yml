@@ -43,7 +43,7 @@ services:
         condition: service_healthy
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     #container_name: farmiq-edge-minio
     ports:
@@ -168,6 +168,10 @@ services:
       - LOG_LEVEL=debug
       - APP_PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/${POSTGRES_DB:-farmiq}
+      - BATCH_CONTEXT_AUTO_BIND_ENABLED=${BATCH_CONTEXT_AUTO_BIND_ENABLED:-false}
+      - BATCH_CONTEXT_RESOLVER_URL=http://edge-policy-sync:3000/api/v1/edge-config
+      - BATCH_CONTEXT_RESOLVER_TIMEOUT_MS=${BATCH_CONTEXT_RESOLVER_TIMEOUT_MS:-1500}
+      - BATCH_CONTEXT_OVERRIDE_TOKEN=${BATCH_CONTEXT_OVERRIDE_TOKEN:-}
     networks:
       - farmiq-net
 
@@ -219,6 +223,7 @@ services:
       - MODEL_CONTROL_TOKEN=${MODEL_CONTROL_TOKEN:-tenant-batch5-e2e}
       - MODEL_CONTROL_TIMEOUT_SECONDS=${MODEL_CONTROL_TIMEOUT_SECONDS:-15}
       - MODEL_SYNC_ENABLED=${MODEL_SYNC_ENABLED:-true}
+      - BATCH_CONTEXT_INFERENCE_ENABLED=${BATCH_CONTEXT_INFERENCE_ENABLED:-false}
       - WEIGHVISION_SESSION_URL=http://edge-weighvision-session:3000
     networks:
       - farmiq-net
@@ -302,6 +307,8 @@ services:
       - APP_PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/${POSTGRES_DB:-farmiq}
       - BFF_BASE_URL=http://host.docker.internal:5125
+      - BATCH_CONTEXT_CACHE_ENABLED=${BATCH_CONTEXT_CACHE_ENABLED:-false}
+      - BATCH_CONTEXT_CACHE_TTL_SECONDS=${BATCH_CONTEXT_CACHE_TTL_SECONDS:-300}
     networks:
       - farmiq-net
 

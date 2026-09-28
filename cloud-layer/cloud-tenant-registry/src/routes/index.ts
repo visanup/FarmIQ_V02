@@ -11,6 +11,7 @@ import adminTenantRoutes from './adminTenantRoutes'
 import adminDeviceRoutes from './adminDeviceRoutes'
 import quotaRoutes from './quotaRoutes'
 import internalDeviceRoutes from './internalDeviceRoutes'
+import batchContextRoutes from './batchContextRoutes'
 
 /**
  * Setup all routes for cloud-tenant-registry service
@@ -31,4 +32,5 @@ export function setupRoutes(app: Express) {
   app.use('/api/v1/sensors', sensorRoutes)
   app.use('/api/v1', quotaRoutes)
   app.use('/api/internal', internalDeviceRoutes)
+  app.use('/api/v1/edge', batchContextRoutes)
 }

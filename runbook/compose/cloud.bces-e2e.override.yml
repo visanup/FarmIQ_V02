@@ -1,0 +1,68 @@
+# Apply after cloud-layer/docker-compose.yml and docker-compose.dev.yml.
+# This file is for the isolated BCES E2E project only.
+services:
+  postgres:
+    container_name: bces-e2e-cloud-postgres
+    ports: !override ["5540:5432"]
+    volumes:
+      - bces_e2e_cloud_postgres:/var/lib/postgresql/data
+      - ../../cloud-layer/postgres-init:/docker-entrypoint-initdb.d:ro
+    networks: !override [bces-e2e-net]
+  rabbitmq:
+    container_name: bces-e2e-cloud-rabbitmq
+    ports: !override ["5550:5672", "5551:15672"]
+    # RabbitMQ state is not part of BCES acceptance; avoid host-volume
+    # ownership issues with the Erlang cookie on Docker Desktop.
+    volumes: !reset []
+    networks: !override [bces-e2e-net]
+  cloud-identity-access:
+    container_name: bces-e2e-cloud-identity
+    ports: !override ["5520:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-cloud-postgres:5432/cloud_identity_access
+    networks: !override [bces-e2e-net]
+  cloud-tenant-registry:
+    container_name: bces-e2e-cloud-tenant-registry
+    ports: !override ["5521:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-cloud-postgres:5432/cloud_tenant_registry
+    networks: !override [bces-e2e-net]
+  cloud-ingestion:
+    container_name: bces-e2e-cloud-ingestion
+    ports: !override ["5522:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-cloud-postgres:5432/cloud_ingestion
+    networks: !override [bces-e2e-net]
+  cloud-weighvision-readmodel:
+    container_name: bces-e2e-cloud-weighvision-readmodel
+    ports: !override ["5532:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-cloud-postgres:5432/cloud_weighvision_readmodel
+      # Explicitly enabled only in the isolated stack. Production/dev retain
+      # the safe default (disabled) until capacity has been approved.
+      HISTORICAL_REPROCESS_ENABLED: "true"
+      EDGE_VISION_INFERENCE_BASE_URL: http://bces-e2e-edge-vision-inference:8000
+      HISTORICAL_REPROCESS_POLL_MS: "500"
+      BATCH_CONTEXT_BFF_BASE_URL: http://bces-e2e-cloud-bff:3000
+    networks: !override [bces-e2e-net]
+  cloud-api-gateway-bff:
+    container_name: bces-e2e-cloud-bff
+    ports: !override ["5525:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-cloud-postgres:5432/cloud_api_gateway_bff
+      TENANT_REGISTRY_BASE_URL: http://bces-e2e-cloud-tenant-registry:3000
+      WEIGHVISION_READMODEL_BASE_URL: http://bces-e2e-cloud-weighvision-readmodel:3000
+    networks: !override [bces-e2e-net]
+  dashboard-web:
+    container_name: bces-e2e-dashboard-web
+    ports: !override ["5542:8080"]
+    volumes:
+      # Compose resolves relative paths from cloud-layer/docker-compose.yml.
+      - ../runbook/compose/dashboard.bces-e2e.nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: !override [bces-e2e-net]
+networks:
+  bces-e2e-net:
+    external: true
+volumes:
+  bces_e2e_cloud_postgres:
+    name: bces-e2e-cloud-postgres

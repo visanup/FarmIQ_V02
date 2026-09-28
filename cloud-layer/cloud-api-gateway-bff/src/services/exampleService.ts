@@ -2,6 +2,11 @@ import { PrismaClient } from '@prisma/client'
 import { logger } from '../utils/logger'
 
 const prisma = new PrismaClient()
+type ExampleDelegate = {
+  create(args: { data: { name: string; email: string; age: number } }): Promise<object>
+  findMany(): Promise<Array<unknown>>
+}
+const exampleDelegate = (prisma as unknown as { example: ExampleDelegate }).example
 
 /**
  * Creates a user in the database.
@@ -18,7 +23,7 @@ export async function createExample(payload: {
 }): Promise<object> {
   try {
     logger.info('++++++ Creating user ++++++++')
-    const result = await prisma.example.create({
+    const result = await exampleDelegate.create({
       data: payload,
     })
     return result
@@ -35,7 +40,7 @@ export async function createExample(payload: {
 export async function getExamplesFromDatabase(): Promise<Array<unknown>> {
   try {
     logger.info('++++++ Get example data ++++++++')
-    const examples = await prisma.example.findMany()
+    const examples = await exampleDelegate.findMany()
     return examples
   } catch (error) {
     logger.error('Error fetching examples:', error)

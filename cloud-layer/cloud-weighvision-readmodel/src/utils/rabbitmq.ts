@@ -145,6 +145,9 @@ export async function setupWeighVisionConsumer(
 
     // DLQ setup
     const dlq = 'farmiq.cloud-weighvision-readmodel.dlq.queue'
+    await channel.assertExchange('farmiq.dlq.exchange', 'topic', {
+      durable: true,
+    })
     await channel.assertQueue(dlq, { durable: true })
     await channel.bindQueue(dlq, 'farmiq.dlq.exchange', 'weighvision.dlq')
 

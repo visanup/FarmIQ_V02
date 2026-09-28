@@ -4,8 +4,8 @@ import { DataSource } from 'typeorm'
 import { OutboxEntity } from './entities/OutboxEntity'
 import { OutboxDlqEntity } from './entities/OutboxDlqEntity'
 
-export function createDataSource(): DataSource {
-  const url = process.env.DATABASE_URL
+export function createDataSource(databaseUrl?: string): DataSource {
+  const url = databaseUrl ?? process.env.DATABASE_URL
   if (!url) {
     throw new Error('DATABASE_URL is not set')
   }

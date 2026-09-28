@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { createWeighVisionServiceClient } from '../services/weighvisionService'
 import { logger } from '../utils/logger'
 import { getTenantIdFromRequest } from '../utils/tenantScope'
+import { tenantRegistryServiceClient } from '../services/tenantRegistryService'
 
 const weighvisionService = createWeighVisionServiceClient()
 
@@ -40,6 +41,41 @@ function forwardHeaders(req: Request, res: Response): Record<string, string> {
   if (res.locals.traceId) headers['x-trace-id'] = res.locals.traceId
   if (res.locals.requestId) headers['x-request-id'] = res.locals.requestId
   return headers
+}
+
+async function validateHistoricalScope(req: Request, res: Response) {
+  const tenantId = getTenantIdFromRequest(res, req.body?.tenantId)
+  const { batchId, farmId, barnId, from, to, reason } = req.body || {}
+  if (!tenantId || typeof batchId !== 'string' || typeof farmId !== 'string' || typeof barnId !== 'string' || !from || !to || typeof reason !== 'string') return null
+  const result = await tenantRegistryServiceClient.getBatch({ id: batchId, query: { tenantId }, headers: forwardHeaders(req, res) })
+  const batch: any = result.data && typeof result.data === 'object' && 'data' in (result.data as any) ? (result.data as any).data : result.data
+  if (!result.ok || !batch || batch.tenantId !== tenantId || batch.farmId !== farmId || batch.barnId !== barnId) return null
+  const fromDate = new Date(from)
+  const toDate = new Date(to)
+  const batchStartDate = new Date(batch.startDate)
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate || Number.isNaN(batchStartDate.getTime()) || fromDate < batchStartDate) return null
+  return { ...req.body, tenantId }
+}
+
+async function historicalHandler(req: Request, res: Response, action: 'preview' | 'confirm' | 'reprocess') {
+  try {
+    const body = await validateHistoricalScope(req, res)
+    if (!body) return res.status(422).json({ error: { code: 'VALIDATION_ERROR', message: 'Batch and historical interval must share authenticated tenant/farm/barn scope', traceId: res.locals.traceId || 'unknown' } })
+    const result = await weighvisionService.historicalAssociation(action, body, forwardHeaders(req, res))
+    return res.status(action === 'reprocess' ? 202 : 200).json(result)
+  } catch (error: any) {
+    return res.status(error.response?.status || 500).json(error.response?.data || { error: { code: 'HISTORICAL_ASSOCIATION_ERROR', message: error.message, traceId: res.locals.traceId || 'unknown' } })
+  }
+}
+
+export const previewHistoricalAssociationHandler = (req: Request, res: Response) => historicalHandler(req, res, 'preview')
+export const confirmHistoricalAssociationHandler = (req: Request, res: Response) => historicalHandler(req, res, 'confirm')
+export const enqueueHistoricalReprocessHandler = (req: Request, res: Response) => historicalHandler(req, res, 'reprocess')
+export async function cancelHistoricalReprocessHandler(req: Request, res: Response) {
+  const tenantId = getTenantIdFromRequest(res, req.body?.tenantId || req.query.tenantId as string)
+  if (!tenantId) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId is required', traceId: res.locals.traceId || 'unknown' } })
+  try { await weighvisionService.cancelHistoricalReprocess(req.params.jobId, tenantId, forwardHeaders(req, res)); return res.status(204).end() }
+  catch (error: any) { return res.status(error.response?.status || 500).json(error.response?.data || { error: { code: 'HISTORICAL_REPROCESS_ERROR', message: error.message, traceId: res.locals.traceId || 'unknown' } }) }
 }
 
 /**

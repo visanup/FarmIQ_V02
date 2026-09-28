@@ -183,7 +183,7 @@ services:
     environment:
       - NODE_ENV=development
       # Prevent a single ts-node process from consuming all memory and getting OOM-killed under WSL/Docker Desktop.
-      - NODE_OPTIONS=--max-old-space-size=256
+      - NODE_OPTIONS=--max-old-space-size=512
       - APP_PORT=3000
       - LOG_LEVEL=debug
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/cloud_tenant_registry

@@ -1,0 +1,55 @@
+{
+  "package_schema_version": 2,
+  "model_version": "aa-male-20260919-shadow-v1",
+  "created_at": "2026-09-21T07:33:17.236292+00:00",
+  "target_unit": "g",
+  "feature_columns": [
+    "area_mm2",
+    "length_mm",
+    "width_mm",
+    "height_mm",
+    "depth_mm",
+    "confidence",
+    "volume_proxy_area_height_mm3",
+    "volume_proxy_lwh_mm3",
+    "length_width_ratio",
+    "bbox_area_px",
+    "bbox_aspect_ratio",
+    "mask_fill_ratio",
+    "centroid_x_norm",
+    "centroid_y_norm",
+    "is_height_outlier",
+    "age_days",
+    "standard_weight_g",
+    "standard_adg_g_per_day",
+    "standard_fcr"
+  ],
+  "target_transform": "none",
+  "prediction_mode": "weak_group_allocation",
+  "individual_accuracy_validated": false,
+  "performance_standard": {
+    "source": "Arbor_Acres_Plus_Male_Performance_Standard.xlsx",
+    "filename": "Arbor_Acres_Plus_Broiler_Performance.xlsx",
+    "supported_breeds": [
+      "arbor_acres_plus"
+    ],
+    "supported_sex": [
+      "male"
+    ],
+    "age_days": [
+      1,
+      56
+    ]
+  },
+  "quality_contract": {
+    "min_confidence": 0.8,
+    "requires_stable_group_total": true,
+    "requires_individual_label_for_training": false,
+    "requires_breed_sex_and_age_days": true
+  },
+  "files": {
+    "model.joblib": "2765f667826ebce305f8b2ea9749a15b700b3800fbe0a94d0b5c0b6e5b20d2cd",
+    "metrics.json": "7bbe33e4367d76275d89287742399a8fd3e90958ba1575eaf750179aa2017b47",
+    "Arbor_Acres_Plus_Broiler_Performance.xlsx": "7405934dbc4a8b8c83e4634735e416cb564c898a9c629062371b091c8a14e263"
+  }
+}

@@ -2,11 +2,15 @@ import { Request, Response } from 'express'
 
 const mockGetSessions = jest.fn()
 const mockGetSessionById = jest.fn()
+const mockHistoricalAssociation = jest.fn()
+const mockGetBatch = jest.fn()
 
 jest.mock('../../src/services/weighvisionService', () => ({
   createWeighVisionServiceClient: () => ({
     getSessions: mockGetSessions,
     getSessionById: mockGetSessionById,
+    historicalAssociation: mockHistoricalAssociation,
+    cancelHistoricalReprocess: jest.fn(),
     getAnalytics: jest.fn(),
     getWeightAggregates: jest.fn(),
     getDatasetContract: jest.fn(),
@@ -19,9 +23,14 @@ jest.mock('../../src/services/weighvisionService', () => ({
   }),
 }))
 
+jest.mock('../../src/services/tenantRegistryService', () => ({
+  tenantRegistryServiceClient: { getBatch: mockGetBatch },
+}))
+
 import {
   getSessionByIdHandler,
   getSessionsHandler,
+  previewHistoricalAssociationHandler,
 } from '../../src/controllers/weighvisionController'
 
 describe('WeighVisionController header propagation', () => {
@@ -34,6 +43,7 @@ describe('WeighVisionController header propagation', () => {
     mockReq = {
       query: {},
       params: {},
+      body: {},
       headers: {
         authorization: 'Bearer token-123',
       } as any,
@@ -90,5 +100,20 @@ describe('WeighVisionController header propagation', () => {
         'x-trace-id': 'trace-123',
       }
     )
+  })
+
+  it('rejects a historical interval that starts before the selected batch', async () => {
+    mockReq.body = {
+      tenantId: 'tenant-batch5-e2e', farmId: 'farm-batch5-e2e', barnId: 'barn-1', batchId: 'batch-1',
+      from: '2026-09-01T00:00:00.000Z', to: '2026-09-02T00:00:00.000Z', reason: 'late registration',
+    }
+    mockGetBatch.mockResolvedValue({ ok: true, status: 200, data: {
+      tenantId: 'tenant-batch5-e2e', farmId: 'farm-batch5-e2e', barnId: 'barn-1', startDate: '2026-09-02T00:00:00.000Z',
+    } })
+
+    await previewHistoricalAssociationHandler(mockReq as Request, mockRes as Response)
+
+    expect(mockHistoricalAssociation).not.toHaveBeenCalled()
+    expect(mockRes.status).toHaveBeenCalledWith(422)
   })
 })

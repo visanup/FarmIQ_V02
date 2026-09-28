@@ -4,6 +4,10 @@ import {
   getSessionByIdHandler,
   getAnalyticsHandler,
   getWeightAggregatesHandler,
+  previewHistoricalAssociationHandler,
+  confirmHistoricalAssociationHandler,
+  enqueueHistoricalReprocessHandler,
+  cancelHistoricalReprocessHandler,
 } from '../controllers/weighvisionController'
 import { jwtAuthMiddleware } from '../middlewares/authMiddleware'
 
@@ -98,6 +102,10 @@ router.get('/sessions', getSessionsHandler)
  *         description: Session not found
  */
 router.get('/sessions/:sessionId', getSessionByIdHandler)
+router.post('/historical-associations/preview', previewHistoricalAssociationHandler)
+router.post('/historical-associations/confirm', confirmHistoricalAssociationHandler)
+router.post('/historical-reprocess', enqueueHistoricalReprocessHandler)
+router.delete('/historical-reprocess/:jobId', cancelHistoricalReprocessHandler)
 
 /**
  * @swagger

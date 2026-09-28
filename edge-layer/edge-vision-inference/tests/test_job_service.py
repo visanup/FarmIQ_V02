@@ -59,6 +59,34 @@ class TestJobService:
         assert job["job_id"] in service.jobs
 
     @pytest.mark.asyncio
+    async def test_historical_job_is_queued_and_can_be_cancelled_before_processing(self):
+        service = JobService(MagicMock(spec=InferenceDb), MagicMock(spec=InferenceService))
+
+        with patch("app.job_service.asyncio.create_task", side_effect=_swallow_task):
+            job = await service.create_job(
+                tenant_id="tenant-1", farm_id="farm-1", barn_id="barn-1", device_id="device-1",
+                media_id="media-1", job_type="historical-reprocess", historical_job_id="cloud-job-1",
+                revision_of="original-inference-1",
+            )
+
+        assert job["status"] == "queued"
+        assert job["job_type"] == "historical-reprocess"
+        assert await service.cancel_job(job["job_id"]) is True
+        assert job["status"] == "cancelled"
+        assert await service.cancel_job(job["job_id"]) is False
+
+    @pytest.mark.asyncio
+    async def test_realtime_job_cannot_be_cancelled_through_historical_control(self):
+        service = JobService(MagicMock(spec=InferenceDb), MagicMock(spec=InferenceService))
+
+        with patch("app.job_service.asyncio.create_task", side_effect=_swallow_task):
+            job = await service.create_job(
+                tenant_id="tenant-1", farm_id="farm-1", barn_id="barn-1", device_id="device-1", media_id="media-1",
+            )
+
+        assert await service.cancel_job(job["job_id"]) is False
+
+    @pytest.mark.asyncio
     async def test_create_job_requires_media_id_or_object_key(self):
         mock_db = MagicMock(spec=InferenceDb)
         mock_inference_service = MagicMock(spec=InferenceService)
@@ -105,7 +133,19 @@ class TestJobService:
                     "feature_schema_version": "1.0.0",
                     "activation_source": "subscription",
                     "fallback_engaged": False,
+                    "fallback_reason": None,
                     "prediction_mode": "shadow",
+                    "batch_id": "batch-001",
+                    "batch_context_revision": 42,
+                    "batch_context_resolution": "resolved",
+                    "species": "chicken",
+                    "breed_code": "Arbor Acres Plus",
+                    "sex": "female",
+                    "age_days": 18,
+                    "model_selection": {
+                        "mode": "cached_policy_match",
+                        "selected_package_id": "pkg-001",
+                    },
                     "features_used": {
                         "selected_area_mm2": 12500.0,
                         "selected_depth_mm": 412.0,
@@ -164,6 +204,10 @@ class TestJobService:
         assert outbox_payload["activation_source"] == "subscription"
         assert outbox_payload["fallback_engaged"] is False
         assert outbox_payload["prediction_mode"] == "shadow"
+        assert outbox_payload["batch_id"] == "batch-001"
+        assert outbox_payload["breed_code"] == "Arbor Acres Plus"
+        assert outbox_payload["age_days"] == 18
+        assert outbox_payload["model_selection"]["mode"] == "cached_policy_match"
         assert outbox_payload["features_used"]["selected_depth_mm"] == 412.0
         assert outbox_payload["occurred_at"].endswith("Z")
 
@@ -171,6 +215,80 @@ class TestJobService:
         assert publish_call["occurred_at"].endswith("Z")
 
         assert not os.path.exists(media_path)
+
+    def test_batch_context_from_session_uses_farm_timezone_and_never_calls_cloud(self):
+        context = JobService._batch_context_from_session(
+            "batch-aa-001",
+            {
+                "revision": 42,
+                "resolution": "resolved",
+                "provenance": {
+                    "context": {
+                        "tenantId": "tenant-1",
+                        "farmId": "farm-1",
+                        "barnId": "barn-1",
+                        "batchId": "batch-aa-001",
+                        "species": "chicken",
+                        "breedCode": "Arbor Acres Plus",
+                        "sex": "female",
+                        # These timestamps straddle local midnight in Bangkok.
+                        "startDate": "2026-09-20T18:00:00Z",
+                        "modelPolicy": {
+                            "activePackage": {"id": "pkg-aa", "packageVersion": "1.0.0"},
+                            "fallbackOnly": False,
+                        },
+                    }
+                },
+            },
+            {"tenant_id": "tenant-1", "farm_id": "farm-1", "barn_id": "barn-1"},
+            "2026-09-24T01:00:00Z",
+        )
+
+        assert context["breed_code"] == "Arbor Acres Plus"
+        assert context["sex"] == "female"
+        assert context["age_days"] == 3
+        assert context["fallback_engaged"] is False
+
+    def test_batch_context_from_session_returns_explicit_fallbacks(self):
+        base_context = {
+            "tenantId": "tenant-1",
+            "farmId": "farm-1",
+            "barnId": "barn-1",
+            "batchId": "batch-001",
+            "breedCode": "Arbor Acres Plus",
+            "sex": "male",
+            "startDate": "2026-09-25T00:00:00Z",
+            "modelPolicy": {"fallbackOnly": False},
+        }
+        job = {"tenant_id": "tenant-1", "farm_id": "farm-1", "barn_id": "barn-1"}
+        invalid_age = JobService._batch_context_from_session(
+            "batch-001",
+            {"resolution": "resolved", "provenance": {"context": base_context}},
+            job,
+            "2026-09-24T00:00:00Z",
+        )
+        no_subscription = JobService._batch_context_from_session(
+            "batch-001",
+            {
+                "resolution": "resolved",
+                "provenance": {
+                    "context": {
+                        **base_context,
+                        "startDate": "2026-09-20T00:00:00Z",
+                        "modelPolicy": {
+                            "fallbackOnly": True,
+                            "fallbackReason": "NO_SITE_SUBSCRIPTION",
+                        },
+                    }
+                },
+            },
+            job,
+            "2026-09-24T00:00:00Z",
+        )
+
+        assert invalid_age["fallback_reason"] == "BATCH_START_AFTER_CAPTURE"
+        assert no_subscription["fallback_engaged"] is True
+        assert no_subscription["fallback_reason"] == "NO_SITE_SUBSCRIPTION"
 
     def test_build_shadow_features_maps_session_metadata_to_model_feature_names(self):
         mock_db = MagicMock(spec=InferenceDb)

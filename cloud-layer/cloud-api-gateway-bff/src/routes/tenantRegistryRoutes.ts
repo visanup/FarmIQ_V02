@@ -14,7 +14,12 @@ import {
   getBarnByIdHandler,
   createBarnHandler,
   getBatchesHandler,
+  getBatchHandler,
   createBatchHandler,
+  updateBatchHandler,
+  deleteBatchHandler,
+  createBatchBindingHandler,
+  deleteBatchBindingHandler,
   getDevicesHandler,
   createDeviceHandler,
   updateDeviceHandler,
@@ -48,7 +53,12 @@ router.post('/barns', createBarnHandler)
 
 // Batches
 router.get('/batches', getBatchesHandler)
+router.get('/batches/:id', getBatchHandler)
 router.post('/batches', createBatchHandler)
+router.patch('/batches/:id', updateBatchHandler)
+router.delete('/batches/:id', deleteBatchHandler)
+router.post('/batches/:id/bindings', requireRole('platform_admin', 'tenant_admin', 'farm_manager'), createBatchBindingHandler)
+router.delete('/batches/:id/bindings/:bindingId', requireRole('platform_admin', 'tenant_admin', 'farm_manager'), deleteBatchBindingHandler)
 
 // Devices
 router.get('/devices', getDevicesHandler)

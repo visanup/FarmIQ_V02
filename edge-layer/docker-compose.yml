@@ -118,6 +118,10 @@ services:
       - NODE_ENV=production
       - APP_PORT=3000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/edge_weighvision_session
+      - BATCH_CONTEXT_AUTO_BIND_ENABLED=${BATCH_CONTEXT_AUTO_BIND_ENABLED:-false}
+      - BATCH_CONTEXT_RESOLVER_URL=http://edge-policy-sync:3000/api/v1/edge-config
+      - BATCH_CONTEXT_RESOLVER_TIMEOUT_MS=${BATCH_CONTEXT_RESOLVER_TIMEOUT_MS:-1500}
+      - BATCH_CONTEXT_OVERRIDE_TOKEN=${BATCH_CONTEXT_OVERRIDE_TOKEN:-}
       - DD_SERVICE=edge-weighvision-session
       - DD_ENV=production
     networks:
@@ -174,6 +178,7 @@ services:
       - PORT=8000
       - DATABASE_URL=postgresql://${POSTGRES_USER:-farmiq}:${POSTGRES_PASSWORD:-farmiq_dev}@postgres:5432/edge_vision_inference
       - MEDIA_STORE_URL=http://edge-media-store:3000
+      - BATCH_CONTEXT_INFERENCE_ENABLED=${BATCH_CONTEXT_INFERENCE_ENABLED:-false}
       - DD_SERVICE=edge-vision-inference
       - DD_ENV=production
     volumes:
@@ -240,6 +245,8 @@ services:
       - POLICY_SYNC_BACKOFF_CAP_SECONDS=600
       - POLICY_SYNC_TIMEOUT_SECONDS=10
       - EDGE_CONTEXTS=${EDGE_CONTEXTS:-[]}
+      - BATCH_CONTEXT_CACHE_ENABLED=${BATCH_CONTEXT_CACHE_ENABLED:-false}
+      - BATCH_CONTEXT_CACHE_TTL_SECONDS=${BATCH_CONTEXT_CACHE_TTL_SECONDS:-300}
       - DD_SERVICE=edge-policy-sync
       - DD_ENV=production
     networks:

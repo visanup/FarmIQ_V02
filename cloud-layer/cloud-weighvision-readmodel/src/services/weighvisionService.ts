@@ -325,6 +325,27 @@ function normalizeInferenceRows(value: unknown): Array<Record<string, unknown>> 
       getStringValue(parsedResult.feature_schema_version, parsedResult.featureSchemaVersion) ?? null
     record.activation_source =
       getStringValue(parsedResult.activation_source, parsedResult.activationSource) ?? null
+    record.fallback_engaged =
+      typeof (parsedResult.fallback_engaged ?? parsedResult.fallbackEngaged) === 'boolean'
+        ? (parsedResult.fallback_engaged ?? parsedResult.fallbackEngaged)
+        : null
+    record.fallback_reason =
+      getStringValue(parsedResult.fallback_reason, parsedResult.fallbackReason) ?? null
+    record.batch_id = getStringValue(parsedResult.batch_id, parsedResult.batchId) ?? null
+    record.batch_context_revision =
+      getNumericValue(parsedResult.batch_context_revision ?? parsedResult.batchContextRevision) ?? null
+    record.batch_context_resolution =
+      getStringValue(parsedResult.batch_context_resolution, parsedResult.batchContextResolution) ?? null
+    record.batch_context_reason =
+      getStringValue(parsedResult.batch_context_reason, parsedResult.batchContextReason) ?? null
+    record.batch_context_provenance =
+      parsedResult.batch_context_provenance ?? parsedResult.batchContextProvenance ?? null
+    record.species = getStringValue(parsedResult.species) ?? null
+    record.breed_code = getStringValue(parsedResult.breed_code, parsedResult.breedCode) ?? null
+    record.sex = getStringValue(parsedResult.sex) ?? null
+    record.age_days = getNumericValue(parsedResult.age_days ?? parsedResult.ageDays) ?? null
+    record.model_selection =
+      parsedResult.model_selection ?? parsedResult.modelSelection ?? null
     record.source_event_type =
       getStringValue(parsedResult.source_event_type, parsedResult.sourceEventType) ?? null
     return record
@@ -1147,6 +1168,30 @@ export async function handleInferenceCompleted(event: WeighVisionEvent) {
         ts: getDateValue(event.payload.occurred_at, event.occurred_at) || new Date(),
       },
     })
+
+    // A historical result is a new immutable inference row. Persist explicit
+    // lineage separately so UI/API clients can compare it to the original
+    // without choosing a "latest" value that overwrites business history.
+    const historicalJobId = event.payload.historical_job_id as string || event.payload.historicalJobId as string
+    if (historicalJobId) {
+      const explicitOriginal = event.payload.revision_of as string || event.payload.revisionOf as string || null
+      const latest = explicitOriginal ? null : await prisma.weighVisionInference.findFirst({
+        where: { tenantId: event.tenant_id, sessionId, id: { not: event.event_id } },
+        orderBy: { ts: 'desc' }, select: { id: true },
+      })
+      const revisionRows = await prisma.$queryRawUnsafe<Array<{ nextRevision: number }>>(
+        'SELECT COALESCE(MAX("revision"), 0) + 1 AS "nextRevision" FROM "weighvision_inference_revision" WHERE "tenantId"=$1 AND "sessionId"=$2',
+        event.tenant_id, sessionId,
+      )
+      await prisma.$executeRawUnsafe(
+        'INSERT INTO "weighvision_inference_revision" ("id","tenantId","sessionId","inferenceId","originalInferenceId","historicalJobId","revision","provenance") VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT ("inferenceId") DO NOTHING',
+        event.event_id, event.tenant_id, sessionId, event.event_id, explicitOriginal || latest?.id || null,
+        historicalJobId, Number(revisionRows[0]?.nextRevision || 1), JSON.stringify({
+          inferenceKind: event.payload.inference_kind || event.payload.inferenceKind || 'historical-reprocess',
+          modelVersion, occurredAt: event.payload.occurred_at || event.occurred_at,
+        }),
+      )
+    }
 
     logger.info('WeighVision inference completed', {
       eventId: event.event_id,

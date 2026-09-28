@@ -27,6 +27,9 @@ class CreateJobRequest(BaseModel):
     object_key: Optional[str] = Field(default=None, validation_alias=AliasChoices("object_key", "objectKey"))
     trace_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("trace_id", "traceId"))
     job_type: Optional[str] = Field(default="inference", validation_alias=AliasChoices("job_type", "jobType"))
+    historical_job_id: Optional[str] = Field(default=None, validation_alias=AliasChoices("historical_job_id", "historicalJobId"))
+    revision_of: Optional[str] = Field(default=None, validation_alias=AliasChoices("revision_of", "revisionOf"))
+    historical_context: Optional[dict] = Field(default=None, validation_alias=AliasChoices("historical_context", "historicalContext"))
 
 
 class JobResponse(BaseModel):
@@ -54,11 +57,16 @@ async def create_job(request: Request, job_request: CreateJobRequest):
         db: InferenceDb = request.app.state.db
         job_service: JobService = request.app.state.job_service
         
-        # Validate required fields
+        # Validate required fields. Historical work is an explicit, feature
+        # flagged queue; clients cannot silently downgrade it to realtime.
         if not job_request.tenant_id:
             raise HTTPException(status_code=400, detail="tenant_id is required")
         if not job_request.media_id and not job_request.object_key:
             raise HTTPException(status_code=400, detail="media_id or object_key is required")
+        if job_request.job_type not in {"inference", "historical-reprocess"}:
+            raise HTTPException(status_code=400, detail="unsupported job_type")
+        if job_request.job_type == "historical-reprocess" and not Config.HISTORICAL_REPROCESS_ENABLED:
+            raise HTTPException(status_code=409, detail="HISTORICAL_REPROCESS_DISABLED")
 
         tenant_header = request.headers.get("x-tenant-id")
         if tenant_header and tenant_header != job_request.tenant_id:
@@ -77,7 +85,11 @@ async def create_job(request: Request, job_request: CreateJobRequest):
             media_id=job_request.media_id,
             object_key=job_request.object_key,
             session_id=job_request.session_id,
-            trace_id=trace_id
+            trace_id=trace_id,
+            job_type=job_request.job_type,
+            historical_job_id=job_request.historical_job_id,
+            revision_of=job_request.revision_of,
+            historical_context=job_request.historical_context,
         )
         
         return JobResponse(
@@ -89,6 +101,28 @@ async def create_job(request: Request, job_request: CreateJobRequest):
     except Exception as e:
         logger.error("Failed to create job", extra={"error": str(e)}, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/jobs/{job_id}/cancel", tags=["Inference"])
+async def cancel_job(request: Request, job_id: str):
+    job_service: JobService = request.app.state.job_service
+    if not await job_service.cancel_job(job_id):
+        raise HTTPException(status_code=409, detail="job is not cancellable")
+    return {"job_id": job_id, "status": "cancelled"}
+
+
+@router.post("/jobs/{job_id}/resume", tags=["Inference"])
+async def resume_job(request: Request, job_id: str):
+    job_service: JobService = request.app.state.job_service
+    if not await job_service.resume_job(job_id):
+        raise HTTPException(status_code=409, detail="job is not resumable")
+    return {"job_id": job_id, "status": "queued"}
+
+
+@router.get("/scheduler", tags=["Inference"])
+async def scheduler_state(request: Request):
+    job_service: JobService = request.app.state.job_service
+    return job_service.scheduler_state()
 
 
 @router.get("/jobs/{job_id}", tags=["Inference"])

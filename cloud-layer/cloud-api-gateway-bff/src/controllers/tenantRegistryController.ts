@@ -600,6 +600,54 @@ export async function getBatchesHandler(req: Request, res: Response): Promise<vo
   }
 }
 
+export async function createBatchBindingHandler(req: Request, res: Response): Promise<void> {
+  const tenantId = res.locals.tenantId || (res.locals.isPlatformAdmin ? req.body?.tenantId : undefined)
+  if (!tenantId || typeof req.body?.deviceId !== 'string') {
+    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId and deviceId are required', traceId: res.locals.traceId || 'unknown' } })
+    return
+  }
+  const result = await tenantRegistryServiceClient.createBatchBinding({
+    id: req.params.id,
+    body: { deviceId: req.body.deviceId, stationId: req.body.stationId, tenantId },
+    headers: buildDownstreamHeaders(req, res),
+  })
+  handleDownstreamResponse(result, res, result.status === 422 ? 'VALIDATION_ERROR' : 'INTERNAL_ERROR')
+}
+
+export async function deleteBatchBindingHandler(req: Request, res: Response): Promise<void> {
+  const tenantId = res.locals.tenantId || (res.locals.isPlatformAdmin ? req.query.tenantId as string : undefined)
+  if (!tenantId) {
+    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId is required', traceId: res.locals.traceId || 'unknown' } })
+    return
+  }
+  const result = await tenantRegistryServiceClient.deleteBatchBinding({
+    id: req.params.id, bindingId: req.params.bindingId, query: { tenantId },
+    headers: buildDownstreamHeaders(req, res),
+  })
+  if (result.ok && result.status === 204) { res.status(204).end(); return }
+  handleDownstreamResponse(result, res, 'NOT_FOUND')
+}
+
+/** GET /api/v1/batches/:id */
+export async function getBatchHandler(req: Request, res: Response): Promise<void> {
+  const tenantId = getTenantIdFromRequest(res, req.query.tenantId as string)
+  if (!tenantId) {
+    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId is required', traceId: res.locals.traceId || 'unknown' } })
+    return
+  }
+  try {
+    const result = await tenantRegistryServiceClient.getBatch({
+      id: req.params.id,
+      query: { tenantId },
+      headers: buildDownstreamHeaders(req, res),
+    })
+    handleDownstreamResponse(result, res, 'NOT_FOUND')
+  } catch (error) {
+    logger.error('Error in getBatchHandler', error)
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch batch', traceId: res.locals.traceId || 'unknown' } })
+  }
+}
+
 /**
  * POST /api/v1/batches
  */
@@ -612,6 +660,8 @@ export async function createBatchHandler(req: Request, res: Response): Promise<v
   const endDate = req.body?.endDate || req.body?.end_date
   const species = req.body?.species
   const status = req.body?.status
+  const breedCode = req.body?.breedCode || req.body?.breed_code || req.body?.breed
+  const initialHeadcount = req.body?.initialHeadcount ?? req.body?.initial_headcount ?? req.body?.headcount
 
   if (!tenantId || !farmId || !barnId || !species) {
     res.status(400).json({
@@ -631,6 +681,8 @@ export async function createBatchHandler(req: Request, res: Response): Promise<v
       farmId,
       barnId,
       species,
+      ...(breedCode ? { breedCode } : {}),
+      ...(initialHeadcount !== undefined ? { initialHeadcount } : {}),
       ...(status ? { status } : {}),
       ...(startDate ? { startDate: new Date(startDate).toISOString() } : {}),
       ...(endDate ? { endDate: new Date(endDate).toISOString() } : {}),
@@ -660,6 +712,35 @@ export async function createBatchHandler(req: Request, res: Response): Promise<v
       },
     })
   }
+}
+
+/** PATCH /api/v1/batches/:id */
+export async function updateBatchHandler(req: Request, res: Response): Promise<void> {
+  const tenantId = getTenantIdFromRequest(res, resolveRequestTenantId(req))
+  if (!tenantId) {
+    res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId is required', traceId: res.locals.traceId || 'unknown' } })
+    return
+  }
+  try {
+    const result = await tenantRegistryServiceClient.updateBatch({
+      id: req.params.id,
+      body: { ...req.body, tenantId },
+      headers: buildDownstreamHeaders(req, res),
+    })
+    handleDownstreamResponse(result, res)
+  } catch (error) {
+    logger.error('Error in updateBatchHandler', error)
+    res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update batch', traceId: res.locals.traceId || 'unknown' } })
+  }
+}
+
+export async function deleteBatchHandler(req: Request, res: Response): Promise<void> {
+  const tenantId = getTenantIdFromRequest(res, req.query.tenantId as string)
+  if (!tenantId) { res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId is required' } }); return }
+  try {
+    const result = await tenantRegistryServiceClient.deleteBatch({ id: req.params.id, query: { tenantId }, headers: buildDownstreamHeaders(req, res) })
+    handleDownstreamResponse(result, res)
+  } catch (error) { logger.error('Error in deleteBatchHandler', error); res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete batch' } }) }
 }
 
 /**

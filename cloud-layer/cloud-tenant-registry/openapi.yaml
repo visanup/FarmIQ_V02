@@ -499,6 +499,59 @@ paths:
           description: Complete tenant topology
         '404':
           description: Tenant not found
+  /v1/edge/batch-context:
+    get:
+      summary: Query an authoritative Batch context snapshot or revision delta
+      tags: [Edge Control]
+      parameters:
+        - in: query
+          name: tenantId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: farmId
+          schema: { type: string }
+        - in: query
+          name: barnId
+          schema: { type: string }
+        - in: query
+          name: sinceRevision
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200': { description: Batch context snapshot or delta }
+        '304': { description: Context is unchanged }
+        '400': { description: Validation error }
+
+  /v1/edge/batches/{batchId}/bindings:
+    post:
+      summary: Create a validated Batch device/station binding
+      tags: [Edge Control]
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema: { type: string }
+      responses:
+        '201': { description: Binding created }
+        '422': { description: Cross-tenant, cross-farm, or cross-barn binding rejected }
+
+  /v1/edge/batches/{batchId}/bindings/{bindingId}:
+    delete:
+      summary: Remove a Batch binding
+      tags: [Edge Control]
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: bindingId
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Binding removed }
+        '404': { description: Binding not found }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -682,6 +735,16 @@ components:
       properties:
         species:
           type: string
+        breedCode:
+          type: string
+          description: Canonical genetic-line code, e.g. Arbor Acres Plus
+        sex:
+          type: string
+          enum: [as_hatched, male, female]
+          description: Flock sex used by the XGBoost growth-standard lookup.
+        initialHeadcount:
+          type: integer
+          minimum: 1
         farmId:
           type: string
           format: uuid

@@ -60,6 +60,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SyncStateResponse'
+  /api/v1/edge-config/batch-context/{tenantId}/{deviceId}/{stationId}:
+    get:
+      summary: Resolve cached Batch and model context for a device/station
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: stationId
+          in: path
+          required: true
+          description: Use '-' when the binding has no station.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Resolved or stale context
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchContextResolutionResponse' }
+        '404':
+          description: No active binding or feature disabled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchContextResolutionResponse' }
+        '409':
+          description: More than one active Batch matches
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchContextResolutionResponse' }
   /metrics:
     get:
       summary: Prometheus metrics
@@ -115,6 +148,49 @@ components:
             lag_seconds:
               type: number
               nullable: true
+            batch_cache_entries:
+              type: integer
+            batch_cache_oldest_age_seconds:
+              type: number
+              nullable: true
+            batch_last_success_at:
+              type: string
+              format: date-time
+              nullable: true
+            batch_consecutive_failures:
+              type: integer
+    BatchContextResolutionResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [outcome, reason]
+          properties:
+            outcome:
+              type: string
+              enum: [resolved, unassigned, ambiguous, stale]
+            reason:
+              type: string
+              nullable: true
+            candidateBatchIds:
+              type: array
+              items: { type: string }
+            context:
+              type: object
+              properties:
+                tenantId: { type: string }
+                farmId: { type: string }
+                barnId: { type: string }
+                batchId: { type: string }
+                deviceId: { type: string }
+                stationId: { type: string, nullable: true }
+                revision: { type: integer }
+                species: { type: string }
+                breedCode: { type: string, nullable: true }
+                sex: { type: string, nullable: true }
+                startDate: { type: string, format: date-time, nullable: true }
+                modelPolicy: { type: object }
     ErrorResponse:
       type: object
       properties:

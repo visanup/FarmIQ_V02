@@ -84,7 +84,10 @@ export async function getBatch(req: Request, res: Response) {
 export async function createBatchHandler(req: Request, res: Response) {
   try {
     const tenantId = res.locals.tenantId || req.body.tenantId
-    const { farmId, barnId, species, startDate, endDate, status } = req.body
+    const { farmId, barnId, species, startDate, endDate, status, sex } = req.body
+    // Accept the dashboard's legacy field names while storing one canonical shape.
+    const breedCode = req.body.breedCode || req.body.breed_code || req.body.breed
+    const initialHeadcount = req.body.initialHeadcount ?? req.body.initial_headcount ?? req.body.headcount
     if (!tenantId || !farmId || !barnId || !species) {
       return res.status(400).json({
         error: {
@@ -94,8 +97,20 @@ export async function createBatchHandler(req: Request, res: Response) {
         },
       })
     }
+    if (initialHeadcount !== undefined && (!Number.isInteger(Number(initialHeadcount)) || Number(initialHeadcount) <= 0)) {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'initialHeadcount must be a positive integer',
+          traceId: res.locals.traceId || 'unknown',
+        },
+      })
+    }
     const batch = await createBatch(tenantId, farmId, barnId, {
       species,
+      breedCode: breedCode?.trim() || undefined,
+      sex,
+      initialHeadcount: initialHeadcount === undefined ? undefined : Number(initialHeadcount),
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       status,
@@ -129,8 +144,18 @@ export async function updateBatchHandler(req: Request, res: Response) {
         },
       })
     }
-    const { startDate, endDate, ...rest } = req.body
+    const { startDate, endDate, breed, breed_code, headcount, initial_headcount, sex, ...rest } = req.body
     const updateData: any = { ...rest }
+    const breedCode = req.body.breedCode || breed_code || breed
+    const initialHeadcount = req.body.initialHeadcount ?? initial_headcount ?? headcount
+    if (breedCode !== undefined) updateData.breedCode = breedCode?.trim() || null
+    if (sex !== undefined) updateData.sex = sex
+    if (initialHeadcount !== undefined) {
+      if (!Number.isInteger(Number(initialHeadcount)) || Number(initialHeadcount) <= 0) {
+        return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'initialHeadcount must be a positive integer', traceId: res.locals.traceId || 'unknown' } })
+      }
+      updateData.initialHeadcount = Number(initialHeadcount)
+    }
     if (startDate) updateData.startDate = new Date(startDate)
     if (endDate) updateData.endDate = new Date(endDate)
     const result = await updateBatch(tenantId, id, updateData)

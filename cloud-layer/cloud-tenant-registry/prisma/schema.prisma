@@ -122,16 +122,20 @@ model Barn {
 }
 
 model Batch {
-  id        String    @id @default(uuid())
-  tenantId  String
-  farmId    String
-  barnId    String
-  species   String    // e.g., "chicken", "duck"
-  startDate DateTime?
-  endDate   DateTime?
-  status    String    @default("active") // active, completed, cancelled
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  tenantId         String
+  farmId           String
+  barnId           String
+  species          String    // e.g., "chicken", "duck"
+  breedCode        String?   @map("breed_code") // Canonical genetic-line code, e.g. "Arbor Acres Plus"
+  sex              String?   // as_hatched, male, or female; required by the XGBoost growth standard
+  initialHeadcount Int?      @map("initial_headcount")
+  startDate        DateTime?
+  endDate          DateTime?
+  status           String    @default("active") // active, completed, cancelled
+  contextRevision  Int       @default(0) @map("context_revision")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   // Relations
   tenant Tenant @relation("BatchToTenant", fields: [tenantId], references: [id], onDelete: Cascade)
@@ -143,7 +147,37 @@ model Batch {
   @@index([tenantId, farmId])
   @@index([tenantId, farmId, barnId])
   @@index([tenantId, status])
+  @@index([tenantId, breedCode])
+  @@index([tenantId, sex])
   @@map("batches")
+}
+
+// Append-only Cloud-to-Edge audit/outbox.  It intentionally keeps the scope
+// columns in addition to batchId so a dispatcher can process records without
+// an extra join and the audit stays useful after a batch is retired.
+model BatchContextOutboxEvent {
+  id           String   @id
+  changeSequence BigInt @default(autoincrement()) @unique @map("change_sequence")
+  batchId      String   @map("batch_id")
+  tenantId     String   @map("tenant_id")
+  farmId       String   @map("farm_id")
+  barnId       String   @map("barn_id")
+  eventType    String   @map("event_type")
+  revision     Int
+  payload      Json
+  occurredAt   DateTime @map("occurred_at")
+  status       String   @default("pending")
+  attemptCount Int      @default(0) @map("attempt_count")
+  lastAttemptAt DateTime? @map("last_attempt_at")
+  dispatchedAt DateTime? @map("dispatched_at")
+  lastError    String?  @map("last_error") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([batchId, revision])
+  @@index([status, createdAt])
+  @@index([tenantId, farmId, barnId])
+  @@map("batch_context_outbox")
 }
 
 model Device {

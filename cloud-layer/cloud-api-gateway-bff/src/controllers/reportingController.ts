@@ -2,7 +2,11 @@ import { Request, Response } from 'express'
 import { logger } from '../utils/logger'
 import { createReportingExportServiceClient } from '../services/reportingExportService'
 
-const reportingService = createReportingExportServiceClient()
+// Resolve the client per request so the current runtime configuration is used
+// and tests can supply an isolated downstream client.
+function reportingService() {
+  return createReportingExportServiceClient()
+}
 
 /**
  * Helper to build headers for downstream calls
@@ -112,7 +116,7 @@ export async function createReportJobHandler(req: Request, res: Response): Promi
     }
 
     const headers = buildDownstreamHeaders(req, res)
-    const result = await reportingService.createReportJob({
+    const result = await reportingService().createReportJob({
       body: req.body,
       headers,
     })
@@ -165,7 +169,7 @@ export async function listReportJobsHandler(req: Request, res: Response): Promis
     if (req.query.cursor) query.cursor = req.query.cursor as string
 
     const headers = buildDownstreamHeaders(req, res)
-    const result = await reportingService.listReportJobs({
+    const result = await reportingService().listReportJobs({
       query,
       headers,
     })
@@ -223,7 +227,7 @@ export async function getReportJobByIdHandler(req: Request, res: Response): Prom
     if (tenantId) query.tenantId = tenantId as string
 
     const headers = buildDownstreamHeaders(req, res)
-    const result = await reportingService.getReportJobById({
+    const result = await reportingService().getReportJobById({
       jobId,
       query,
       headers,
@@ -282,7 +286,7 @@ export async function getReportJobDownloadHandler(req: Request, res: Response): 
     if (tenantId) query.tenantId = tenantId as string
 
     const headers = buildDownstreamHeaders(req, res)
-    const result = await reportingService.getReportJobDownload({
+    const result = await reportingService().getReportJobDownload({
       jobId,
       query,
       headers,
@@ -330,7 +334,7 @@ export async function streamReportFileHandler(req: Request, res: Response): Prom
     if (req.query.token) query.token = req.query.token as string
 
     const headers = buildDownstreamHeaders(req, res)
-    const result = await reportingService.streamReportFile({
+    const result = await reportingService().streamReportFile({
       jobId,
       query,
       headers,

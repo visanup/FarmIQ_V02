@@ -3,6 +3,8 @@ import { logger } from '../utils/logger'
 import * as sessionService from '../services/sessionService'
 import { z } from 'zod'
 import { WeighVisionSessionAttachRequestSchema } from '@farmiq/edge-contracts'
+import { randomUUID } from 'crypto'
+import { BatchContextAmbiguousError } from '../services/batchContextResolver'
 
 type RequestWithTrace = Request & { traceId?: string }
 
@@ -20,16 +22,16 @@ function errorMessage(error: unknown): string {
 
 // Validation schemas
 const createSessionSchema = z.object({
-  sessionId: z.string().min(1),
-  eventId: z.string().min(1),
+  // The Edge owns these identifiers. A device only submits its physical scope.
+  sessionId: z.string().min(1).optional(),
+  eventId: z.string().min(1).optional(),
   tenantId: z.string().min(1),
   farmId: z.string().min(1),
   barnId: z.string().min(1),
   deviceId: z.string().min(1),
   stationId: z.string().min(1),
-  batchId: z.string().min(1).optional(),
-  startAt: z.string().datetime(),
-})
+  startAt: z.string().datetime().optional(),
+}).strict()
 
 const bindWeightSchema = z.object({
   tenantId: z.string().min(1),
@@ -87,8 +89,19 @@ const publishInferenceOutcomeSchema = z.object({
   featureSchemaVersion: z.string().min(1).optional(),
   activationSource: z.string().min(1).optional(),
   fallbackEngaged: z.boolean().optional(),
+  fallbackReason: z.string().min(1).optional(),
   predictionMode: z.string().min(1).optional(),
   featuresUsed: z.record(z.unknown()).optional(),
+  batchId: z.string().min(1).optional(),
+  batchContextRevision: z.number().int().nonnegative().optional(),
+  batchContextResolution: z.enum(['resolved', 'unassigned', 'override']).optional(),
+  batchContextReason: z.string().min(1).optional(),
+  batchContextProvenance: z.record(z.unknown()).optional(),
+  species: z.string().min(1).optional(),
+  breedCode: z.string().min(1).optional(),
+  sex: z.string().min(1).optional(),
+  ageDays: z.number().int().nonnegative().optional(),
+  modelSelection: z.record(z.unknown()).optional(),
   eventSchemaVersion: z.string().min(1).optional(),
   sourceEventType: z.string().min(1).optional(),
 })
@@ -148,6 +161,9 @@ export const createSession = async (req: Request, res: Response) => {
     const validated = createSessionSchema.parse(req.body)
     const session = await sessionService.createSession({
       ...validated,
+      sessionId: validated.sessionId ?? randomUUID(),
+      eventId: validated.eventId ?? randomUUID(),
+      startAt: validated.startAt ?? new Date().toISOString(),
       traceId,
     })
     return res.status(201).json(session)
@@ -155,6 +171,16 @@ export const createSession = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         error: { code: 'VALIDATION_ERROR', message: error.errors, traceId },
+      })
+    }
+    if (error instanceof BatchContextAmbiguousError) {
+      return res.status(409).json({
+        error: {
+          code: 'BATCH_CONTEXT_AMBIGUOUS',
+          message: 'More than one active Batch is bound to this device/station',
+          traceId,
+          candidateBatchIds: error.candidateBatchIds,
+        },
       })
     }
     logger.error('Failed to create session', {

@@ -66,6 +66,10 @@ export const WEIGHVISION_ENDPOINTS = {
     SESSIONS: `${BASE_PATH}/weighvision/sessions`,
     SESSION_BY_ID: (id: string) => `${BASE_PATH}/weighvision/sessions/${id}`,
     ANALYTICS: `${BASE_PATH}/weighvision/analytics`,
+    HISTORICAL_ASSOCIATION_PREVIEW: `${BASE_PATH}/weighvision/historical-associations/preview`,
+    HISTORICAL_ASSOCIATION_CONFIRM: `${BASE_PATH}/weighvision/historical-associations/confirm`,
+    HISTORICAL_REPROCESS: `${BASE_PATH}/weighvision/historical-reprocess`,
+    HISTORICAL_REPROCESS_CANCEL: (id: string) => `${BASE_PATH}/weighvision/historical-reprocess/${id}`,
 } as const;
 
 // Standards endpoints (cloud-standards-service via BFF)

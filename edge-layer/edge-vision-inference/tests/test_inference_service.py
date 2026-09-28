@@ -2,6 +2,7 @@ import json
 import tarfile
 from pathlib import Path
 import uuid
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -26,6 +27,46 @@ async def test_run_inference_returns_expected_shape():
     assert "confidence" in result
     assert "model_version" in result
     assert result["metadata"]["session_id"] == "sess-1"
+    image_path.unlink(missing_ok=True)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_batch_context_inference_uses_cached_policy_without_subscription_refresh():
+    tmp_dir = Path(__file__).resolve().parent / ".tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    image_path = tmp_dir / f"batch-context-{uuid.uuid4().hex}.jpg"
+    image_path.write_bytes(b"fake-image-bytes")
+
+    config = Config()
+    config.BATCH_CONTEXT_INFERENCE_ENABLED = True
+    service = InferenceService(config)
+    service.ensure_subscription_activation = AsyncMock(side_effect=AssertionError("Cloud refresh is forbidden"))
+
+    result = await service.run_inference(
+        str(image_path),
+        {
+            "batch_context": {
+                "batch_id": "batch-001",
+                "batch_context_revision": 7,
+                "batch_context_resolution": "resolved",
+                "species": "chicken",
+                "breed_code": "Arbor Acres Plus",
+                "sex": "female",
+                "age_days": 21,
+                "fallback_engaged": True,
+                "fallback_reason": "NO_SITE_SUBSCRIPTION",
+                "model_policy": {"fallbackOnly": True, "fallbackReason": "NO_SITE_SUBSCRIPTION"},
+            }
+        },
+    )
+
+    assert result["metadata"]["breed_code"] == "Arbor Acres Plus"
+    assert result["metadata"]["age_days"] == 21
+    assert result["metadata"]["fallback_engaged"] is True
+    assert result["metadata"]["fallback_reason"] == "NO_SITE_SUBSCRIPTION"
+    assert result["metadata"]["model_selection"]["mode"] == "fallback"
+    service.ensure_subscription_activation.assert_not_awaited()
     image_path.unlink(missing_ok=True)
 
 

@@ -39,6 +39,8 @@ export interface WeighVisionServiceClient {
     end: string
     headers?: Record<string, string>
   }): Promise<any>
+  historicalAssociation(action: 'preview' | 'confirm' | 'reprocess', body: unknown, headers: Record<string, string>): Promise<any>
+  cancelHistoricalReprocess(jobId: string, tenantId: string, headers: Record<string, string>): Promise<any>
 
   getDatasetContract(headers: Record<string, string>): Promise<any>
   bootstrapBaseline(headers: Record<string, string>): Promise<any>
@@ -170,6 +172,19 @@ export function createWeighVisionServiceClient(): WeighVisionServiceClient {
       if (!result.ok || !result.data) {
         throw new Error(`Failed to fetch weight aggregates: ${result.status}`)
       }
+      return result.data
+    },
+
+    async historicalAssociation(action, body, headers) {
+      const suffix = action === 'reprocess' ? 'historical-reprocess' : `historical-associations/${action}`
+      const result = await callDownstreamJson(`${weighvisionReadModelBaseUrl}/api/v1/weighvision/${suffix}`, { method: 'POST', headers, body })
+      if (!result.ok) throw Object.assign(new Error(`Historical ${action} failed: ${result.status}`), { response: { status: result.status, data: result.data } })
+      return result.data
+    },
+
+    async cancelHistoricalReprocess(jobId, tenantId, headers) {
+      const result = await callDownstreamJson(`${weighvisionReadModelBaseUrl}/api/v1/weighvision/historical-reprocess/${encodeURIComponent(jobId)}?tenantId=${encodeURIComponent(tenantId)}`, { method: 'DELETE', headers })
+      if (!result.ok && result.status !== 204) throw Object.assign(new Error(`Historical cancel failed: ${result.status}`), { response: { status: result.status, data: result.data } })
       return result.data
     },
 

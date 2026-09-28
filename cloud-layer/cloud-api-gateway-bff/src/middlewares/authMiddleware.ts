@@ -57,6 +57,16 @@ export function jwtAuthMiddleware(
           logger.debug(`Extracted tenantId from JWT: ${decoded.tenant_id}`)
         }
 
+        if (decoded.site_id) {
+          res.locals.siteId = decoded.site_id
+        }
+        if (decoded.farm_id) {
+          res.locals.farmId = decoded.farm_id
+        }
+        if (decoded.barn_id) {
+          res.locals.barnId = decoded.barn_id
+        }
+
         if (rolesArray.includes('platform_admin')) {
           res.locals.isPlatformAdmin = true
           logger.debug('User has platform_admin role - can query any tenant')

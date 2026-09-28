@@ -1,4 +1,4 @@
-FROM node:20-bullseye AS development
+FROM node:20-bookworm AS development
 
 WORKDIR /usr/src/app
 

@@ -14,6 +14,10 @@ export async function ensureWeighVisionSchema(prisma: PrismaClient): Promise<voi
       device_id TEXT NOT NULL,
       station_id TEXT NOT NULL,
       batch_id TEXT NULL,
+      batch_context_revision INTEGER NULL,
+      batch_context_resolution TEXT NOT NULL DEFAULT 'unassigned',
+      batch_context_reason TEXT NULL,
+      batch_context_provenance JSONB NULL,
       status TEXT NOT NULL,
       start_at TIMESTAMPTZ NOT NULL,
       end_at TIMESTAMPTZ NULL,
@@ -24,6 +28,14 @@ export async function ensureWeighVisionSchema(prisma: PrismaClient): Promise<voi
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `)
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE weight_sessions
+      ADD COLUMN IF NOT EXISTS batch_context_revision INTEGER NULL,
+      ADD COLUMN IF NOT EXISTS batch_context_resolution TEXT NOT NULL DEFAULT 'unassigned',
+      ADD COLUMN IF NOT EXISTS batch_context_reason TEXT NULL,
+      ADD COLUMN IF NOT EXISTS batch_context_provenance JSONB NULL;
   `)
 
   await prisma.$executeRawUnsafe(`
@@ -69,6 +81,35 @@ export async function ensureWeighVisionSchema(prisma: PrismaClient): Promise<voi
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS session_media_bindings_session_id_idx
     ON session_media_bindings(session_id);
+  `)
+
+  // The forwarder consumes this transactional outbox from the same Edge
+  // database. Keep the producer's minimum schema here so a clean deployment
+  // cannot persist a session while silently dropping its Cloud-sync event.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS sync_outbox (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      tenant_id TEXT NOT NULL,
+      farm_id TEXT,
+      barn_id TEXT,
+      device_id TEXT,
+      session_id TEXT,
+      event_type TEXT NOT NULL,
+      occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      trace_id TEXT,
+      payload_json JSONB NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      priority INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `)
+
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS sync_outbox_status_next_attempt_idx
+    ON sync_outbox(status, next_attempt_at ASC);
   `)
 
   await prisma.$executeRawUnsafe(`

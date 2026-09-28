@@ -55,10 +55,21 @@ async function start() {
   })
 
   let dbReady = false
+  let policySyncService: PolicySyncService | null = null
 
-  app.get('/api/ready', (_req: Request, res: Response) => {
+  app.get('/api/ready', async (_req: Request, res: Response) => {
     if (!dbReady) {
       return res.status(503).json({ status: 'not ready' })
+    }
+    if (config.batchContextCacheEnabled && policySyncService) {
+      const state = await policySyncService.getSyncState()
+      const lastSuccess = state.batchState?.last_success_at
+        ? new Date(state.batchState.last_success_at).getTime()
+        : 0
+      const maximumAgeMs = Math.max(config.batchContextTtlSeconds, config.syncIntervalSeconds * 2) * 1000
+      if (!lastSuccess || Date.now() - lastSuccess > maximumAgeMs) {
+        return res.status(503).json({ status: 'not ready', reason: 'BATCH_CONTEXT_CACHE_STALE' })
+      }
     }
     res.status(200).json({ status: 'ready' })
   })
@@ -66,7 +77,7 @@ async function start() {
   const db = await createDbPool(config.databaseUrl)
   dbReady = true
 
-  const policySyncService = new PolicySyncService(db.pool, config)
+  policySyncService = new PolicySyncService(db.pool, config)
   const scheduler = new SyncScheduler(policySyncService, config, registry)
 
   app.use('/api/v1/edge-config', createConfigRoutes(policySyncService))

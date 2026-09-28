@@ -6,7 +6,7 @@ import {
   updateBatchHandler,
   deleteBatchHandler,
 } from '../controllers/batchController'
-import { validateBatch } from '../middlewares/validationMiddleware'
+import { validateBatch, validateBatchUpdate } from '../middlewares/validationMiddleware'
 import { jwtAuthMiddleware } from '../middlewares/authMiddleware'
 
 const router = express.Router()
@@ -92,6 +92,9 @@ router.get('/:id', getBatch)
  *                 type: string
  *               barnId:
  *                 type: string
+ *               sex:
+ *                 type: string
+ *                 enum: [as_hatched, male, female]
  *               startDate:
  *                 type: string
  *                 format: date-time
@@ -130,6 +133,9 @@ router.post('/', validateBatch, createBatchHandler)
  *             properties:
  *               species:
  *                 type: string
+ *               sex:
+ *                 type: string
+ *                 enum: [as_hatched, male, female]
  *               startDate:
  *                 type: string
  *                 format: date-time
@@ -143,7 +149,7 @@ router.post('/', validateBatch, createBatchHandler)
  *       200:
  *         description: Batch updated
  */
-router.patch('/:id', validateBatch, updateBatchHandler)
+router.patch('/:id', validateBatchUpdate, updateBatchHandler)
 
 /**
  * @swagger

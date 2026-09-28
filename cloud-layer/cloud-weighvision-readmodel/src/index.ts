@@ -9,6 +9,7 @@ import { logger } from './utils/logger'
 import { PrismaClient } from '@prisma/client'
 import { connectRabbitMQ, closeRabbitMQ } from './utils/rabbitmq'
 import { startWeighVisionConsumer } from './services/rabbitmqConsumer'
+import { drainHistoricalReprocessQueue } from './services/historicalReprocessWorker'
 
 const app = express()
 const port = process.env.APP_PORT || 3000
@@ -89,6 +90,16 @@ async function startServer() {
     server = app.listen(port, () => {
       logger.info(`App running on port ${port}`)
     })
+
+    if (process.env.HISTORICAL_REPROCESS_ENABLED === 'true') {
+      const intervalMs = Number(process.env.HISTORICAL_REPROCESS_POLL_MS || 1000)
+      const drain = () => drainHistoricalReprocessQueue().catch((error) =>
+        logger.error('Historical reprocess worker tick failed', { error })
+      )
+      drain()
+      setInterval(drain, Math.max(250, intervalMs)).unref()
+      logger.info('Historical reprocess dispatcher enabled')
+    }
 
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {

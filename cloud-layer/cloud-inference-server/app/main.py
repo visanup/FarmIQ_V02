@@ -27,7 +27,12 @@ from app.config import settings
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5135,http://localhost:5143").split(",")
 
 # Configure logging
-logging.basicConfig(level=settings.log_level, format=settings.log_format)
+log_format = (
+    "%(asctime)s %(levelname)s %(name)s %(message)s"
+    if settings.log_format.lower() == "json"
+    else settings.log_format
+)
+logging.basicConfig(level=settings.log_level, format=log_format)
 logger = logging.getLogger(__name__)
 
 

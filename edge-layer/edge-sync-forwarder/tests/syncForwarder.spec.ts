@@ -19,7 +19,7 @@ describe('SyncForwarder', () => {
       payload_json: { value: 1 },
       attemptCount: 2,
       status: 'claimed',
-    } as OutboxRow
+    } as unknown as OutboxRow
 
     const repo = {
       claimBatch: jest.fn().mockResolvedValue([row]),

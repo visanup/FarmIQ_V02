@@ -1,0 +1,8 @@
+FROM python:3.11-slim
+
+WORKDIR /mock
+COPY mock_server.py /mock/mock_server.py
+
+EXPOSE 8000
+
+CMD ["python", "/mock/mock_server.py"]

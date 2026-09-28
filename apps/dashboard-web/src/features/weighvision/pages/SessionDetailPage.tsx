@@ -15,6 +15,19 @@ import { EmptyState } from '../../../components/EmptyState';
 
 type SessionDetail = components['schemas']['WeighvisionSessionDetailResponse']['data'];
 type Prediction = components['schemas']['WeighvisionPrediction'];
+type PredictionView = Prediction & {
+  batch_id?: string | null;
+  breed_code?: string | null;
+  sex?: string | null;
+  age_days?: number | null;
+  package_id?: string | null;
+  package_version?: string | null;
+  prediction_mode?: string | null;
+  fallback_engaged?: boolean | null;
+  fallback_reason?: string | null;
+  batch_context_resolution?: string | null;
+  batch_context_reason?: string | null;
+};
 type Image = components['schemas']['WeighvisionImage'];
 type DetectionRow = {
   id: string;
@@ -36,7 +49,7 @@ type SessionDetailView = SessionDetail & {
   initial_weight_kg?: number | null;
   final_weight_kg?: number | null;
   image_count?: number;
-  predictions?: Prediction[];
+  predictions?: PredictionView[];
   images?: Image[];
   capture_metadata?: any[];
   detections?: DetectionRow[];
@@ -138,7 +151,7 @@ function normalizeSessionDetail(payload: any): SessionDetailView | null {
     bbox_xyxy: formatBbox(entry?.bbox_xyxy),
   }));
 
-  const predictions: Prediction[] = inferences
+  const predictions: PredictionView[] = inferences
     .map((entry: any) => {
       const predictedWeightKg = toFiniteNumber(
         entry?.predicted_weight_kg ?? entry?.predictedWeightKg
@@ -165,6 +178,20 @@ function normalizeSessionDetail(payload: any): SessionDetailView | null {
           entry?.source_event_type ??
           entry?.sourceEventType,
         is_outlier: false,
+        batch_id: entry?.batch_id ?? entry?.batchId ?? null,
+        breed_code: entry?.breed_code ?? entry?.breedCode ?? null,
+        sex: entry?.sex ?? null,
+        age_days: toFiniteNumber(entry?.age_days ?? entry?.ageDays),
+        package_id: entry?.package_id ?? entry?.packageId ?? null,
+        package_version: entry?.package_version ?? entry?.packageVersion ?? null,
+        prediction_mode: entry?.prediction_mode ?? entry?.predictionMode ?? null,
+        fallback_engaged:
+          typeof (entry?.fallback_engaged ?? entry?.fallbackEngaged) === 'boolean'
+            ? (entry?.fallback_engaged ?? entry?.fallbackEngaged)
+            : null,
+        fallback_reason: entry?.fallback_reason ?? entry?.fallbackReason ?? null,
+        batch_context_resolution: entry?.batch_context_resolution ?? entry?.batchContextResolution ?? null,
+        batch_context_reason: entry?.batch_context_reason ?? entry?.batchContextReason ?? null,
       } satisfies Prediction;
     })
     .filter((entry): entry is Prediction => entry !== null);
@@ -261,6 +288,9 @@ export const SessionDetailPage: React.FC = () => {
     );
   }
 
+  const latestPrediction = session.predictions?.[session.predictions.length - 1];
+  const isFallback = latestPrediction?.fallback_engaged === true;
+
   return (
     <Box sx={{ animation: 'fadeIn 0.6s ease-out' }}>
       <PageHeader
@@ -323,8 +353,48 @@ export const SessionDetailPage: React.FC = () => {
         ))}
 
         <Grid item xs={12}>
+          <PremiumCard title="Batch Context & Model Provenance">
+            {!latestPrediction ? (
+              <Typography color="text.secondary">No inference provenance has arrived for this session yet.</Typography>
+            ) : (
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={3}>
+                  <Typography variant="caption" color="text.secondary">BATCH</Typography>
+                  <Typography fontWeight="700">{latestPrediction.batch_id || 'UNASSIGNED'}</Typography>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Typography variant="caption" color="text.secondary">BREED / AGE</Typography>
+                  <Typography fontWeight="700">
+                    {latestPrediction.breed_code || 'Unavailable'}
+                    {latestPrediction.age_days !== null && latestPrediction.age_days !== undefined ? ` · day ${latestPrediction.age_days}` : ''}
+                  </Typography>
+                  {latestPrediction.sex && <Typography variant="caption" color="text.secondary">{latestPrediction.sex}</Typography>}
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Typography variant="caption" color="text.secondary">MODEL</Typography>
+                  <Typography fontWeight="700">
+                    {isFallback ? 'Fallback / shadow model' : (latestPrediction.package_id || 'Policy model')}
+                  </Typography>
+                  {!isFallback && latestPrediction.package_version && <Typography variant="caption" color="text.secondary">{latestPrediction.package_version}</Typography>}
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Typography variant="caption" color="text.secondary">STATUS</Typography>
+                  <Box mt={0.5}>
+                    <StatusChip
+                      status={isFallback ? 'warning' : 'success'}
+                      label={isFallback ? (latestPrediction.fallback_reason || 'FALLBACK') : 'POLICY MATCH'}
+                    />
+                  </Box>
+                  {latestPrediction.batch_context_reason && <Typography variant="caption" color="text.secondary">{latestPrediction.batch_context_reason}</Typography>}
+                </Grid>
+              </Grid>
+            )}
+          </PremiumCard>
+        </Grid>
+
+        <Grid item xs={12}>
           <PremiumCard title="AI Prediction Stream" noPadding>
-            <BasicTable<Prediction>
+            <BasicTable<PredictionView>
               columns={[
                 {
                   id: 'image_id',

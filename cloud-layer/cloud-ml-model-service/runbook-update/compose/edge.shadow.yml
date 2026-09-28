@@ -1,0 +1,36 @@
+# Merge LAST after edge base + dev. Paths resolve relative to edge-layer.
+services:
+  edge-vision-inference:
+    build:
+      dockerfile: Dockerfile.shadow
+    environment:
+      ALLOCATION_SHADOW_ENABLED: ${ALLOCATION_SHADOW_ENABLED:-true}
+      ALLOCATION_SHADOW_PACKAGE_DIR: /models/allocation
+      ALLOCATION_SHADOW_MANIFEST_SHA256: ${ALLOCATION_SHADOW_MANIFEST_SHA256:?Prepare and verify the approved model package first}
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      # Preserve the existing scalar model settings; never install the mock legacy model here.
+    volumes:
+      - ../cloud-layer/cloud-ml-model-service/ml_weight_prediction/artifacts/shadow-package-approved:/models/allocation:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+  edge-policy-sync:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      EDGE_CONTEXTS: ${EDGE_CONTEXTS:?Set the real tenant farm barn site context}
+      EDGE_CLOUD_TOKEN: ${EDGE_CLOUD_TOKEN:-}
+  edge-sync-forwarder:
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+  edge-cloud-ingestion-mock:
+    profiles: [mock-cloud]
+  edge-local-ntp:
+    profiles: [local-ntp]

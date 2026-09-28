@@ -370,7 +370,11 @@ class InferenceService:
         """
         Run inference on an image.
         """
-        await self.ensure_subscription_activation()
+        # BCES-005: realtime selection reads the immutable session/cache policy.
+        # The legacy subscription refresh can download or acknowledge through Cloud,
+        # so it is deliberately kept out of this enabled hot path.
+        if not self.config.BATCH_CONTEXT_INFERENCE_ENABLED:
+            await self.ensure_subscription_activation()
 
         image_file = Path(image_path)
         if not image_file.exists():
@@ -379,11 +383,92 @@ class InferenceService:
         features = self._extract_features(metadata or {})
         if self.active_model_payload and features:
             try:
-                return self._run_shadow_model_inference(image_file, features, metadata or {})
+                result = self._run_shadow_model_inference(image_file, features, metadata or {})
+                return self._apply_batch_context_provenance(result, metadata or {})
             except Exception as exc:
                 logger.warning("Shadow model inference failed, falling back to stub mode: %s", exc)
 
-        return self._run_stub_inference(image_file, metadata or {})
+        result = self._run_stub_inference(image_file, metadata or {})
+        return self._apply_batch_context_provenance(result, metadata or {})
+
+    def _apply_batch_context_provenance(
+        self,
+        result: Dict[str, Any],
+        metadata: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not self.config.BATCH_CONTEXT_INFERENCE_ENABLED:
+            return result
+        context = metadata.get("batch_context")
+        if not isinstance(context, dict):
+            context = {
+                "batch_context_resolution": "unassigned",
+                "fallback_engaged": True,
+                "fallback_reason": "BATCH_CONTEXT_UNASSIGNED",
+            }
+        selection = self._resolve_cached_model_policy(context.get("model_policy"))
+        runtime_metadata = result.setdefault("metadata", {})
+        runtime_metadata.update(
+            {
+                "batch_id": context.get("batch_id"),
+                "batch_context_revision": context.get("batch_context_revision"),
+                "batch_context_resolution": context.get("batch_context_resolution"),
+                "batch_context_reason": context.get("batch_context_reason"),
+                "batch_context_provenance": context.get("batch_context_provenance"),
+                "species": context.get("species"),
+                "breed_code": context.get("breed_code"),
+                "sex": context.get("sex"),
+                "age_days": context.get("age_days"),
+                "model_policy": context.get("model_policy") or {},
+                "model_selection": selection,
+                "fallback_engaged": bool(runtime_metadata.get("fallback_engaged"))
+                or bool(context.get("fallback_engaged"))
+                or bool(selection["fallback_engaged"]),
+                "fallback_reason": context.get("fallback_reason") or selection["fallback_reason"],
+            }
+        )
+        return result
+
+    def _resolve_cached_model_policy(self, policy: Any) -> Dict[str, Any]:
+        """Select only from a model package already resident on this Edge."""
+        policy = policy if isinstance(policy, dict) else {}
+        active = policy.get("activePackage") if isinstance(policy.get("activePackage"), dict) else {}
+        requested_id = active.get("id")
+        requested_version = active.get("packageVersion") or active.get("version")
+        runtime_id = (self.active_manifest or {}).get("id")
+        runtime_version = (self.active_manifest or {}).get("packageVersion")
+        fallback_only = bool(policy.get("fallbackOnly"))
+
+        if fallback_only or not requested_id:
+            return {
+                "mode": "fallback",
+                "requested_package_id": None,
+                "requested_package_version": None,
+                "selected_package_id": runtime_id,
+                "selected_package_version": runtime_version,
+                "fallback_engaged": True,
+                "fallback_reason": policy.get("fallbackReason") or "NO_SITE_SUBSCRIPTION",
+            }
+        if requested_id == runtime_id and (
+            not requested_version or requested_version == runtime_version
+        ):
+            return {
+                "mode": "cached_policy_match",
+                "requested_package_id": requested_id,
+                "requested_package_version": requested_version,
+                "selected_package_id": runtime_id,
+                "selected_package_version": runtime_version,
+                "fallback_engaged": False,
+                "fallback_reason": None,
+            }
+        return {
+            "mode": "fallback",
+            "requested_package_id": requested_id,
+            "requested_package_version": requested_version,
+            "selected_package_id": runtime_id,
+            "selected_package_version": runtime_version,
+            "fallback_engaged": True,
+            "fallback_reason": "MODEL_PACKAGE_NOT_READY",
+        }
 
     def _run_shadow_model_inference(
         self,

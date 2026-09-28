@@ -276,7 +276,6 @@ class CaptureProcessor:
 
         created_payload = {
             "capture_id": image_id,
-            "batchId": metadata.get("batch_id"),
             "captured_at": captured_at,
         }
         created_event = new_event(
@@ -299,7 +298,6 @@ class CaptureProcessor:
                 device_id=self.config.device.device_id,
                 station_id=self.config.device.station_id,
                 start_at=captured_at,
-                batch_id=metadata.get("batch_id"),
             )
             ok = self.session_client.create_session(create_req, trace_id)
             if not ok:

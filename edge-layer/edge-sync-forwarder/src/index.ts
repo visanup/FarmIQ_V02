@@ -8,6 +8,7 @@ import { createSyncRoutes } from './routes/syncRoutes'
 import { setupSwagger } from './utils/swagger'
 import { logger } from './utils/logger'
 import { requestContextMiddleware } from './middlewares/requestContext'
+import { DataSource } from 'typeorm'
 
 const app = express()
 const port = process.env.APP_PORT || 3000
@@ -76,6 +77,16 @@ app.get('/api/ready', async (_req: Request, res: Response): Promise<void> => {
 // Initialize services
 let dataSource: ReturnType<typeof createDataSource>
 let syncService: SyncService
+const additionalDataSources: DataSource[] = []
+const additionalSyncServices: SyncService[] = []
+
+function additionalOutboxUrls(): string[] {
+  return (process.env.SYNC_SOURCE_DATABASE_URLS ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .filter((value) => value !== process.env.DATABASE_URL)
+}
 
 async function initializeServices() {
   dataSource = createDataSource()
@@ -88,6 +99,17 @@ async function initializeServices() {
   logger.info('Database schema ensured')
 
   syncService = new SyncService(dataSource)
+
+  // Services with their own operational database can opt in to forwarding
+  // their transactional outbox without moving ownership to the shared DB.
+  for (const sourceUrl of additionalOutboxUrls()) {
+    const source = createDataSource(sourceUrl)
+    await source.initialize()
+    await ensureSyncSchema(source)
+    additionalDataSources.push(source)
+    additionalSyncServices.push(new SyncService(source))
+    logger.info('Additional sync outbox source configured')
+  }
 
   // Setup routes
   app.use('/api/v1/sync', createSyncRoutes(dataSource, syncService))
@@ -116,6 +138,7 @@ async function initializeServices() {
 
   // Start sync service
   syncService.start()
+  additionalSyncServices.forEach((service) => service.start())
 }
 
 // Start server
@@ -181,6 +204,7 @@ const gracefulShutdown = async (): Promise<void> => {
   if (syncService) {
     syncService.stop()
   }
+  additionalSyncServices.forEach((service) => service.stop())
 
   // Close DB connection
   if (dataSource && dataSource.isInitialized) {
@@ -190,6 +214,17 @@ const gracefulShutdown = async (): Promise<void> => {
     } catch (disconnectError) {
       logger.error('Error disconnecting from database:', disconnectError)
       process.exitCode = 1
+    }
+  }
+
+  for (const source of additionalDataSources) {
+    if (source.isInitialized) {
+      try {
+        await source.destroy()
+      } catch (disconnectError) {
+        logger.error('Error closing additional outbox database connection', disconnectError)
+        process.exitCode = 1
+      }
     }
   }
 }

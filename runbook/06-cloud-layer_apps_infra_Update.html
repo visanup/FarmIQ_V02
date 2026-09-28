@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cloud Layer Onsite Release Guide (Ubuntu)</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1d2733;
+      --muted: #5b6776;
+      --line: #d9e1ea;
+      --brand: #0d5c63;
+      --brand-soft: #e6f5f6;
+      --warn: #8a5a00;
+      --warn-soft: #fff4db;
+      --danger: #8b1e2d;
+      --danger-soft: #fdecef;
+      --code: #111827;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #fbfcfe 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.65;
+    }
+    .page {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+    .hero, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+    h1 { margin: 0 0 10px; font-size: 1.9rem; }
+    h2 { margin: 0 0 12px; font-size: 1.28rem; }
+    h3 { margin: 18px 0 10px; font-size: 1rem; }
+    p { margin: 8px 0; }
+    .muted { color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 18px;
+    }
+    .chip {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--brand-soft);
+      color: var(--brand);
+      border: 1px solid #c8e8eb;
+      margin-right: 8px;
+      margin-top: 8px;
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+    .callout {
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      margin: 12px 0;
+    }
+    .info { background: var(--brand-soft); border-color: #c8e8eb; }
+    .warn { background: var(--warn-soft); border-color: #f1d48d; }
+    .danger { background: var(--danger-soft); border-color: #f1bcc6; }
+    pre {
+      margin: 10px 0 0;
+      background: var(--code);
+      color: #e5eefb;
+      border-radius: 14px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+    code { font-family: Consolas, "Courier New", monospace; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { color: var(--muted); }
+    ol, ul { margin: 10px 0 0; padding-left: 22px; }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 1.55rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>คู่มือ Onsite Release ของ Cloud Layer บน Ubuntu</h1>
+      <p>เอกสารนี้ใช้สำหรับเครื่องหน้างานที่รันผ่าน Docker Compose และต้องการอัปเดตจากชุด release ที่ export ไปแล้ว</p>
+      <p>แนวทางนี้แยก artifact เป็น 3 bundle ชัดเจน: <strong>infra</strong>, <strong>cloud services</strong>, <strong>apps web</strong></p>
+      <div>
+        <span class="chip">ใช้ `docker-compose.onsite.yml`</span>
+        <span class="chip">ใช้ `docker compose up -d`</span>
+        <span class="chip">หลีกเลี่ยง `--build`</span>
+      </div>
+    </section>
+
+    <div class="grid">
+      <main>
+        <section class="card">
+          <h2>สิ่งที่ต้องเข้าใจก่อน</h2>
+          <p>ในโครงสร้างปัจจุบัน `dashboard-web` และ `admin-web` ถูกอ้างจาก `cloud-layer/docker-compose.yml` ผ่าน path ไปที่ `../apps` ดังนั้นเครื่องปลายทางควรมีโครงสร้าง source แบบนี้เสมอ</p>
+          <pre><code>/srv/FarmIQ_V02/
+  apps/
+    dashboard-web/
+    admin-web/
+  cloud-layer/
+    docker-compose.onsite.yml
+    exports/
+    scripts/</code></pre>
+          <div class="callout warn">
+            ถ้าถือไปเฉพาะ `cloud-layer` อย่างเดียว ระบบอาจยังขึ้นได้เมื่อ image ครบทุกตัว แต่จะเปราะมากทันทีที่มีการ build ใหม่หรือ operator เผลอใช้ไฟล์ compose ผิดตัว
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Bundle มาตรฐานของ release</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Bundle</th>
+                <th>เนื้อหา</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>infra</code></td>
+                <td>PostgreSQL, pgAdmin, Vault, RabbitMQ, Datadog agent</td>
+              </tr>
+              <tr>
+                <td><code>cloud-services</code></td>
+                <td>Cloud services ทั้งหมดที่ build จาก `cloud-layer/*` รวมถึง metabase</td>
+              </tr>
+              <tr>
+                <td><code>apps-web</code></td>
+                <td><code>dashboard-web</code> และ <code>admin-web</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card">
+          <h2>ขั้นตอนอัปเดตบน Ubuntu</h2>
+
+          <h3>1. ตรวจเครื่องเดิม</h3>
+          <pre><code>docker version
+docker compose version
+cd /srv/FarmIQ_V02/cloud-layer
+docker compose ps</code></pre>
+
+          <h3>2. สำรองข้อมูลสำคัญ</h3>
+          <pre><code>mkdir -p ~/backup/cloud-layer-$(date +%F-%H%M)
+cp .env ~/backup/cloud-layer-$(date +%F-%H%M)/.env.backup
+
+docker exec -t farmiq-cloud-postgres \
+  pg_dumpall -U farmiq \
+  &gt; ~/backup/cloud-layer-$(date +%F-%H%M)/postgres-all.sql</code></pre>
+
+          <h3>3. หยุด stack เดิมแบบไม่ลบ volume</h3>
+          <pre><code>docker compose down</code></pre>
+          <div class="callout danger">
+            ห้ามใช้ <code>docker compose down -v</code> ถ้ายังต้องการฐานข้อมูลและ state เดิม
+          </div>
+
+          <h3>4. อัปเดต source ให้ครบทั้ง `apps` และ `cloud-layer`</h3>
+          <pre><code>cd /srv
+mv FarmIQ_V02 FarmIQ_V02.backup-$(date +%F-%H%M)
+mkdir -p FarmIQ_V02
+
+# คัดลอกชุดใหม่เข้า /srv/FarmIQ_V02
+# ให้มีทั้ง apps/ และ cloud-layer/</code></pre>
+
+          <h3>5. โหลด image ทั้ง 3 bundle</h3>
+          <pre><code>cd /srv/FarmIQ_V02/cloud-layer/exports/onsite-release-YYYYMMDD-HHMMSS
+
+docker load -i cloud-layer-infra-YYYYMMDD-HHMMSS.tar
+docker load -i cloud-layer-cloud-services-YYYYMMDD-HHMMSS.tar
+docker load -i cloud-layer-apps-web-YYYYMMDD-HHMMSS.tar</code></pre>
+
+          <h3>6. สตาร์ตด้วย compose สำหรับ onsite</h3>
+          <pre><code>cd /srv/FarmIQ_V02/cloud-layer
+docker network inspect farmiq-net &gt;/dev/null 2&gt;&amp;1 || docker network create farmiq-net
+docker compose -f docker-compose.onsite.yml up -d</code></pre>
+
+          <h3>7. Verify หลังขึ้นระบบ</h3>
+          <pre><code>docker compose -f docker-compose.onsite.yml ps
+curl http://localhost:5125/api/health
+curl -I http://localhost:5142
+curl -I http://localhost:5143</code></pre>
+        </section>
+
+        <section class="card">
+          <h2>ข้อควรระวังสำคัญ</h2>
+          <ul>
+            <li>อย่าใช้ `docker-compose.dev.yml` หน้างานเมื่อมี release bundle อยู่แล้ว</li>
+            <li>อย่าใช้ `deploy full` บนหน้างาน ถ้าคุณไม่ได้ตั้งใจ rebuild image บนเครื่องนั้น</li>
+            <li>ถ้าจำเป็นต้องวาง source ในโฟลเดอร์ชื่ออื่น ให้ใช้ `COMPOSE_PROJECT_NAME=cloud-layer`</li>
+            <li>ถ้าบาง service ยังไม่ขึ้น ให้ไล่ infra ก่อน แล้วค่อย `feature-store`, `hybrid-router`, `api-gateway-bff`</li>
+          </ul>
+        </section>
+      </main>
+
+      <aside>
+        <section class="card">
+          <h2>Quick Flow</h2>
+          <ol>
+            <li>Backup `.env` และ PostgreSQL</li>
+            <li>`docker compose down`</li>
+            <li>แทนที่ source ชุดใหม่ทั้ง `apps` และ `cloud-layer`</li>
+            <li>`docker load` ทั้ง 3 bundle</li>
+            <li>`docker compose -f docker-compose.onsite.yml up -d`</li>
+            <li>เช็ก health และหน้า web</li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2>คำสั่งที่แนะนำ</h2>
+          <pre><code>cd /srv/FarmIQ_V02/cloud-layer
+docker compose down
+
+cd /srv/FarmIQ_V02/cloud-layer/exports/onsite-release-YYYYMMDD-HHMMSS
+docker load -i cloud-layer-infra-YYYYMMDD-HHMMSS.tar
+docker load -i cloud-layer-cloud-services-YYYYMMDD-HHMMSS.tar
+docker load -i cloud-layer-apps-web-YYYYMMDD-HHMMSS.tar
+
+cd /srv/FarmIQ_V02/cloud-layer
+docker compose -f docker-compose.onsite.yml up -d
+docker compose -f docker-compose.onsite.yml ps</code></pre>
+        </section>
+
+        <section class="card">
+          <h2>Rollback แบบเร็ว</h2>
+          <ol>
+            <li>`docker compose -f docker-compose.onsite.yml down`</li>
+            <li>สลับกลับไปใช้โฟลเดอร์ backup เดิม</li>
+            <li>สั่ง `docker compose -f docker-compose.onsite.yml up -d` จากชุดก่อนหน้า</li>
+          </ol>
+        </section>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>

@@ -11,6 +11,10 @@ import {
   trainBaselineHandler,
   upsertModelSubscriptionHandler,
   getWeightAggregatesHandler,
+  previewHistoricalAssociationHandler,
+  confirmHistoricalAssociationHandler,
+  enqueueHistoricalReprocessHandler,
+  cancelHistoricalReprocessHandler,
 } from '../controllers/weighvisionController'
 import { jwtAuthMiddleware } from '../middlewares/authMiddleware'
 
@@ -42,6 +46,10 @@ router.get('/analytics', getAnalyticsHandler)
  * Proxy to cloud-weighvision-readmodel
  */
 router.get('/weight-aggregates', getWeightAggregatesHandler)
+router.post('/historical-associations/preview', previewHistoricalAssociationHandler)
+router.post('/historical-associations/confirm', confirmHistoricalAssociationHandler)
+router.post('/historical-reprocess', enqueueHistoricalReprocessHandler)
+router.delete('/historical-reprocess/:jobId', cancelHistoricalReprocessHandler)
 
 router.get('/dataset-contract', getDatasetContractHandler)
 router.post('/bootstrap-baseline', bootstrapBaselineHandler)

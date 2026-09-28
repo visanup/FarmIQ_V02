@@ -64,6 +64,38 @@ async function withServer<T>(
 }
 
 describe('registerSessionRoutes', () => {
+  it('exposes the scoped session-create endpoint', async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(
+        `${baseUrl}/api/v1/weighvision/sessions`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            tenantId: 't-001',
+            farmId: 'f-001',
+            barnId: 'b-001',
+            deviceId: 'wv-001',
+            stationId: 'st-001',
+          }),
+        }
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        route: 'createSession',
+        method: 'POST',
+        body: {
+          tenantId: 't-001',
+          farmId: 'f-001',
+          barnId: 'b-001',
+          deviceId: 'wv-001',
+          stationId: 'st-001',
+        },
+      })
+    })
+  })
+
   it('serves metadata GET without falling through to 404', async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(

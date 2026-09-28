@@ -171,6 +171,14 @@ export const api = {
         get: (id: string, params?: { tenantId?: string }) =>
             httpClient.get<ApiResponse<any>>(REGISTRY_ENDPOINTS.BATCH_BY_ID(id), { params }),
         create: (data: any) => httpClient.post<ApiResponse<any>>(REGISTRY_ENDPOINTS.BATCHES, data),
+        update: (id: string, data: any) => httpClient.patch<ApiResponse<any>>(REGISTRY_ENDPOINTS.BATCH_BY_ID(id), data),
+        delete: (id: string, params: { tenantId: string }) => httpClient.delete<ApiResponse<void>>(REGISTRY_ENDPOINTS.BATCH_BY_ID(id), { params }),
+        bindings: {
+            create: (batchId: string, data: { tenantId?: string; deviceId: string; stationId?: string }) =>
+                httpClient.post<ApiResponse<{ bindingId: string; revision: number }>>(`/api/v1/batches/${encodeURIComponent(batchId)}/bindings`, data),
+            delete: (batchId: string, bindingId: string, params?: { tenantId?: string }) =>
+                httpClient.delete<ApiResponse<void>>(`/api/v1/batches/${encodeURIComponent(batchId)}/bindings/${encodeURIComponent(bindingId)}`, { params }),
+        },
     },
 
     devices: {
@@ -206,6 +214,10 @@ export const api = {
         session: (id: string, params?: any) =>
             httpClient.get<ApiResponse<any>>(WEIGHVISION_ENDPOINTS.SESSION_BY_ID(id), { params }),
         analytics: (params?: any) => httpClient.get<ApiResponse<any>>(WEIGHVISION_ENDPOINTS.ANALYTICS, { params }),
+        historicalAssociationPreview: (data: any) => httpClient.post<ApiResponse<any>>(WEIGHVISION_ENDPOINTS.HISTORICAL_ASSOCIATION_PREVIEW, data),
+        historicalAssociationConfirm: (data: any) => httpClient.post<ApiResponse<any>>(WEIGHVISION_ENDPOINTS.HISTORICAL_ASSOCIATION_CONFIRM, data),
+        historicalReprocess: (data: any) => httpClient.post<ApiResponse<any>>(WEIGHVISION_ENDPOINTS.HISTORICAL_REPROCESS, data),
+        cancelHistoricalReprocess: (id: string, params?: any) => httpClient.delete<ApiResponse<any>>(WEIGHVISION_ENDPOINTS.HISTORICAL_REPROCESS_CANCEL(id), { params }),
     },
     // Legacy compatibility - direct access to weighvisionAnalytics
     weighvisionAnalytics: (params?: any) => httpClient.get<ApiResponse<any>>(WEIGHVISION_ENDPOINTS.ANALYTICS, { params }),

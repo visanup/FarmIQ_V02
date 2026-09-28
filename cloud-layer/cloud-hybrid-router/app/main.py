@@ -391,7 +391,7 @@ class HybridRouter:
         # Edge preference if scores are close
         if (best_target == InferenceTarget.EDGE_MCU or
             best_target == InferenceTarget.EDGE_GPU) and \
-            best_score >= scores.get(InferenceTarget.CLOUD_GPU.value, 0.0) * settings.edge_preference_threshold):
+            best_score >= scores.get(InferenceTarget.CLOUD_GPU.value, 0.0) * settings.edge_preference_threshold:
 
             best_target = InferenceTarget.EDGE_MCU if best_target == InferenceTarget.EDGE_GPU else InferenceTarget.EDGE_GPU
 

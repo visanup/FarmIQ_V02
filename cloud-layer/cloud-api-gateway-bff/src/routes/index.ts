@@ -23,6 +23,7 @@ import advancedAnalyticsRoutes from './advancedAnalyticsRoutes'
 import adminRoutes from './adminRoutes'
 import identityProxyRoutes from './identityProxyRoutes'
 import quotaRoutes from './quotaRoutes'
+import edgeBatchContextRoutes from './edgeBatchContextRoutes'
 
 /**
  *
@@ -94,4 +95,5 @@ export function setupRoutes(app: Express): void {
   app.use('/api/v1/fleet', fleetRoutes)
   app.use('/api/v1/inference', inferenceRoutes)
   app.use('/api/v1/analytics', advancedAnalyticsRoutes)
+  app.use('/api/v1/edge', edgeBatchContextRoutes)
 }

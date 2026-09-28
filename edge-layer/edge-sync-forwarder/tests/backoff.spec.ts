@@ -10,8 +10,8 @@ describe('computeBackoffSeconds', () => {
       rng,
     })
 
-    // base 2^3 = 8, jitter adds 0.5 * 2.4 = 1.2 -> ceil 9
-    expect(seconds).toBe(9)
+    // base 2^3 = 8, jitter adds 0.5 * 2.4 = 1.2 -> ceil 10
+    expect(seconds).toBe(10)
   })
 
   it('caps backoff', () => {

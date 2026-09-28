@@ -1,0 +1,18 @@
+sudo apt update
+sudo apt install ntfs-3g
+sudo ntfsfix /dev/sda1
+sudo mkdir -p /mnt/seagate
+sudo mount -t auto /dev/sda1 /mnt/Seagate
+
+แล้วไปที่ 
+file explorer /mnt/Seagate
+
+ถ้ายัง mount ค้างจากรอบก่อน ให้รันก่อน:
+sudo umount /mnt/seagate
+
+แล้วค่อย:
+sudo mount -t auto /dev/sda1 /mnt/seagate
+
+ถ้ายังไม่ได้อีก ให้เช็คก่อนว่า /dev/sda1 ยังเป็น external drive จริงไหม:
+lsblk -f
+บางครั้งมันอาจเปลี่ยนเป็น /dev/sdb1 ครับ

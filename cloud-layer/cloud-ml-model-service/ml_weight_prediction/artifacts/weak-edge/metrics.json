@@ -1,0 +1,89 @@
+{
+  "model_type": "WEAKLY_SUPERVISED_GROUP_ALLOCATION",
+  "target": "pseudo_weight_g",
+  "individual_accuracy_validated": false,
+  "within_day_holdout": true,
+  "feature_columns": [
+    "area_mm2",
+    "length_mm",
+    "width_mm",
+    "height_mm",
+    "depth_mm",
+    "confidence",
+    "volume_proxy_area_height_mm3",
+    "volume_proxy_lwh_mm3",
+    "length_width_ratio",
+    "bbox_area_px",
+    "bbox_aspect_ratio",
+    "mask_fill_ratio",
+    "centroid_x_norm",
+    "centroid_y_norm",
+    "is_height_outlier"
+  ],
+  "split_sessions": {
+    "train": [
+      "20260917_050359",
+      "20260917_050424",
+      "20260917_052707",
+      "20260917_053755"
+    ],
+    "validation": [
+      "20260917_053810",
+      "20260917_053843"
+    ],
+    "test": [
+      "20260917_055017"
+    ]
+  },
+  "metrics": {
+    "train": {
+      "pseudo_label_error": {
+        "n": 16,
+        "mae_g": 25.228357315063477,
+        "rmse_g": 33.203503443499265,
+        "p95_absolute_error_g": 62.491729736328125,
+        "mean_error_g": -8.87240409851075
+      },
+      "raw_group_total_error": {
+        "n": 4,
+        "mae_g": 86.1517562866211,
+        "rmse_g": 125.36874942369899,
+        "p95_absolute_error_g": 213.80372314453118,
+        "mean_error_g": -35.489601135253906
+      }
+    },
+    "validation": {
+      "pseudo_label_error": {
+        "n": 9,
+        "mae_g": 120.16436089409723,
+        "rmse_g": 130.76427806995815,
+        "p95_absolute_error_g": 194.52426147460938,
+        "mean_error_g": 120.16436089409723
+      },
+      "raw_group_total_error": {
+        "n": 2,
+        "mae_g": 540.7396240234375,
+        "rmse_g": 564.1073539870599,
+        "p95_absolute_error_g": 685.3507934570313,
+        "mean_error_g": 540.7396240234375
+      }
+    },
+    "test": {
+      "pseudo_label_error": {
+        "n": 1,
+        "mae_g": 1171.0210266113281,
+        "rmse_g": 1171.0210266113281,
+        "p95_absolute_error_g": 1171.0210266113281,
+        "mean_error_g": 1171.0210266113281
+      },
+      "raw_group_total_error": {
+        "n": 1,
+        "mae_g": 1171.0210266113281,
+        "rmse_g": 1171.0210266113281,
+        "p95_absolute_error_g": 1171.0210266113281,
+        "mean_error_g": 1171.0210266113281
+      }
+    }
+  },
+  "dataset_sha256": "0ff81616f49693c7762399d4acd493b46a9002af5705adc7b6bdd60f32987d0c"
+}

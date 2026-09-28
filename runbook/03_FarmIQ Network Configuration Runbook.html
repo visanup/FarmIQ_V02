@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FarmIQ Network Configuration Runbook</title>
+<style>
+body{font-family:Arial,"Noto Sans Thai",sans-serif;line-height:1.6;max-width:1100px;margin:40px auto;padding:0 24px;color:#1f2937}
+h1,h2,h3{color:#0f172a} h1{border-bottom:3px solid #cbd5e1;padding-bottom:12px}
+h2{margin-top:36px;border-left:5px solid #64748b;padding-left:12px}
+pre{background:#f8fafc;border:1px solid #e2e8f0;padding:14px;border-radius:8px;overflow:auto}
+table{border-collapse:collapse;width:100%;margin:16px 0} th,td{border:1px solid #cbd5e1;padding:10px;text-align:left;vertical-align:top} th{background:#f1f5f9}
+.note{background:#ecfdf5;border-left:5px solid #10b981;padding:12px}.warn{background:#fff7ed;border-left:5px solid #f59e0b;padding:12px}.danger{background:#fef2f2;border-left:5px solid #ef4444;padding:12px}
+.step{background:#f8fafc;border:1px solid #e2e8f0;padding:16px;border-radius:10px;margin:14px 0}
+</style>
+</head>
+<body>
+<h1>FarmIQ Network Configuration Runbook</h1>
+<p><strong>เป้าหมาย:</strong> ใช้สำหรับ Config หน้างานจริง โดยคง IP เดิมของ FarmIQ, ให้ IoT และ Edge ออก Internet ผ่าน 4G Router, ให้ IoT คุยกับ Edge แบบ Local และให้ Camera วิ่งผ่าน Ethernet เฉพาะทาง</p>
+
+<h2>1. Target Architecture</h2>
+<pre>
+                       Internet
+                          |
+                       4G / SIM
+                          |
+                 4G Router 192.168.1.1
+                          |
+                        Wi-Fi
+               +----------+----------+
+               |                     |
+       IoT-Layer Ubuntu       Edge/Cloud Ubuntu
+       192.168.1.121          192.168.1.120
+               |
+        Ethernet enp3s0
+        192.168.1.122/32
+               |
+           PoE Switch
+          /          \
+ CCTV Left          CCTV Right
+192.168.1.199      192.168.1.200
+
+IoT USB -> Scale /dev/ttyUSB0
+</pre>
+
+<table>
+<tr><th>อุปกรณ์</th><th>Interface</th><th>IP / Port</th><th>หน้าที่</th></tr>
+<tr><td>4G Router</td><td>LAN/Wi-Fi</td><td>192.168.1.1/24</td><td>Gateway + Internet</td></tr>
+<tr><td>Edge/Cloud</td><td>Wi-Fi</td><td>192.168.1.120</td><td>Local + Internet</td></tr>
+<tr><td>IoT</td><td>Wi-Fi</td><td>192.168.1.121</td><td>Local + Internet</td></tr>
+<tr><td>IoT</td><td>Ethernet</td><td>192.168.1.122/32</td><td>Camera network only</td></tr>
+<tr><td>CCTV Left</td><td>Ethernet</td><td>192.168.1.199</td><td>RTSP</td></tr>
+<tr><td>CCTV Right</td><td>Ethernet</td><td>192.168.1.200</td><td>RTSP</td></tr>
+<tr><td>Scale</td><td>USB</td><td>/dev/ttyUSB0</td><td>Weight input</td></tr>
+</table>
+
+<div class="danger"><strong>สำคัญ:</strong> อย่าตั้ง Ethernet ของ IoT เป็น 192.168.1.x/24 เพราะจะชนกับ subnet ของ Wi-Fi ให้ใช้ /32 และ Host Route</div>
+
+<h2>2. Config 4G Router</h2>
+<div class="step"><h3>2.1 LAN</h3><pre>Router IP : 192.168.1.1
+Subnet    : 255.255.255.0
+DHCP      : Enable</pre></div>
+
+<div class="step"><h3>2.2 DHCP Pool</h3><pre>Start IP : 192.168.1.10
+End IP   : 192.168.1.100</pre></div>
+
+<div class="step"><h3>2.3 Address Reservation</h3><pre>Edge Wi-Fi MAC -> 192.168.1.120
+IoT Wi-Fi MAC  -> 192.168.1.121</pre><p>ดู MAC Address:</p><pre>ip -br link</pre></div>
+
+<div class="step"><h3>2.4 Wireless Isolation</h3><pre>AP Isolation       = OFF
+Client Isolation   = OFF
+Wireless Isolation = OFF</pre><p>IoT และ Edge ต้องเชื่อม SSID หลักเดียวกัน</p></div>
+
+<h2>3. Config Edge / Cloud Ubuntu</h2>
+<div class="step"><h3>3.1 เชื่อม Wi-Fi</h3><p>ให้ Edge ได้ IP:</p><pre>192.168.1.120</pre></div>
+<div class="step"><h3>3.2 ตรวจ IP</h3><pre>ip -br addr</pre><p>ควรเห็นประมาณ:</p><pre>wlp2s0    UP    192.168.1.120/24</pre></div>
+<div class="step"><h3>3.3 ตรวจ Route</h3><pre>ip route</pre><p>ควรมี:</p><pre>default via 192.168.1.1 dev wlp2s0</pre></div>
+<div class="step"><h3>3.4 ทดสอบ</h3><pre>ping -c 4 192.168.1.1
+ping -c 4 8.8.8.8
+ping -c 4 google.com</pre></div>
+
+<h2>4. Config IoT-Layer Ubuntu</h2>
+<div class="step"><h3>4.1 เชื่อม Wi-Fi</h3><p>ให้ IoT ได้ IP:</p><pre>192.168.1.121</pre></div>
+<div class="step"><h3>4.2 ตรวจ Interface</h3><pre>ip -br addr</pre><p>ตัวอย่าง:</p><pre>wlp2s0    UP    192.168.1.121/24
+enp3s0    UP</pre><p>ชื่อ interface จริงอาจต่างจากตัวอย่าง ให้ใช้ชื่อที่เครื่องแสดงจริง</p></div>
+<div class="step"><h3>4.3 ตรวจ Internet Route</h3><pre>ip route</pre><p>ต้องมี default route ออก Wi-Fi:</p><pre>default via 192.168.1.1 dev wlp2s0</pre></div>
+
+<h2>5. Config Camera Ethernet บน IoT</h2>
+<div class="warn">เสียบสาย Ethernet จาก IoT ไป PoE Switch และต่อกล้อง .199 / .200 ให้เรียบร้อยก่อน</div>
+
+<div class="step"><h3>5.1 เปิด Ethernet</h3><pre>sudo ip link set enp3s0 up</pre></div>
+<div class="step"><h3>5.2 เพิ่ม IP ให้ Ethernet ของ IoT</h3><pre>sudo ip addr add 192.168.1.122/32 dev enp3s0</pre><p><strong>192.168.1.122 คือ IP เพิ่มของพอร์ต Ethernet บน IoT เอง ไม่ใช่ IP กล้อง</strong></p></div>
+<div class="step"><h3>5.3 Host Route ไป CCTV Left</h3><pre>sudo ip route add 192.168.1.199/32 dev enp3s0 src 192.168.1.122</pre></div>
+<div class="step"><h3>5.4 Host Route ไป CCTV Right</h3><pre>sudo ip route add 192.168.1.200/32 dev enp3s0 src 192.168.1.122</pre></div>
+
+<h2>6. ตรวจ Routing</h2>
+<div class="step"><h3>6.1 CCTV Left</h3><pre>ip route get 192.168.1.199</pre><p>ต้องออก enp3s0 และ source 192.168.1.122</p></div>
+<div class="step"><h3>6.2 CCTV Right</h3><pre>ip route get 192.168.1.200</pre><p>ต้องออก enp3s0 และ source 192.168.1.122</p></div>
+<div class="step"><h3>6.3 Edge</h3><pre>ip route get 192.168.1.120</pre><p>ต้องออก Wi-Fi และ source 192.168.1.121</p></div>
+<div class="step"><h3>6.4 Internet</h3><pre>ip route get 8.8.8.8</pre><p>ต้องผ่าน 192.168.1.1 ทาง Wi-Fi</p></div>
+
+<h2>7. Connectivity Tests</h2>
+<div class="step"><h3>IoT -> Edge</h3><pre>ping -c 4 192.168.1.120</pre></div>
+<div class="step"><h3>Edge -> IoT</h3><pre>ping -c 4 192.168.1.121</pre></div>
+<div class="step"><h3>IoT -> CCTV</h3><pre>ping -c 4 192.168.1.199
+ping -c 4 192.168.1.200</pre><p>ถ้ากล้องไม่ตอบ ping ให้ทดสอบ RTSP จริง เพราะบางกล้องปิด ICMP</p></div>
+<div class="step"><h3>IoT -> Internet</h3><pre>ping -c 4 8.8.8.8
+ping -c 4 google.com</pre></div>
+
+<h2>8. FarmIQ Environment</h2>
+<pre>RTSP_IP_LEFT=192.168.1.199
+RTSP_IP_RIGHT=192.168.1.200
+SCALE_PORT=/dev/ttyUSB0
+
+EDGE_HOST=192.168.1.120
+IOT_HOST=192.168.1.121</pre>
+<p>ค่ากล้องและ Scale เดิมไม่ต้องเปลี่ยน</p>
+
+<h2>9. AnyDesk — Unattended Access</h2>
+<div class="step"><h3>9.1 ติดตั้ง</h3><p>ติดตั้ง AnyDesk บน IoT และ Edge/Cloud Ubuntu โดยใช้แพ็กเกจ .deb สำหรับ amd64/x86_64 หากเป็นเครื่อง Intel/AMD</p></div>
+<div class="step"><h3>9.2 เปิด Unattended Access</h3><pre>Settings
+ -> Access / Security
+ -> Unattended Access
+ -> Set Password</pre><p>ตั้ง Password แยกกันระหว่าง IoT และ Edge</p></div>
+<div class="step"><h3>9.3 ทดสอบไม่ต้องกด Accept</h3><p>ตั้ง Incoming Session ให้รับผ่าน Unattended Access ตามตัวเลือกของ AnyDesk เวอร์ชันที่ติดตั้ง แล้วทดสอบ Remote จากเครือข่ายภายนอก</p></div>
+<div class="warn">ต้องทดสอบ AnyDesk หลัง reboot ทั้งสองเครื่อง เพื่อยืนยันว่า service กลับมาเองและ Remote ได้โดยไม่มีคนหน้างานกด Accept</div>
+
+<h2>10. Docker / Git / AI Agent Test</h2>
+<pre>docker ps
+docker compose ps
+docker pull hello-world
+git --version</pre>
+
+<h2>11. Acceptance Checklist</h2>
+<table>
+<tr><th>รายการ</th><th>Expected</th></tr>
+<tr><td>Router</td><td>192.168.1.1</td></tr>
+<tr><td>Edge Wi-Fi</td><td>192.168.1.120</td></tr>
+<tr><td>IoT Wi-Fi</td><td>192.168.1.121</td></tr>
+<tr><td>IoT Ethernet</td><td>192.168.1.122/32</td></tr>
+<tr><td>CCTV Left</td><td>192.168.1.199 ผ่าน Ethernet</td></tr>
+<tr><td>CCTV Right</td><td>192.168.1.200 ผ่าน Ethernet</td></tr>
+<tr><td>IoT ↔ Edge</td><td>Local Wi-Fi ทำงาน</td></tr>
+<tr><td>Internet IoT / Edge</td><td>ผ่าน Wi-Fi → 4G Router</td></tr>
+<tr><td>Scale</td><td>/dev/ttyUSB0</td></tr>
+<tr><td>AnyDesk</td><td>Remote ได้โดยไม่ต้องกด Accept</td></tr>
+<tr><td>Docker / Git / AI Agent</td><td>ออก Internet ได้</td></tr>
+</table>
+
+<h2>12. ก่อนทำให้ Persistent</h2>
+<div class="danger">คำสั่ง ip addr add และ ip route add ด้านบนเป็น Temporary Configuration และจะหายหลัง reboot</div>
+<p>ต้องทดสอบให้ผ่านก่อน:</p>
+<pre>Camera OK
+Scale OK
+IoT <-> Edge OK
+Internet OK
+Docker OK
+AnyDesk OK</pre>
+<p>จากนั้นจึงค่อยทำ Netplan ให้ 192.168.1.122/32 และ Host Route .199/.200 คงอยู่หลัง reboot</p>
+
+<div class="note"><strong>ลำดับ Commissioning:</strong> Router → Edge Wi-Fi → IoT Wi-Fi → Camera Ethernet → Route Validation → FarmIQ App → AnyDesk → Reboot Test → Persistent Netplan</div>
+</body>
+</html>

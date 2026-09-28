@@ -1,5 +1,11 @@
 import { Request, Response } from 'express'
 import { getSessions, getSessionById, getAnalytics, listWeightAggregates } from '../services/weighvisionService'
+import {
+  cancelHistoricalReprocess,
+  confirmHistoricalAssociation,
+  enqueueHistoricalReprocess,
+  previewHistoricalAssociation,
+} from '../services/historicalAssociationService'
 import { logger } from '../utils/logger'
 import { getTenantIdFromRequest } from '../utils/tenantScope'
 
@@ -67,6 +73,50 @@ export async function getSessionsHandler(req: Request, res: Response) {
       },
     })
   }
+}
+
+function historicalRequest(req: Request, res: Response) {
+  const tenantId = getTenantIdFromRequest(res, req.body?.tenantId)
+  const { farmId, barnId, batchId, from, to, reason } = req.body || {}
+  if (!tenantId || !farmId || !barnId || !batchId || !from || !to || !reason) {
+    return null
+  }
+  const fromDate = new Date(from)
+  const toDate = new Date(to)
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return null
+  return { tenantId, farmId, barnId, batchId, from: fromDate, to: toDate,
+    reason: String(reason), requestedBy: typeof req.body.requestedBy === 'string' ? req.body.requestedBy : undefined }
+}
+
+export async function previewHistoricalAssociationHandler(req: Request, res: Response) {
+  const request = historicalRequest(req, res)
+  if (!request) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId, farmId, barnId, batchId, from, to and reason are required', traceId: res.locals.traceId || 'unknown' } })
+  try { return res.json(await previewHistoricalAssociation(request)) }
+  catch (error: any) { return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: error.message, traceId: res.locals.traceId || 'unknown' } }) }
+}
+
+export async function confirmHistoricalAssociationHandler(req: Request, res: Response) {
+  const request = historicalRequest(req, res)
+  if (!request) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId, farmId, barnId, batchId, from, to and reason are required', traceId: res.locals.traceId || 'unknown' } })
+  try { return res.json(await confirmHistoricalAssociation(request)) }
+  catch (error: any) { return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: error.message, traceId: res.locals.traceId || 'unknown' } }) }
+}
+
+export async function enqueueHistoricalReprocessHandler(req: Request, res: Response) {
+  const request = historicalRequest(req, res)
+  if (!request) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId, farmId, barnId, batchId, from, to and reason are required', traceId: res.locals.traceId || 'unknown' } })
+  try { return res.status(202).json(await enqueueHistoricalReprocess(request)) }
+  catch (error: any) {
+    const status = error.message === 'HISTORICAL_REPROCESS_DISABLED' ? 409 : 400
+    return res.status(status).json({ error: { code: error.message, message: error.message, traceId: res.locals.traceId || 'unknown' } })
+  }
+}
+
+export async function cancelHistoricalReprocessHandler(req: Request, res: Response) {
+  const tenantId = getTenantIdFromRequest(res, req.body?.tenantId)
+  if (!tenantId) return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'tenantId is required', traceId: res.locals.traceId || 'unknown' } })
+  const cancelled = await cancelHistoricalReprocess(tenantId, req.params.jobId)
+  return cancelled ? res.status(204).end() : res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Queued historical job not found', traceId: res.locals.traceId || 'unknown' } })
 }
 
 /**

@@ -18,7 +18,6 @@ class CreateSessionRequest:
     device_id: str
     station_id: str
     start_at: str
-    batch_id: Optional[str]
 
     def to_dict(self) -> dict:
         data = {
@@ -31,8 +30,6 @@ class CreateSessionRequest:
             "stationId": self.station_id,
             "startAt": self.start_at,
         }
-        if self.batch_id:
-            data["batchId"] = self.batch_id
         return data
 
 

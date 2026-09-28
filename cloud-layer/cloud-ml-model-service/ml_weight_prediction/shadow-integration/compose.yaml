@@ -1,0 +1,54 @@
+name: farmiq-allocation-shadow
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: shadow
+      POSTGRES_PASSWORD: local-shadow-test-only
+      POSTGRES_DB: shadow
+    volumes:
+      - shadow-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U shadow -d shadow']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  mocks:
+    image: farmiq-allocation-shadow:local
+    command: [python, -m, uvicorn, smoke_mocks:app, --host, 0.0.0.0, --port, '8000']
+    working_dir: /smoke
+    volumes:
+      - .:/smoke:ro
+  edge:
+    image: farmiq-allocation-shadow:local
+    build:
+      context: ../../../../edge-layer/edge-vision-inference
+      dockerfile: Dockerfile.shadow
+    environment:
+      DATABASE_URL: postgresql://shadow:local-shadow-test-only@postgres:5432/shadow
+      SHADOW_TEST_DATABASE_URL: postgresql://shadow:local-shadow-test-only@postgres:5432/shadow
+      MODEL_SYNC_ENABLED: 'false'
+      MODEL_CACHE_DIR: /tmp/legacy-model-cache
+      MODEL_MANIFEST_PATH: /smoke/legacy-manifest.json
+      MEDIA_STORE_URL: http://mocks:8000
+      WEIGHVISION_SESSION_URL: http://mocks:8000
+      ALLOCATION_SHADOW_ENABLED: 'true'
+      ALLOCATION_SHADOW_PACKAGE_DIR: /models
+      ALLOCATION_SHADOW_MANIFEST_SHA256: ${ALLOCATION_SHADOW_MANIFEST_SHA256:?Run prepare.ps1 first}
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+    volumes:
+      - ../artifacts/shadow-package-approved:/models:ro
+      - .:/smoke:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mocks:
+        condition: service_started
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/ready')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+volumes:
+  shadow-db:

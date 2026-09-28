@@ -24,9 +24,9 @@ class Settings(BaseSettings):
     log_format: str = "json"
 
     # MLflow configuration
-    mlflow_tracking_uri: str = "postgresql://farmiq:farmiq_dev@postgres:5432/mlflow_registry"
+    mlflow_tracking_uri: str = "postgresql://farmiq:farmiq_dev@postgres:5432/cloud_mlflow"
     mlflow_artifact_root: str = "/mlflow/artifacts"
-    mlflow_backend_store_uri: str = "postgresql://farmiq:farmiq_dev@postgres:5432/mlflow_registry"
+    mlflow_backend_store_uri: str = "postgresql://farmiq:farmiq_dev@postgres:5432/cloud_mlflow"
 
     # S3 configuration for artifact storage
     aws_access_key_id: str = ""

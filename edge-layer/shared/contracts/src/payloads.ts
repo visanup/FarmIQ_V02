@@ -1,5 +1,34 @@
 import { z } from 'zod'
 
+export const BatchContextEventPayloadSchema = z.object({
+  eventId: z.string().min(1),
+  eventType: z.enum([
+    'batch.upsert',
+    'batch.activate',
+    'batch.deactivate',
+    'batch.binding.upsert',
+    'batch.binding.remove',
+  ]),
+  revision: z.number().int().positive(),
+  occurredAt: z.string().datetime(),
+  tenantId: z.string().min(1),
+  farmId: z.string().min(1),
+  barnId: z.string().min(1),
+  batchId: z.string().min(1),
+  status: z.string().min(1),
+  species: z.string().min(1),
+  breedCode: z.string().min(1).nullable(),
+  sex: z.enum(['as_hatched', 'male', 'female']).nullable(),
+  startDate: z.string().datetime().nullable(),
+  endDate: z.string().datetime().nullable(),
+  deviceBindings: z.array(z.object({
+    deviceId: z.string().min(1),
+    stationId: z.string().min(1).nullable(),
+  })),
+})
+
+export type BatchContextEventPayload = z.infer<typeof BatchContextEventPayloadSchema>
+
 export const TelemetryReadingPayloadSchema = z.object({
   tenant_id: z.string().min(1),
   farm_id: z.string().min(1).optional(),
@@ -75,6 +104,40 @@ export const InferenceCompletedPayloadSchema = z.object({
 })
 
 export type InferenceCompletedPayload = z.infer<typeof InferenceCompletedPayloadSchema>
+
+// Observation-only event. Must not be consumed as an individual measured weight.
+export const GroupAllocationCompletedPayloadSchema = z.object({
+  schema_version: z.literal('1.0'),
+  event_type: z.literal('weighvision.group_allocation.completed'),
+  session_id: z.string().min(1).nullable(),
+  capture_id: z.string().min(1).nullable(),
+  model_version: z.string().min(1),
+  prediction_mode: z.literal('weak_group_allocation'),
+  shadow_only: z.literal(true),
+  individual_accuracy_validated: z.literal(false),
+  decision_use_allowed: z.literal(false),
+  prediction_status: z.enum(['WEAK_ALLOCATION', 'REJECTED_QUALITY', 'REJECTED_MODEL_UNAVAILABLE']),
+  group_total_weight_g: z.number().finite().positive().optional(),
+  quality_reasons: z.array(z.string()),
+  allocations: z.array(z.object({
+    detection_index: z.number().int().nonnegative(),
+    raw_score_g: z.number().finite().positive(),
+    allocated_weight_g: z.number().finite().positive(),
+    prediction_status: z.literal('WEAK_ALLOCATION'),
+  })),
+}).superRefine((value, ctx) => {
+  const ids = value.allocations.map(row => row.detection_index)
+  const total = value.allocations.reduce((sum, row) => sum + row.allocated_weight_g, 0)
+  if (value.prediction_status === 'WEAK_ALLOCATION') {
+    if (!value.session_id || !value.capture_id || !value.group_total_weight_g || !ids.length ||
+        new Set(ids).size !== ids.length || Math.abs(total - value.group_total_weight_g) > 0.1) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid allocation identity or total' })
+    }
+  } else if (ids.length || !value.quality_reasons.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Rejected sessions require reasons and no allocations' })
+  }
+})
+export type GroupAllocationCompletedPayload = z.infer<typeof GroupAllocationCompletedPayloadSchema>
 
 export const WeighVisionSessionCreatedPayloadSchema = z.object({
   session_id: z.string().min(1),

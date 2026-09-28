@@ -51,6 +51,28 @@ class Config:
     MODEL_CONTROL_BFF_URL: str = os.getenv("MODEL_CONTROL_BFF_URL", "")
     MODEL_CONTROL_TOKEN: str = os.getenv("MODEL_CONTROL_TOKEN", "")
     MODEL_CONTROL_TIMEOUT_SECONDS: int = int(os.getenv("MODEL_CONTROL_TIMEOUT_SECONDS", "15"))
+    # When enabled, realtime inference uses only the immutable Batch context
+    # stamped on the local session. It must never query Cloud in this path.
+    BATCH_CONTEXT_INFERENCE_ENABLED: bool = os.getenv(
+        "BATCH_CONTEXT_INFERENCE_ENABLED", "false"
+    ).lower() == "true"
+    # Historical work is opt-in. It is deliberately separated from realtime
+    # inference so a late Batch association can never consume all capacity.
+    HISTORICAL_REPROCESS_ENABLED: bool = os.getenv(
+        "HISTORICAL_REPROCESS_ENABLED", "false"
+    ).lower() == "true"
+    HISTORICAL_REPROCESS_CONCURRENCY: int = int(
+        os.getenv("HISTORICAL_REPROCESS_CONCURRENCY", "1")
+    )
+    HISTORICAL_PAUSE_REALTIME_ACTIVE: int = int(
+        os.getenv("HISTORICAL_PAUSE_REALTIME_ACTIVE", "1")
+    )
+    # Test-only latency injection. It is zero in every normal deployment and
+    # lets the isolated E2E stack prove historical pause/cancel/resume behaviour.
+    TEST_PROCESSING_DELAY_MS: int = int(os.getenv("TEST_PROCESSING_DELAY_MS", "0"))
+    # Batch placement is entered in the farm's business day, not UTC. Override
+    # per deployment when an edge site is outside Thailand.
+    FARM_TIMEZONE: str = os.getenv("FARM_TIMEZONE", "Asia/Bangkok")
     
     # Service URLs
     WEIGHVISION_SESSION_URL: str = os.getenv(

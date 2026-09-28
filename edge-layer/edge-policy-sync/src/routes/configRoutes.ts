@@ -55,6 +55,10 @@ export function createConfigRoutes(service: PolicySyncService): Router {
         last_error: state.state?.last_error || null,
         consecutive_failures: state.state?.consecutive_failures || 0,
         cache_entries: state.cacheEntries,
+        batch_cache_entries: state.batchCacheEntries,
+        batch_cache_oldest_age_seconds: state.batchCacheOldestAgeSeconds,
+        batch_last_success_at: state.batchState?.last_success_at || null,
+        batch_consecutive_failures: state.batchState?.consecutive_failures || 0,
         lag_seconds: lagSeconds,
       },
     })
@@ -93,6 +97,16 @@ export function createConfigRoutes(service: PolicySyncService): Router {
         source_etag: cached.source_etag,
       },
     })
+  })
+
+  router.get('/batch-context/:tenantId/:deviceId/:stationId', async (req: Request, res: Response) => {
+    const result = await service.resolveBatchContext(
+      req.params.tenantId,
+      req.params.deviceId,
+      req.params.stationId
+    )
+    const status = result.outcome === 'unassigned' ? 404 : result.outcome === 'ambiguous' ? 409 : 200
+    return res.status(status).json({ data: result })
   })
 
   return router

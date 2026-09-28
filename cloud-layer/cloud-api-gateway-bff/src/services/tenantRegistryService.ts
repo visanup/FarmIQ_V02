@@ -2,6 +2,9 @@ import { logger } from '../utils/logger'
 import { callDownstreamJson, getServiceBaseUrls } from './dashboardService'
 
 export interface TenantRegistryServiceClient {
+  getBatchContext(params: { query: Record<string, string>; headers: Record<string, string> }): Promise<{ ok: boolean; status: number; data?: any }>
+  createBatchBinding(params: { id: string; body: unknown; headers: Record<string, string> }): Promise<{ ok: boolean; status: number; data?: unknown }>
+  deleteBatchBinding(params: { id: string; bindingId: string; query: Record<string, string>; headers: Record<string, string> }): Promise<{ ok: boolean; status: number; data?: unknown }>
   getTenants(params: {
     query: Record<string, string>
     headers: Record<string, string>
@@ -51,6 +54,11 @@ export interface TenantRegistryServiceClient {
     query: Record<string, string>
     headers: Record<string, string>
   }): Promise<{ ok: boolean; status: number; data?: unknown }>
+  getBatch(params: {
+    id: string
+    query: Record<string, string>
+    headers: Record<string, string>
+  }): Promise<{ ok: boolean; status: number; data?: unknown }>
 
   getDevices(params: {
     query: Record<string, string>
@@ -97,6 +105,7 @@ export interface TenantRegistryServiceClient {
     body: unknown
     headers: Record<string, string>
   }): Promise<{ ok: boolean; status: number; data?: unknown }>
+  deleteBatch(params: { id: string; query: Record<string, string>; headers: Record<string, string> }): Promise<{ ok: boolean; status: number; data?: unknown }>
 
   // Devices
   createDevice(params: {
@@ -123,6 +132,23 @@ function buildQueryString(query: Record<string, string>): string {
 }
 
 export const tenantRegistryServiceClient: TenantRegistryServiceClient = {
+  async getBatchContext(params) {
+    const { registryBaseUrl } = getServiceBaseUrls()
+    return callDownstreamJson(`${registryBaseUrl}/api/v1/edge/batch-context${buildQueryString(params.query)}`, { method: 'GET', headers: params.headers }) as any
+  },
+  async createBatchBinding(params) {
+    const { registryBaseUrl } = getServiceBaseUrls()
+    return callDownstreamJson(`${registryBaseUrl}/api/v1/edge/batches/${encodeURIComponent(params.id)}/bindings`, {
+      method: 'POST', headers: params.headers, body: params.body,
+    })
+  },
+  async deleteBatchBinding(params) {
+    const { registryBaseUrl } = getServiceBaseUrls()
+    return callDownstreamJson(
+      `${registryBaseUrl}/api/v1/edge/batches/${encodeURIComponent(params.id)}/bindings/${encodeURIComponent(params.bindingId)}${buildQueryString(params.query)}`,
+      { method: 'DELETE', headers: params.headers },
+    )
+  },
   async getTenants(params) {
     const { registryBaseUrl } = getServiceBaseUrls()
     const queryString = buildQueryString(params.query)
@@ -331,6 +357,23 @@ export const tenantRegistryServiceClient: TenantRegistryServiceClient = {
       headers: params.headers,
       body: params.body,
     })
+  },
+
+  async getBatch(params) {
+    const { registryBaseUrl } = getServiceBaseUrls()
+    const queryString = buildQueryString(params.query)
+    const url = `${registryBaseUrl}/api/v1/batches/${params.id}${queryString}`
+    logger.info('Calling tenant-registry: GET /api/v1/batches/:id', { id: params.id })
+    return callDownstreamJson(url, {
+      method: 'GET',
+      headers: params.headers,
+    })
+  },
+
+  async deleteBatch(params) {
+    const { registryBaseUrl } = getServiceBaseUrls()
+    const url = `${registryBaseUrl}/api/v1/batches/${params.id}?${new URLSearchParams(params.query).toString()}`
+    return callDownstreamJson(url, { method: 'DELETE', headers: params.headers })
   },
 
   // Devices

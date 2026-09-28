@@ -25,5 +25,19 @@ export const OUTBOX_EVENT_TYPES = [
 
 export type OutboxEventType = (typeof OUTBOX_EVENT_TYPES)[number]
 
+// Local-only until a cloud consumer and explicit release policy are deployed.
+export const SHADOW_EVENT_TYPES = ['weighvision.group_allocation.completed'] as const
+export type ShadowEventType = (typeof SHADOW_EVENT_TYPES)[number]
+
 export type EdgeEventType = MqttEventType | OutboxEventType
+
+export const BATCH_CONTEXT_EVENT_TYPES = [
+  'batch.upsert',
+  'batch.activate',
+  'batch.deactivate',
+  'batch.binding.upsert',
+  'batch.binding.remove',
+] as const
+
+export type BatchContextEventType = (typeof BATCH_CONTEXT_EVENT_TYPES)[number]
 

@@ -17,6 +17,9 @@ jest.mock('../../src/utils/logger', () => ({
 }))
 
 const prisma = new PrismaClient()
+const exampleDelegate = (prisma as unknown as {
+  example: { create: jest.Mock; findMany: jest.Mock }
+}).example
 
 describe('exampleService', () => {
   afterEach(() => {
@@ -27,9 +30,9 @@ describe('exampleService', () => {
     it('should create a user and return the result', async () => {
       const payload = { name: 'John Doe', email: 'john@example.com', age: 30 }
       const mockResult = { id: 1, ...payload }
-      ;(prisma.example.create as jest.Mock).mockResolvedValue(mockResult)
+      exampleDelegate.create.mockResolvedValue(mockResult)
       const result = await createExample(payload)
-      expect(prisma.example.create).toHaveBeenCalledWith({ data: payload })
+      expect(exampleDelegate.create).toHaveBeenCalledWith({ data: payload })
       expect(logger.info).toHaveBeenCalledWith('++++++ Creating user ++++++++')
       expect(result).toEqual(mockResult)
     })
@@ -37,7 +40,7 @@ describe('exampleService', () => {
     it('should log an error and throw an exception if creation fails', async () => {
       const payload = { name: 'John Doe', email: 'john@example.com', age: 30 }
       const mockError = new Error('Database Error')
-      ;(prisma.example.create as jest.Mock).mockRejectedValue(mockError)
+      exampleDelegate.create.mockRejectedValue(mockError)
       await expect(createExample(payload)).rejects.toThrow(mockError)
       expect(logger.error).toHaveBeenCalledWith(
         'Error creating user:',
@@ -51,9 +54,9 @@ describe('exampleService', () => {
       const mockExamples = [
         { id: 1, name: 'Example 1', email: 'example1@example.com', age: 20 },
       ]
-      ;(prisma.example.findMany as jest.Mock).mockResolvedValue(mockExamples)
+      exampleDelegate.findMany.mockResolvedValue(mockExamples)
       const result = await getExamplesFromDatabase()
-      expect(prisma.example.findMany).toHaveBeenCalled()
+      expect(exampleDelegate.findMany).toHaveBeenCalled()
       expect(logger.info).toHaveBeenCalledWith(
         '++++++ Get example data ++++++++'
       )
@@ -62,7 +65,7 @@ describe('exampleService', () => {
 
     it('should log an error and throw an exception if fetching fails', async () => {
       const mockError = new Error('Database Error')
-      ;(prisma.example.findMany as jest.Mock).mockRejectedValue(mockError)
+      exampleDelegate.findMany.mockRejectedValue(mockError)
       await expect(getExamplesFromDatabase()).rejects.toThrow(mockError)
       expect(logger.error).toHaveBeenCalledWith(
         'Error fetching examples:',

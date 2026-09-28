@@ -842,6 +842,89 @@ paths:
         '502':
           description: Downstream service error
 
+  /api/v1/edge/batch-context:
+    get:
+      summary: Get the authoritative Batch context snapshot or delta for an Edge site
+      tags: [Edge Control]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: siteId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: sinceRevision
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: header
+          name: If-None-Match
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Batch context snapshot or delta with resolved model policy
+          headers:
+            ETag:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdgeBatchContextResponse'
+        '304': { description: Context and model policy are unchanged }
+        '400': { description: Invalid revision cursor }
+        '401': { description: Missing or invalid service credential }
+        '403': { description: Tenant or site is outside credential scope }
+        '502': { description: Downstream service unavailable }
+
+  /api/v1/batches/{batchId}/bindings:
+    post:
+      summary: Bind a device and optional station to a Batch
+      tags: [Batches]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId]
+              properties:
+                tenantId: { type: string }
+                deviceId: { type: string }
+                stationId: { type: string, nullable: true }
+      responses:
+        '201': { description: Binding created }
+        '400': { description: Validation error }
+        '403': { description: Insufficient role or tenant scope }
+        '422': { description: Device/station does not share the Batch scope }
+
+  /api/v1/batches/{batchId}/bindings/{bindingId}:
+    delete:
+      summary: Remove a Batch device binding
+      tags: [Batches]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: batchId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: bindingId
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Binding removed }
+        '403': { description: Insufficient role or tenant scope }
+        '404': { description: Binding not found }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -850,6 +933,42 @@ components:
       bearerFormat: JWT
 
   schemas:
+    EdgeBatchContextResponse:
+      type: object
+      required: [mode, reset, nextRevision, contexts, modelPolicy]
+      properties:
+        mode:
+          type: string
+          enum: [snapshot, delta]
+        reset: { type: boolean }
+        nextRevision: { type: integer, minimum: 0 }
+        contexts:
+          type: array
+          items:
+            type: object
+            required: [batchId, tenantId, farmId, barnId, revision, species, deviceBindings, modelPolicy]
+            properties:
+              batchId: { type: string }
+              tenantId: { type: string }
+              farmId: { type: string }
+              barnId: { type: string }
+              revision: { type: integer }
+              status: { type: string }
+              species: { type: string }
+              breedCode: { type: string, nullable: true }
+              sex: { type: string, nullable: true }
+              startDate: { type: string, format: date-time, nullable: true }
+              endDate: { type: string, format: date-time, nullable: true }
+              deviceBindings:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    bindingId: { type: string }
+                    deviceId: { type: string }
+                    stationId: { type: string, nullable: true }
+              modelPolicy: { type: object }
+        modelPolicy: { type: object }
     OverviewResponse:
       type: object
       properties:

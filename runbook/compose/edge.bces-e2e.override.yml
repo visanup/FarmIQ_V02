@@ -1,0 +1,76 @@
+# Apply after edge-layer/docker-compose.yml and docker-compose.dev.yml.
+services:
+  edge-cloud-ingestion-mock:
+    container_name: bces-e2e-edge-cloud-ingestion-mock
+    ports: !override ["5592:3000"]
+    networks: !override [bces-e2e-net]
+  postgres:
+    container_name: bces-e2e-edge-postgres
+    ports: !override ["5541:5432"]
+    volumes: [bces_e2e_edge_postgres:/var/lib/postgresql/data]
+    networks: !override [bces-e2e-net]
+  minio:
+    container_name: bces-e2e-edge-minio
+    ports: !override ["5900:9000", "5901:9001"]
+    volumes: [bces_e2e_edge_minio:/data]
+    networks: !override [bces-e2e-net]
+  edge-policy-sync:
+    container_name: bces-e2e-edge-policy-sync
+    ports: !override ["5509:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-edge-postgres:5432/farmiq
+      BFF_BASE_URL: http://bces-e2e-cloud-bff:3000
+      EDGE_CLOUD_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMmUtZWRnZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsInNpdGVfaWQiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAxMDEiLCJmYXJtX2lkIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMTAxIiwiYmFybl9pZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMTEwMSIsInJvbGVzIjpbImVkZ2Vfc2VydmljZSJdLCJpYXQiOjE3OTAzMDYxNzIsImV4cCI6MTc5MDMwOTc3MiwiYXVkIjoiZmFybWlxLWFwaSIsImlzcyI6ImZhcm1pcSJ9.njBjEK9eD3TdJMzmr4U_lf3KxtL5RwxLk5aaglVUJlk"
+      EDGE_CONTEXTS: '[{"tenantId":"00000000-0000-4000-8000-000000000001","farmId":"00000000-0000-4000-8000-000000000101","barnId":"00000000-0000-4000-8000-000000001101","siteId":"00000000-0000-4000-8000-000000000101"}]'
+      BATCH_CONTEXT_CACHE_ENABLED: "true"
+    networks: !override [bces-e2e-net]
+  edge-weighvision-session:
+    container_name: bces-e2e-edge-weighvision-session
+    ports: !override ["5505:3000"]
+    environment:
+      # Session producer and forwarder deliberately share only this isolated
+      # E2E database: the transactional outbox is their hand-off boundary.
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-edge-postgres:5432/farmiq
+      BATCH_CONTEXT_AUTO_BIND_ENABLED: "true"
+      BATCH_CONTEXT_RESOLVER_URL: http://bces-e2e-edge-policy-sync:3000/api/v1/edge-config
+    networks: !override [bces-e2e-net]
+  edge-media-store:
+    container_name: bces-e2e-edge-media-store
+    ports: !override ["5506:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-edge-postgres:5432/edge_media_store
+    networks: !override [bces-e2e-net]
+  edge-vision-inference:
+    container_name: bces-e2e-edge-vision-inference
+    ports: !override ["5507:8000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-edge-postgres:5432/edge_vision_inference
+      BATCH_CONTEXT_INFERENCE_ENABLED: "true"
+      WEIGHVISION_SESSION_URL: http://bces-e2e-edge-weighvision-session:3000
+      # Historical replay must fetch a retained object through the real media
+      # store contract; the ingestion mock only receives Cloud batches.
+      MEDIA_STORE_URL: http://bces-e2e-edge-media-store:3000
+      HISTORICAL_REPROCESS_ENABLED: "true"
+      HISTORICAL_REPROCESS_CONCURRENCY: "1"
+      HISTORICAL_PAUSE_REALTIME_ACTIVE: "1"
+      # Isolated-test instrumentation; unset/zero in normal deployments.
+      TEST_PROCESSING_DELAY_MS: "2500"
+    networks: !override [bces-e2e-net]
+  edge-sync-forwarder:
+    container_name: bces-e2e-edge-sync-forwarder
+    ports: !override ["5508:3000"]
+    environment:
+      DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-edge-postgres:5432/farmiq
+      # Edge Vision owns a separate operational DB; forward its transactional
+      # outbox without moving that ownership to the shared database.
+      SYNC_SOURCE_DATABASE_URLS: postgresql://farmiq:farmiq_dev@bces-e2e-edge-postgres:5432/edge_vision_inference
+      CLOUD_INGESTION_URL: http://bces-e2e-cloud-ingestion:3000/api/v1/edge/batch
+    networks: !override [bces-e2e-net]
+networks:
+  bces-e2e-net:
+    external: true
+volumes:
+  bces_e2e_edge_postgres:
+    name: bces-e2e-edge-postgres
+  bces_e2e_edge_minio:
+    name: bces-e2e-edge-minio

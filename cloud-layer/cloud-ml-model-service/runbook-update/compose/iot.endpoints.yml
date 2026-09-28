@@ -1,0 +1,15 @@
+# IOT_EDGE_HOST is host.docker.internal on one-machine Dev, 192.168.1.120 on PoC.
+# Paths remain relative to iot-layer/docker-compose.yml.
+services:
+  weight-vision-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      MQTT_HOST: ${IOT_EDGE_HOST:?Set the host reachable from IoT containers}
+      MQTT_HOSTS: ${IOT_EDGE_HOST}:5100
+      MQTT_PORT: '5100'
+      MQTT_BROKER_URL: ''
+      EDGE_MEDIA_STORE_BASE_URL: http://${IOT_EDGE_HOST}:5106
+      EDGE_SESSION_BASE_URL: http://${IOT_EDGE_HOST}:5105
+      EDGE_VISION_INFERENCE_BASE_URL: http://${IOT_EDGE_HOST}:5107
+      MEDIA_UPLOAD_HOST: ${IOT_EDGE_HOST}:9000

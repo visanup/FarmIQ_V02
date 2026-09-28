@@ -359,12 +359,6 @@ export async function processIngressMessage(params: {
     ): { url: string; body: unknown } | null => {
       if (!sessionId || typeof sessionId !== 'string') return null
       if (eventType === 'weighvision.session.created') {
-        const batchId =
-          payloadRecord && typeof payloadRecord['batchId'] === 'string'
-            ? payloadRecord['batchId']
-            : payloadRecord && typeof payloadRecord['batch_id'] === 'string'
-              ? payloadRecord['batch_id']
-              : undefined
         return {
           url: `${base}/api/v1/weighvision/sessions`,
           body: {
@@ -375,7 +369,6 @@ export async function processIngressMessage(params: {
             barnId: topic.barnId,
             deviceId: envelope.device_id,
             stationId: topic.stationId,
-            batchId: typeof batchId === 'string' ? batchId : undefined,
             startAt: envelope.ts,
           },
         }

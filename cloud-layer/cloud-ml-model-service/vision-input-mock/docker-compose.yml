@@ -1,0 +1,25 @@
+services:
+  vision-input-mock:
+    build: .
+    image: farmiq-vision-input-mock:dev
+    ports:
+      - "5110:3000"
+    environment:
+      VISION_INFERENCE_URL: http://edge-vision-inference:8000
+      AUTO_SUBMIT_ENABLED: "true"
+      MOCK_INTERVAL_SECONDS: "60"
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_BUCKET: vision-input-mock
+    networks:
+      farmiq-edge-net:
+        aliases:
+          - edge-media-store
+          - edge-weighvision-session
+          - edge-policy-sync
+
+networks:
+  farmiq-edge-net:
+    external: true
+    name: farmiq-edge_farmiq-net

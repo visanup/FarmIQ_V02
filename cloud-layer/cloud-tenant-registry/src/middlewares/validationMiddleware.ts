@@ -24,9 +24,16 @@ export const barnSchema = z.object({
 
 export const batchSchema = z.object({
   species: z.string().min(1),
+  breedCode: z.string().min(1).optional(),
+  sex: z.enum(['as_hatched', 'male', 'female']).optional(),
+  initialHeadcount: z.number().int().positive().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
   status: z.enum(['active', 'completed', 'cancelled']).optional(),
+})
+
+export const batchUpdateSchema = batchSchema.partial().refine((data) => Object.keys(data).length > 0, {
+  message: 'At least one batch field is required for update',
 })
 
 export const deviceSchema = z.object({
@@ -55,8 +62,11 @@ export const deviceUpdateSchema = z
 
 export const stationSchema = z.object({
   name: z.string().min(1),
-  farmId: z.string().uuid(),
-  barnId: z.string().uuid(),
+  // FarmIQ supports stable topology identifiers (for example `f-001` and
+  // `b-001`) in addition to UUIDs.  These are the IDs emitted by the tenant
+  // topology APIs, so station creation must accept the same identifier form.
+  farmId: z.string().min(1),
+  barnId: z.string().min(1),
   stationType: z.string().optional(),
   status: z.enum(['active', 'inactive']).optional(),
 })
@@ -135,6 +145,7 @@ export const validateTenant = validateBody(tenantSchema)
 export const validateFarm = validateBody(farmSchema)
 export const validateBarn = validateBody(barnSchema)
 export const validateBatch = validateBody(batchSchema)
+export const validateBatchUpdate = validateBody(batchUpdateSchema)
 export const validateDevice = validateBody(deviceSchema)
 export const validateDeviceUpdate = validateBody(deviceUpdateSchema)
 export const validateStation = validateBody(stationSchema)

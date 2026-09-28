@@ -1,0 +1,19 @@
+# Matches the candidate training runtime; CPU-only XGBoost avoids CUDA downloads.
+fastapi==0.115.12
+python-dotenv==1.1.0
+python-multipart==0.0.20
+uvicorn==0.34.2
+pydantic==2.5.0
+asyncpg==0.29.0
+httpx==0.28.1
+Pillow==10.0.0
+pandas==2.3.3
+numpy==2.4.6
+scipy==1.17.1
+scikit-learn==1.9.1
+joblib==1.6.0
+cloudpickle==3.1.2
+xgboost-cpu==3.2.0
+openpyxl==3.1.5
+pytest==8.3.4
+pytest-asyncio==0.25.0

@@ -68,14 +68,11 @@ COPY --from=build /usr/src/app/openapi.yaml ./openapi.yaml
 # Install nodemon globally for hot-reload
 RUN npm install -g nodemon ts-node
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
-
 EXPOSE 3000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-CMD curl --fail http://localhost:3000/api/health || exit 1
+CMD wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1
 
 # Start the application in development mode
 CMD ["npm", "run", "dev"]
@@ -112,9 +109,6 @@ COPY --from=build /usr/src/app/node_modules/@prisma ./node_modules/@prisma
 # Copy the openapi.yaml file
 COPY --from=build /usr/src/app/openapi.yaml ./openapi.yaml
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
-
 # Create a non-root user
 RUN adduser -D -u 1001 nodeuser
 
@@ -126,7 +120,7 @@ EXPOSE 3000
 
 # Healthcheck to ensure the app is running
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-CMD curl --fail http://localhost:3000/api/health || exit 1
+CMD wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1
 
 # Run migrations first; if schema baseline already exists (P3005), fallback to db push in dev-like environments.
 CMD sh -c "npx prisma migrate deploy || npx prisma db push && node dist/src/index.js"

@@ -11,9 +11,11 @@ import { OutboxService } from '../../src/services/outboxService'
 import { SyncConfig } from '../../src/config'
 import { createDataSource } from '../../src/db/dataSource'
 
-// Skip if DATABASE_URL not set for integration tests
-const DATABASE_URL = process.env.TEST_DATABASE_URL || process.env.DATABASE_URL
-const describeIfDb = DATABASE_URL ? describe : describe.skip
+// This test calls synchronize(true), so it must never fall back to the
+// forwarder's operational DATABASE_URL. Point TEST_DATABASE_URL at an
+// isolated, disposable database created specifically for this suite.
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL
+const describeIfDb = TEST_DATABASE_URL ? describe : describe.skip
 
 describeIfDb('Multi-replica outbox claim/lease', () => {
   let dataSource: DataSource
@@ -27,7 +29,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
   }
 
   beforeAll(async () => {
-    dataSource = createDataSource()
+    dataSource = createDataSource(TEST_DATABASE_URL)
     await dataSource.initialize()
     await dataSource.synchronize(true) // WARNING: Only in tests - drops all tables
     outboxService = new OutboxService(dataSource, config)
@@ -41,7 +43,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
 
   beforeEach(async () => {
     // Clean up before each test
-    await dataSource.getRepository(OutboxEntity).delete({})
+    await dataSource.getRepository(OutboxEntity).clear()
   })
 
   it('should allow multiple replicas to claim different rows concurrently', async () => {
@@ -52,7 +54,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     const entities: OutboxEntity[] = []
     for (let i = 0; i < 200; i++) {
       const entity = repo.create({
-        id: `test-${i}`,
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
         tenantId: `tenant-${i % 10}`,
         eventType: 'test.event',
         status: 'pending',
@@ -117,7 +119,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
 
     // Create a single pending row
     const entity = repo.create({
-      id: 'single-row',
+      id: '00000000-0000-4000-8000-000000000201',
       tenantId: 'tenant-1',
       eventType: 'test.event',
       status: 'pending',
@@ -144,8 +146,8 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     const [claimed1, claimed2] = await Promise.all([replica1Promise, replica2Promise])
 
     // Only one replica should have claimed the row
-    const replica1HasIt = claimed1.some((e) => e.id === 'single-row')
-    const replica2HasIt = claimed2.some((e) => e.id === 'single-row')
+    const replica1HasIt = claimed1.some((e) => e.id === '00000000-0000-4000-8000-000000000201')
+    const replica2HasIt = claimed2.some((e) => e.id === '00000000-0000-4000-8000-000000000201')
 
     expect(replica1HasIt || replica2HasIt).toBe(true)
     expect(replica1HasIt && replica2HasIt).toBe(false) // Not both
@@ -156,7 +158,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     const now = new Date()
 
     const entity = repo.create({
-      id: 'expired-lease-row',
+      id: '00000000-0000-4000-8000-000000000202',
       tenantId: 'tenant-1',
       eventType: 'test.event',
       status: 'pending',
@@ -175,7 +177,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     })
 
     expect(claimed1.length).toBe(1)
-    expect(claimed1[0].id).toBe('expired-lease-row')
+    expect(claimed1[0].id).toBe('00000000-0000-4000-8000-000000000202')
     expect(claimed1[0].claimedBy).toBe('replica-1')
 
     // Wait for lease to expire
@@ -189,7 +191,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     })
 
     expect(claimed2.length).toBe(1)
-    expect(claimed2[0].id).toBe('expired-lease-row')
+    expect(claimed2[0].id).toBe('00000000-0000-4000-8000-000000000202')
     expect(claimed2[0].claimedBy).toBe('replica-2')
   })
 
@@ -199,7 +201,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     const future = new Date(now.getTime() + 60000) // 1 minute in future
 
     const entity = repo.create({
-      id: 'future-row',
+      id: '00000000-0000-4000-8000-000000000203',
       tenantId: 'tenant-1',
       eventType: 'test.event',
       status: 'pending',
@@ -225,7 +227,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     const now = new Date()
 
     const entity = repo.create({
-      id: 'ack-test',
+      id: '00000000-0000-4000-8000-000000000204',
       tenantId: 'tenant-1',
       eventType: 'test.event',
       status: 'pending',
@@ -258,7 +260,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     const now = new Date()
 
     const entity = repo.create({
-      id: 'retry-test',
+      id: '00000000-0000-4000-8000-000000000205',
       tenantId: 'tenant-1',
       eventType: 'test.event',
       status: 'pending',
@@ -294,7 +296,7 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     const now = new Date()
 
     const entity = repo.create({
-      id: 'dlq-test',
+      id: '00000000-0000-4000-8000-000000000206',
       tenantId: 'tenant-1',
       eventType: 'test.event',
       status: 'pending',
@@ -323,5 +325,5 @@ describeIfDb('Multi-replica outbox claim/lease', () => {
     expect(dlq?.dlqReason).toBe('max_attempts_exceeded')
     expect(dlq?.failedAt).toBeDefined()
   })
-}, 30000) // 30 second timeout
+})
 

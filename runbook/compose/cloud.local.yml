@@ -1,0 +1,21 @@
+# Merge after cloud-layer/docker-compose.yml AND docker-compose.dev.yml.
+# Requires Compose supporting !override (2.24.4+).
+services:
+  # Local development mock: avoids downloading the advanced ML/statistics stack
+  # while keeping the service port and /api/health contract available.
+  cloud-advanced-analytics:
+    build:
+      dockerfile: Dockerfile.mock
+    command: ["python", "/mock/mock_server.py"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cloud-hybrid-router:
+    # 5141 is already the Edge PostgreSQL host port on the same machine.
+    ports: !override
+      - "5149:5140"
+  datadog:
+    profiles: [observability]
