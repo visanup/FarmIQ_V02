@@ -99,3 +99,10 @@ Tenant Registry ต้องบันทึก Batch และ event สำห�
 |---|---|
 | event ซ้ำหรือไม่เรียงลำดับ | idempotent `eventId` และ monotonic revision |
 | Batch เดิมไม่มี binding | เผยแพร่เป็น unbound; Edge ต้องไม่เดา |
+
+## Revalidation 2026-09-28
+
+ตรวจ implementation/migration จาก source และรัน Tenant Registry targeted Jest
+ผ่าน 3 suites / 11 tests. Realtime isolated E2E ยืนยัน session/outbox ถูกส่งถึง
+Cloud โดยคง revision/provenance. หลักฐานรวมอยู่ใน
+`../BCES-001-007-VALIDATION-REPORT.md`.

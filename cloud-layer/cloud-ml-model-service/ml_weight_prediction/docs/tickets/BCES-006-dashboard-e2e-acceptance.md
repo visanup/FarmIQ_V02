@@ -98,3 +98,11 @@ Dashboard → Cloud → Edge → Cloud → Dashboard
 |---|---|
 | Docker stack ใช้ RAM สูง | ระบุ minimal profile และ service dependency ชัดเจน |
 | test flaky จาก async sync | poll health/state ด้วย timeout และ correlation ID |
+
+## Revalidation 2026-09-28
+
+Cloud/Edge Compose config ผ่านและ minimum `bces-e2e-*` stack healthy. Dashboard
+Vite production build ผ่าน; browser login/list/detail แสดง Station, Batch,
+ROSS-308/day 24, 5.16 kg, SHADOW_STUB และ NO_SITE_SUBSCRIPTION. แก้ list query
+ที่ค้าง empty state จาก `initialData: []`. Full Dashboard type-check/Vitest ยังมี
+baseline blockers นอก BCES ซึ่งบันทึกใน validation report.

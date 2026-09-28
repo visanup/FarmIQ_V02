@@ -20,6 +20,7 @@ from botocore.exceptions import ClientError
 
 
 VISION_INFERENCE_URL = os.getenv("VISION_INFERENCE_URL", "http://edge-vision-inference:8000")
+MEDIA_STORE_URL = os.getenv("MEDIA_STORE_URL", "").rstrip("/")
 PORT = int(os.getenv("PORT", "3000"))
 AUTO_SUBMIT_ENABLED = os.getenv("AUTO_SUBMIT_ENABLED", "true").lower() == "true"
 MOCK_INTERVAL_SECONDS = max(1, int(os.getenv("MOCK_INTERVAL_SECONDS", "60")))
@@ -204,6 +205,36 @@ class Handler(BaseHTTPRequestHandler):
             "object_key": object_key,
             "tenant_id": tenant_id,
         }
+
+        # The production inference path reads media through edge-media-store,
+        # not from this mock's in-memory endpoint.  When MEDIA_STORE_URL is
+        # configured, complete the real media-store handshake before enqueueing
+        # inference and use the authoritative media id returned by that service.
+        inference_job_id = None
+        if MEDIA_STORE_URL:
+            complete_payload = {
+                "tenant_id": tenant_id,
+                "farm_id": get_value(payload, "farm_id", "farmId", "mock-farm"),
+                "barn_id": get_value(payload, "barn_id", "barnId", "mock-barn"),
+                "device_id": get_value(payload, "device_id", "deviceId", "mock-camera"),
+                "session_id": session_id,
+                "object_key": object_key,
+                "mime_type": content_type,
+                "size_bytes": len(image),
+                "captured_at": get_value(payload, "occurred_at", "occurredAt", "2026-09-22T00:00:00Z"),
+            }
+            complete_body = json.dumps(complete_payload).encode("utf-8")
+            complete_request = Request(
+                f"{MEDIA_STORE_URL}/api/v1/media/images/complete",
+                data=complete_body,
+                headers={"content-type": "application/json", "x-tenant-id": tenant_id},
+                method="POST",
+            )
+            with urlopen(complete_request, timeout=15) as response:
+                completed = json.loads(response.read().decode("utf-8"))
+            media_id = completed["media_id"]
+            inference_job_id = completed.get("inference_job_id")
+            capture["mediaIds"] = [media_id]
         captures_by_session.setdefault(session_id, []).append(capture)
 
         job_payload = {
@@ -215,15 +246,21 @@ class Handler(BaseHTTPRequestHandler):
             "session_id": session_id,
             "media_id": media_id,
         }
-        body = json.dumps(job_payload).encode("utf-8")
-        request = Request(
-            f"{VISION_INFERENCE_URL}/api/v1/inference/jobs",
-            data=body,
-            headers={"content-type": "application/json", "x-tenant-id": tenant_id, "x-request-id": str(uuid.uuid4())},
-            method="POST",
-        )
-        with urlopen(request, timeout=15) as response:
-            job = json.loads(response.read().decode("utf-8"))
+        if inference_job_id:
+            # edge-media-store already triggered inference as part of the
+            # completion handshake. Submitting again here would create two
+            # predictions for the same media object.
+            job = {"job_id": inference_job_id, "status": "queued", "triggered_by": "media-store"}
+        else:
+            body = json.dumps(job_payload).encode("utf-8")
+            request = Request(
+                f"{VISION_INFERENCE_URL}/api/v1/inference/jobs",
+                data=body,
+                headers={"content-type": "application/json", "x-tenant-id": tenant_id, "x-request-id": str(uuid.uuid4())},
+                method="POST",
+            )
+            with urlopen(request, timeout=15) as response:
+                job = json.loads(response.read().decode("utf-8"))
         self.json_response(HTTPStatus.ACCEPTED, {
             "mediaId": media_id,
             "captureId": capture_id,
@@ -249,6 +286,7 @@ if __name__ == "__main__":
 
     print(
         f"vision-input-mock listening on :{PORT}; submitting to {VISION_INFERENCE_URL}; "
+        f"media_store={MEDIA_STORE_URL or 'mock-local'}, "
         f"auto_submit={AUTO_SUBMIT_ENABLED}, interval={MOCK_INTERVAL_SECONDS}s",
         flush=True,
     )

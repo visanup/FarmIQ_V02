@@ -161,3 +161,8 @@ apps/dashboard-web/apps/
 
 # Temporary LibreOffice lock files
 .~lock.*#
+
+# Local-only BCES clean-volume E2E configuration and runtime output
+*.bces-e2e.env
+.bces-e2e/
+**/.bces-e2e/

@@ -75,3 +75,10 @@
 |---|---|
 | model bundle/cache ไม่พร้อม | explicit fallback + package readiness metric |
 | เวลา capture ต่าง timezone | บังคับ farm timezone และ test boundary ของวัน |
+
+## Revalidation 2026-09-28
+
+Realtime E2E ล่าสุดสร้าง inference เดียว (ไม่ซ้ำ) น้ำหนัก 5.16 kg พร้อม
+`batch-e2e-t001`, ROSS-308, age 24, `shadow_stub` และ
+`NO_SITE_SUBSCRIPTION`. Runtime image ไม่มี pytest จึงไม่ได้ rerun Python suite;
+current container health และ full runtime path ผ่าน.

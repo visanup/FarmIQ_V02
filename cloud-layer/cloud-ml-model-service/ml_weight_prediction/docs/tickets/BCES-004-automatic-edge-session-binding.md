@@ -64,3 +64,9 @@
 - deploy schema ก่อน resolver
 - เปิด feature flag ทีละ site/station และ monitor unassigned rate
 - rollback ปิด auto-bind; session ที่ stamp แล้วต้องคง immutable
+
+## Revalidation 2026-09-28
+
+Edge session build ผ่านและ targeted Jest 4 suites / 12 tests. E2E session
+`bces-validate-3fb6f3591092` ส่งเฉพาะ tenant/farm/barn/device/station แต่ได้ Batch,
+revision และ immutable provenance ถูกต้อง; caller ไม่ส่ง `batchId`.

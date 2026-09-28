@@ -84,3 +84,9 @@ full snapshot พร้อม `nextRevision` และ ETag
 |---|---|
 | model package ไม่ตรง breed | resolver ต้องตอบ explicit fallback reason |
 | Edge poll ถี่เกิน | ETag/revision และ rate limit ต่อ site |
+
+## Revalidation 2026-09-28
+
+BFF targeted tests ผ่าน 3 suites / 11 tests และ full suite ผ่าน 13 suites / 47
+tests. Live Edge credential ที่มี tenant/site scope ได้ snapshot 2 contexts,
+revision 3, ETag และ explicit `NO_SITE_SUBSCRIPTION`; policy cache sync สำเร็จ.

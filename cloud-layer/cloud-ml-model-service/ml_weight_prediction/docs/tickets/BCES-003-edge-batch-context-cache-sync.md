@@ -73,3 +73,9 @@ GET /api/v1/edge-config/batch-context/:tenantId/:deviceId/:stationId
 |---|---|
 | cache ล้าสมัยหลังเปลี่ยน flock | revision, short TTL, stale alert และ deactivate event |
 | Batch เดียวผูกหลาย station | ทำ binding เป็น record อิสระ ไม่แชร์ mutable state |
+
+## Revalidation 2026-09-28
+
+Type-check ผ่าน, container unit 9/9 และ DB integration 1/1. Live lookup ของ
+`t-001/wv-001/st-001` resolve เป็น `batch-e2e-t001` revision 1 พร้อม model policy;
+sync failures เป็นศูนย์หลัง Cloud พร้อม.

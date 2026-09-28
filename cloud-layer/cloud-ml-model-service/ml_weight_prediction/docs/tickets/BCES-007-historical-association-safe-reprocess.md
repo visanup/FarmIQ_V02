@@ -135,3 +135,10 @@
 | reprocess แย่ง GPU realtime | dedicated quota, priority queue, utilization guardrail |
 | source image หมดอายุ | preflight media retention และรายงานข้ามรายการที่ใช้ไม่ได้ |
 | ผูก Batch ผิดย้อนหลัง | preview, explicit confirmation, audit และ reversible association |
+
+## Revalidation 2026-09-28
+
+Read-only clean E2E query ยืนยัน revision `03c3a9e4-...` อ้าง original
+`e15d3256-...`, revision=1 และทั้ง original/revision ยังอยู่. Association audit
+ยังอยู่ 1 รายการ; controlled backlog pause/cancel/resume evidence และ read-model
+safety tests 5/5 ผ่าน. รายละเอียดคำสั่งอยู่ใน runbook และ validation report.

@@ -306,7 +306,6 @@ export const SessionsListPage: React.FC = () => {
             return [];
         },
         enabled: !!tenantId,
-        initialData: [],
     });
 
     if (error) {

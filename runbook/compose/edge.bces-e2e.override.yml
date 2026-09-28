@@ -20,8 +20,9 @@ services:
     environment:
       DATABASE_URL: postgresql://farmiq:farmiq_dev@bces-e2e-edge-postgres:5432/farmiq
       BFF_BASE_URL: http://bces-e2e-cloud-bff:3000
-      EDGE_CLOUD_TOKEN: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlMmUtZWRnZSIsInRlbmFudF9pZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsInNpdGVfaWQiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAxMDEiLCJmYXJtX2lkIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMTAxIiwiYmFybl9pZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMTEwMSIsInJvbGVzIjpbImVkZ2Vfc2VydmljZSJdLCJpYXQiOjE3OTAzMDYxNzIsImV4cCI6MTc5MDMwOTc3MiwiYXVkIjoiZmFybWlxLWFwaSIsImlzcyI6ImZhcm1pcSJ9.njBjEK9eD3TdJMzmr4U_lf3KxtL5RwxLk5aaglVUJlk"
-      EDGE_CONTEXTS: '[{"tenantId":"00000000-0000-4000-8000-000000000001","farmId":"00000000-0000-4000-8000-000000000101","barnId":"00000000-0000-4000-8000-000000001101","siteId":"00000000-0000-4000-8000-000000000101"}]'
+      # Generate a short-lived token at run time; never commit a reusable JWT.
+      EDGE_CLOUD_TOKEN: "${BCES_EDGE_CLOUD_TOKEN:?Set BCES_EDGE_CLOUD_TOKEN to a short-lived E2E edge-service JWT}"
+      EDGE_CONTEXTS: '[{"tenantId":"t-001","farmId":"f-001","barnId":"b-001","siteId":"site-e2e"}]'
       BATCH_CONTEXT_CACHE_ENABLED: "true"
     networks: !override [bces-e2e-net]
   edge-weighvision-session:
