@@ -166,3 +166,7 @@ apps/dashboard-web/apps/
 *.bces-e2e.env
 .bces-e2e/
 **/.bces-e2e/
+
+# Local credentials and overrides for the Vision input mock
+cloud-layer/cloud-ml-model-service/vision-input-mock/.env*
+!cloud-layer/cloud-ml-model-service/vision-input-mock/.env.example

@@ -107,6 +107,29 @@ describe('PolicySyncService Batch context cache', () => {
     }
   })
 
+  it('refreshes cache expiry when a successful 200 delta has no changes', async () => {
+    const calls: string[] = []
+    const client = {
+      query: async (sql: string) => { calls.push(sql); return { rowCount: 1, rows: [] } },
+      release: () => undefined,
+    }
+    const pool: any = {
+      query: async () => ({ rows: [{ revision: 7, source_etag: 'etag-7' }] }),
+      connect: async () => client,
+    }
+    const previousFetch = global.fetch
+    global.fetch = async () => new Response(JSON.stringify({
+      mode: 'delta', reset: false, nextRevision: 7, contexts: [],
+    }), { status: 200, headers: { etag: 'etag-7' } })
+    try {
+      const service = new PolicySyncService(pool, config)
+      await (service as any).syncBatchContext({ tenantId: 't-1', farmId: 'f-1', barnId: 'b-1', siteId: 'site-1' })
+      assert.equal(calls.filter((sql) => sql.includes('expires_at=NOW()')).length, 1)
+    } finally {
+      global.fetch = previousFetch
+    }
+  })
+
   it('rejects a Batch context outside the configured tenant/farm/barn scope', () => {
     const service = new PolicySyncService({} as any, config)
     assert.throws(

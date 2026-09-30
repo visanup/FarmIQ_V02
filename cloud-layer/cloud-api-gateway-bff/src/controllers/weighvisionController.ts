@@ -262,15 +262,17 @@ export async function getAnalyticsHandler(req: Request, res: Response) {
     const farmId = req.query.farm_id as string | undefined || req.query.farmId as string | undefined
     const barnId = req.query.barn_id as string | undefined || req.query.barnId as string | undefined
     const batchId = req.query.batch_id as string | undefined || req.query.batchId as string | undefined
-    const startDate = req.query.start_date as string
-    const endDate = req.query.end_date as string
+    // Dashboard's active time-range hook uses `from`/`to`. Keep the
+    // documented snake_case form for external clients too.
+    const startDate = (req.query.from as string) || (req.query.start_date as string) || (req.query.startDate as string)
+    const endDate = (req.query.to as string) || (req.query.end_date as string) || (req.query.endDate as string)
     const aggregation = (req.query.aggregation as 'daily' | 'weekly' | 'monthly') || 'daily'
 
     if (!startDate || !endDate) {
       return res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'start_date and end_date are required',
+          message: 'from/to (or start_date/end_date) are required',
           traceId: res.locals.traceId || 'unknown',
         },
       })

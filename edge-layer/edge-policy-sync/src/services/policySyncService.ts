@@ -262,6 +262,10 @@ export class PolicySyncService {
       this.validateBatchContextPayload(context, payload)
       const etag = response.headers.get('etag')
       await this.applyBatchContextPayload(context, payload, etag)
+      // A 200 delta may legitimately contain no changed contexts.  It still
+      // proves the cached active records are current; without this refresh an
+      // otherwise healthy cache eventually becomes stale forever.
+      await this.markBatchSyncSuccess(context, payload.nextRevision, etag, true)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       await this.pool.query(
@@ -318,7 +322,12 @@ export class PolicySyncService {
                  batch_id=EXCLUDED.batch_id, device_id=EXCLUDED.device_id,
                  station_id=EXCLUDED.station_id, revision=EXCLUDED.revision,
                  active=EXCLUDED.active, updated_at=NOW()
-               WHERE edge_batch_binding_cache.revision <= EXCLUDED.revision`,
+               -- A device can be reassigned to a newly-created batch whose
+               -- per-batch revision starts below the previous batch's
+               -- revision.  In that case the batch identity must win; using
+               -- the revision alone leaves Edge permanently unassigned.
+               WHERE edge_batch_binding_cache.revision <= EXCLUDED.revision
+                  OR edge_batch_binding_cache.batch_id <> EXCLUDED.batch_id`,
               [item.tenantId, item.batchId, binding.bindingId, binding.deviceId, binding.stationId, item.revision, lifecycle === 'active']
             )
           }

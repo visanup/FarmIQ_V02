@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, MenuItem } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/PageHeader';
@@ -14,13 +14,21 @@ import { ClipboardList } from 'lucide-react';
 import { z } from 'zod';
 
 const SPECIES_OPTIONS = ['broiler', 'layer', 'swine', 'fish'];
-// These values are canonical ML metadata.  The current approved XGBoost package
-// supports the Arbor Acres Plus broiler standard only.
-const BREED_OPTIONS = ['Arbor Acres Plus'];
 const SEX_OPTIONS = [
   { value: 'as_hatched', label: 'As-Hatched' },
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
+];
+// Dev model catalog.  A production implementation should fetch this catalog
+// from the Cloud ML model registry for the selected tenant/site.
+const BREED_MODEL_CATALOG: Record<string, { sexes: string[]; availability: 'approved' | 'fallback' }> = {
+  'Arbor Acres Plus': { sexes: ['as_hatched', 'male', 'female'], availability: 'approved' },
+  'Ross 308': { sexes: ['male', 'female'], availability: 'fallback' },
+};
+const BATCH_STATUS_OPTIONS = [
+  { value: 'active', label: 'Active — รอบที่ Edge ใช้งานอยู่' },
+  { value: 'completed', label: 'Completed — ปิดรอบและเก็บประวัติ' },
+  { value: 'cancelled', label: 'Cancelled — ยกเลิกรอบ' },
 ];
 
 export const BatchesPage: React.FC = () => {
@@ -43,10 +51,14 @@ export const BatchesPage: React.FC = () => {
   const [bindingDeviceId, setBindingDeviceId] = useState('');
   const [bindingStationId, setBindingStationId] = useState('');
   const [bindingStatus, setBindingStatus] = useState<string | null>(null);
+  const [bindingConflict, setBindingConflict] = useState<{ batchId: string } | null>(null);
+  const [bindingDevices, setBindingDevices] = useState<any[]>([]);
+  const allowedSexes = BREED_MODEL_CATALOG[breed]?.sexes || [];
+  const availableSexOptions = SEX_OPTIONS.filter((option) => allowedSexes.includes(option.value));
 
   const createSchema = z.object({
     species: z.string().min(1, 'Species is required'),
-    status: z.string().min(1, 'Status is required'),
+    status: z.enum(['active', 'completed', 'cancelled']),
     breed: z.string().min(1, 'Breed is required'),
     sex: z.enum(['as_hatched', 'male', 'female']),
     headcount: z.number().int().positive().optional(),
@@ -58,6 +70,13 @@ export const BatchesPage: React.FC = () => {
     () => !tenantId || !farmId || !effectiveBarnId || !species.trim() || !breed.trim() || !sex,
     [tenantId, farmId, effectiveBarnId, species, breed, sex]
   );
+
+  useEffect(() => {
+    if (!bindingBatch || !tenantId || !farmId || !effectiveBarnId) return;
+    void api.devices.list({ tenantId, farmId, barnId: effectiveBarnId, page: 1, pageSize: 100 })
+      .then((response) => setBindingDevices((response.data as any)?.data || response.data || []))
+      .catch(() => setBindingDevices([]));
+  }, [bindingBatch, tenantId, farmId, effectiveBarnId]);
 
   const handleCreate = async () => {
     if (!tenantId || !farmId || !effectiveBarnId || !species.trim()) return;
@@ -76,15 +95,15 @@ export const BatchesPage: React.FC = () => {
         return;
       }
       await api.batches.create({
-        farm_id: farmId,
-        barn_id: effectiveBarnId,
+        farmId,
+        barnId: effectiveBarnId,
         species: parsed.data.species,
         breedCode: parsed.data.breed,
         sex: parsed.data.sex,
         initialHeadcount: parsed.data.headcount,
         status: parsed.data.status,
-        start_date: parsed.data.startDate,
-        end_date: parsed.data.endDate,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
       });
       setCreateOpen(false);
       setStartDate('');
@@ -138,6 +157,20 @@ export const BatchesPage: React.FC = () => {
 
   const handleCreateBinding = async () => {
     if (!bindingBatch || !bindingDeviceId.trim()) return;
+    const deviceId = bindingDeviceId.trim();
+    const stationId = bindingStationId.trim();
+    const conflictingBatch = batches.find((batch: any) =>
+      batch.id !== bindingBatch.id &&
+      batch.status === 'active' &&
+      batch.devices?.some((device: any) =>
+        device.id === deviceId &&
+        (!stationId || device.metadata?.stationId === stationId)
+      )
+    );
+    if (conflictingBatch) {
+      setBindingConflict({ batchId: conflictingBatch.id });
+      return;
+    }
     try {
       const response = await api.batches.bindings.create(bindingBatch.id, {
         tenantId: tenantId || undefined,
@@ -150,7 +183,22 @@ export const BatchesPage: React.FC = () => {
       setBindingStationId('');
       await refetch();
     } catch (err: any) {
-      setBindingStatus(err?.message || 'Failed to create batch binding');
+      if (err?.response?.status === 422) {
+        const available = bindingDevices.map((device) => {
+          const deviceName = device.serialNo || device.id;
+          const stationName = device?.metadata?.stationId || 'ยังไม่มี Station ผูกไว้';
+          return `Device: ${deviceName} | Station: ${stationName}`;
+        });
+        setBindingStatus([
+          'ไม่สามารถผูก Batch ได้: Device หรือ Station ที่เลือกไม่ได้อยู่ใน Farm/Barn เดียวกับ Batch นี้',
+          available.length
+            ? `รายการที่ใช้ได้ใน Barn นี้: ${available.join(' ; ')}`
+            : 'Barn นี้ยังไม่มี Device หรือ Station ที่ลงทะเบียนไว้',
+          'กรุณาเลือกจากรายการด้านบน แล้วลองบันทึกอีกครั้ง',
+        ].join('\n'));
+      } else {
+        setBindingStatus(err?.message || 'ไม่สามารถสร้างการผูก Batch ได้ โปรดลองอีกครั้ง');
+      }
     }
   };
 
@@ -239,22 +287,32 @@ export const BatchesPage: React.FC = () => {
             ))}
           </TextField>
           <TextField
+            select
             label="Status"
             value={status}
             onChange={(event) => setStatus(event.target.value)}
-            helperText="active, completed, or cancelled"
+            helperText="Only an active batch can be resolved by Edge."
             fullWidth
-          />
+          >
+            {BATCH_STATUS_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </TextField>
           <TextField
             select
             label="Breed"
             value={breed}
-            onChange={(event) => setBreed(event.target.value)}
+            onChange={(event) => {
+              const nextBreed = event.target.value;
+              setBreed(nextBreed);
+              const allowed = BREED_MODEL_CATALOG[nextBreed]?.sexes || [];
+              if (!allowed.includes(sex)) setSex(allowed[0] || '');
+            }}
             fullWidth
             helperText="Maps to the approved XGBoost broiler model"
           >
-            {BREED_OPTIONS.map((option) => (
-              <MenuItem key={option} value={option}>{option}</MenuItem>
+            {Object.entries(BREED_MODEL_CATALOG).map(([breedCode, model]) => (
+              <MenuItem key={breedCode} value={breedCode}>{breedCode}{model.availability === 'fallback' ? ' (Dev fallback)' : ''}</MenuItem>
             ))}
           </TextField>
           <TextField
@@ -262,10 +320,10 @@ export const BatchesPage: React.FC = () => {
             label="Sex"
             value={sex}
             onChange={(event) => setSex(event.target.value)}
-            helperText="Required XGBoost growth-standard context"
+            helperText={BREED_MODEL_CATALOG[breed]?.availability === 'fallback' ? 'Ross 308 is currently available in Dev fallback mode.' : 'Required XGBoost growth-standard context'}
             fullWidth
           >
-            {SEX_OPTIONS.map((option) => (
+            {availableSexOptions.map((option) => (
               <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
             ))}
           </TextField>
@@ -321,14 +379,32 @@ export const BatchesPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary">
             The selected device and optional station must belong to this Batch's farm and barn. Saving creates a new Edge context revision.
           </Typography>
-          <TextField label="Device ID" value={bindingDeviceId} onChange={(event) => setBindingDeviceId(event.target.value)} required fullWidth />
-          <TextField label="Station ID (optional)" value={bindingStationId} onChange={(event) => setBindingStationId(event.target.value)} fullWidth />
-          {bindingStatus && <Typography variant="body2" color={bindingStatus.startsWith('Binding saved') ? 'success.main' : 'error'}>{bindingStatus}</Typography>}
+          <TextField select label="Device" value={bindingDeviceId} onChange={(event) => {
+            const device = bindingDevices.find((item) => item.id === event.target.value);
+            setBindingDeviceId(event.target.value);
+            setBindingStationId(device?.metadata?.stationId || '');
+          }} required fullWidth>
+            {bindingDevices.map((device) => <MenuItem key={device.id} value={device.id}>{device.serialNo || device.id}</MenuItem>)}
+          </TextField>
+          <TextField select label="Station" value={bindingStationId} onChange={(event) => setBindingStationId(event.target.value)} fullWidth>
+            {[...new Set(bindingDevices.map((device) => device?.metadata?.stationId).filter(Boolean))].map((stationId) => <MenuItem key={stationId} value={stationId}>{stationId}</MenuItem>)}
+          </TextField>
+          {bindingStatus && <Typography variant="body2" color={bindingStatus.startsWith('Binding saved') ? 'success.main' : 'error'} sx={{ whiteSpace: 'pre-line' }}>{bindingStatus}</Typography>}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBindingBatch(null)}>Close</Button>
           <Button variant="contained" disabled={!bindingDeviceId.trim()} onClick={handleCreateBinding}>Save binding</Button>
         </DialogActions>
+      </Dialog>
+      <Dialog open={!!bindingConflict} onClose={() => setBindingConflict(null)}>
+        <DialogTitle>Active Batch already bound</DialogTitle>
+        <DialogContent>
+          <Typography>
+            This tenant, device, and station already have active Batch {bindingConflict?.batchId}.
+            Complete or cancel that Batch before binding this station to another active Batch.
+          </Typography>
+        </DialogContent>
+        <DialogActions><Button variant="contained" onClick={() => setBindingConflict(null)}>Understood</Button></DialogActions>
       </Dialog>
     </Box>
   );

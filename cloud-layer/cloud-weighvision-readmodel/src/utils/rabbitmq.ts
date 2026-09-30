@@ -145,7 +145,11 @@ export async function setupWeighVisionConsumer(
 
     // DLQ setup
     const dlq = 'farmiq.cloud-weighvision-readmodel.dlq.queue'
-    await channel.assertExchange('farmiq.dlq.exchange', 'topic', {
+    // This exchange is shared with the rest of the Cloud stack and is
+    // provisioned as `direct`. Declaring it as `topic` closes the channel
+    // with AMQP 406 PRECONDITION_FAILED, preventing the read-model consumer
+    // from ever starting.
+    await channel.assertExchange('farmiq.dlq.exchange', 'direct', {
       durable: true,
     })
     await channel.assertQueue(dlq, { durable: true })

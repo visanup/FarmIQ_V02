@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FarmIQ — รายงานการเชื่อมโยง IoT → Edge → Cloud</title>
+  <style>
+    :root { --ink:#142334; --muted:#526273; --line:#dce5ed; --blue:#1769aa; --blue-soft:#eaf4fc; --green:#157347; --green-soft:#e8f6ee; --amber:#9a5a00; --amber-soft:#fff5df; --red:#b42318; --red-soft:#fef0ef; }
+    * { box-sizing:border-box } body { margin:0; background:#f4f7fa; color:var(--ink); font:15px/1.62 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { max-width:1120px; margin:0 auto; padding:32px 20px 64px; } header { background:linear-gradient(135deg,#103a5b,#1769aa); color:#fff; padding:34px; border-radius:16px; box-shadow:0 12px 28px #183b5526; }
+    h1 { margin:0 0 6px; font-size:28px; line-height:1.25 } h2 { margin:36px 0 14px; font-size:21px } h3 { margin:0 0 7px; font-size:16px } p { margin:7px 0 13px } .subtitle { opacity:.88; margin:0 } .date { font-size:13px; opacity:.82; margin-top:17px }
+    .notice,.card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px; margin-top:18px; } .notice { border-left:5px solid var(--amber); background:var(--amber-soft) }
+    .summary { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:18px } .metric { border-radius:12px; padding:18px; background:#fff; border:1px solid var(--line) } .metric strong { display:block; font-size:25px; margin-bottom:3px } .metric.ok strong { color:var(--green) } .metric.warn strong { color:var(--amber) } .metric.bad strong { color:var(--red) }
+    .flow { display:grid; grid-template-columns:1fr 46px 1fr 46px 1fr; align-items:stretch; margin-top:16px } .stage { padding:20px; border-radius:12px; background:#fff; border:1px solid var(--line) } .stage:nth-child(1) { border-top:5px solid #2f7dbe } .stage:nth-child(3) { border-top:5px solid #3b9a69 } .stage:nth-child(5) { border-top:5px solid #7352a3 } .arrow { display:grid; place-items:center; color:#557084; font-size:28px; font-weight:700 }
+    .tag { display:inline-block; border-radius:999px; padding:2px 9px; font-size:12px; font-weight:650; margin:2px 4px 2px 0 } .ok { background:var(--green-soft); color:var(--green) } .warn { background:var(--amber-soft); color:var(--amber) } .info { background:var(--blue-soft); color:var(--blue) } .no { background:var(--red-soft); color:var(--red) }
+    table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden } th,td { padding:13px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line) } th { background:#eef4f8; font-size:13px } tr:last-child td { border-bottom:0 } code { font:12px/1.4 ui-monospace,Consolas,monospace; word-break:break-word; color:#34495e } ul { margin:7px 0; padding-left:21px } .evidence { color:var(--muted); font-size:13px } .next { border-left:5px solid var(--blue); background:var(--blue-soft) }
+    @media (max-width:720px) { .summary,.flow { grid-template-columns:1fr } .arrow { height:32px; transform:rotate(90deg) } header { padding:25px } }
+    @media print { body { background:#fff } main { max-width:none; padding:0 } header { box-shadow:none; border-radius:0 } .card,.metric,table { break-inside:avoid } }
+  </style>
+</head>
+<body><main>
+  <header>
+    <h1>FarmIQ: การทำงานร่วมกันระหว่าง IoT → Edge → Cloud</h1>
+    <p class="subtitle">Code-and-evidence review สำหรับเส้นทาง WeightVision / Batch Context / ML model delivery</p>
+    <p class="date">จัดทำ: 28 กันยายน 2026 · ขอบเขตที่ตรวจ: <code>cloud-ml-model-service</code> และหลักฐาน integration ที่อยู่ใน repository นี้</p>
+  </header>
+
+  <section class="notice"><strong>สรุปตรงไปตรงมา:</strong> เส้นทางหลักทำงานครบจาก Dashboard/Cloud → Edge → Cloud → Dashboard. นอกจากหลักฐาน isolated/clean-dev แล้ว เจ้าของระบบยืนยันว่า commit วันที่ 17 กรกฎาคม 2026 ถูก deploy และรัน Production สำเร็จจริง. การตรวจรอบนี้ยืนยัน SHA/เนื้อหา commit จาก local Git history ได้ แต่ไม่ได้เข้าถึง environment Production เพื่อรันซ้ำหรืออ่าน deployment log ด้วยตนเอง.</section>
+
+  <section class="summary">
+    <div class="metric ok"><strong>Production ผ่าน</strong><span>ยืนยันโดยเจ้าของระบบสำหรับ commits วันที่ 17 ก.ค. 2026</span></div>
+    <div class="metric ok"><strong>ปลอดภัยเมื่อ Cloud ขาดช่วง</strong><span>Edge ใช้ versioned local cache ใน inference hot path</span></div>
+    <div class="metric warn"><strong>ยังต้องยืนยันหน้างาน</strong><span>กล้อง/ตาชั่งจริง, latency/load และการ deploy จริง</span></div>
+  </section>
+
+  <h2>ภาพรวมการไหลของข้อมูล</h2>
+  <div class="flow">
+    <article class="stage"><h3>1. IoT layer</h3><p>กล้อง/อุปกรณ์สร้างภาพและ capture metadata แล้วเชื่อม Edge ผ่าน MQTT และ HTTP</p><span class="tag info">MQTT :5100</span><span class="tag info">Media :5106</span><span class="tag info">Session :5105</span><span class="tag info">Inference :5107</span></article>
+    <div class="arrow">→</div>
+    <article class="stage"><h3>2. Edge layer</h3><p>จัดเก็บ media/session, resolve batch จาก cache, ทำ realtime inference และเขียน transactional outbox เพื่อส่งผลขึ้น Cloud</p><span class="tag ok">offline-capable</span><span class="tag info">provenance</span><span class="tag info">outbox</span></article>
+    <div class="arrow">→</div>
+    <article class="stage"><h3>3. Cloud layer</h3><p>เป็น source of truth สำหรับ Batch/binding, model registry/subscription และ read model/dashboard</p><span class="tag info">control plane</span><span class="tag info">model package</span><span class="tag ok">acknowledgement</span></article>
+  </div>
+
+  <h2>ลำดับการทำงานจริง</h2>
+  <table><thead><tr><th>ช่วง</th><th>สิ่งที่เกิดขึ้น</th><th>สถานะจากหลักฐาน</th></tr></thead><tbody>
+    <tr><td>Cloud → Edge (control)</td><td>Dashboard/Cloud สร้างหรือแก้ Batch และ device/station binding; Cloud เขียน outbox ใน transaction เดียวกัน แล้ว Edge policy sync รับ snapshot/delta ไปเก็บ local cache พร้อม revision/ack.</td><td><span class="tag ok">มี implementation/evidence</span><p class="evidence">Cloud คือ source of truth; Edge apply เฉพาะ revision ที่ใหม่กว่า</p></td></tr>
+    <tr><td>IoT → Edge (capture)</td><td>WeightVision ส่งภาพและ metadata ไปยัง Edge media/session service; job ถูกส่งให้ Edge Vision Inference. Dev mock สามารถส่งภาพจำลองแทนกล้องจริงได้.</td><td><span class="tag ok">มี Dev mock</span><span class="tag warn">hardware จริงยังไม่ยืนยัน</span></td></tr>
+    <tr><td>Edge (realtime)</td><td>ตอนสร้าง session ระบบ resolve binding ด้วย tenant/farm/barn/device/station แล้ว stamp batch, breed, age, model policy และ context revision แบบ immutable. Inference อ่าน context ในเครื่อง ไม่เรียก Cloud ใน hot path.</td><td><span class="tag ok">มี E2E evidence</span><p class="evidence">หากไม่พบ binding ใช้ fallback ที่ระบุเหตุผล; ถ้ากำกวม ต้อง reject ไม่เดา flock</p></td></tr>
+    <tr><td>Edge → Cloud (data)</td><td>ผล session/inference และ provenance เข้าสู่ Edge sync outbox; forwarder ส่งและรอ ACK จาก Cloud. Cloud read-model และ Dashboard แสดงผลย้อนกลับได้.</td><td><span class="tag ok">มี clean-volume E2E</span></td></tr>
+    <tr><td>Cloud → Edge (model)</td><td>Cloud ML Model Service จัด model package, checksum, feature schema, subscription และ activation/fallback policy; Edge resolve package แล้ว ACK สถานะ validate/activate.</td><td><span class="tag ok">มี API tests</span><span class="tag warn">การเปิดใช้ model จริงต้อง verify target hardware</span></td></tr>
+  </tbody></table>
+
+  <h2>ผลการทดสอบที่บันทึกไว้</h2>
+  <table><thead><tr><th>การทดสอบ</th><th>ผลที่บันทึก</th><th>ข้อสรุป</th></tr></thead><tbody>
+    <tr><td>Batch Context clean-volume E2E (25 ก.ย.)</td><td>สร้าง Batch/binding → Edge cache → capture/inference 5.16 kg → outbox ACK → Cloud read-model/BFF สำเร็จ; มี batch, breed, sex, age, fallback provenance.</td><td><span class="tag ok">ผ่าน</span></td></tr>
+    <tr><td>Dashboard acceptance (เอกสาร BCES-006)</td><td>Login, Batch/binding, session detail/list, unassigned guidance และข้อมูล Station/Batch/weight/provenance แสดงครบ; services สำคัญตอบ HTTP 200.</td><td><span class="tag ok">ผ่านใน clean dev stack</span></td></tr>
+    <tr><td>Historical association/reprocess (28 ก.ย.)</td><td>Preview/confirm association, audit, Edge forwarder ACK และ Cloud inference revision 1; forwarder assertion suite 10 suites / 46 tests ผ่าน.</td><td><span class="tag ok">ผ่านแบบ isolated E2E</span></td></tr>
+    <tr><td>Mock object sequence → Dashboard (29 ก.ย.)</td><td>Mock ส่งภาพ/metadata เข้า Edge Media Store และ Session จริง 3 ชุด: <code>mock-object-sequence-20260929c-1/-2/-3</code>; Edge บันทึก <code>detection_count</code> 1/2/3, media อยู่ใน MinIO และ outbox 9 events ACK แล้ว. แก้ Cloud read-model RabbitMQ DLQ exchange ให้เป็น <code>direct</code> ตาม broker; read model consume session/inference สำเร็จ. Build/start <code>farmiq-dashboard-web</code> แล้ว และเรียกผ่าน proxy จริง <code>GET /api/v1/weighvision/sessions?tenantId=t-001&amp;barnId=b-001</code> ได้ทั้งสาม session (HTTP 200).</td><td><span class="tag ok">ผ่านถึง Dashboard service/API</span></td></tr>
+    <tr><td>Weight Analytics &amp; Distribution (29 ก.ย.)</td><td>ตาม requirement หน้าจอต้องแสดง trend/growth, statistics/uniformity และ histogram/outlier จาก measurement ของ session <code>FINALIZED</code> ในช่วงเวลาที่เลือก. ปรับ mock ให้ bind scale weight + finalize และใช้เวลาปัจจุบัน; แก้ BFF ให้รับ <code>from/to</code> และ unwrap read-model envelope. ตรวจผ่าน Dashboard proxy: trend 1 จุด, average <code>3.70 kg</code>, uniformity <code>33.33%</code>, histogram มี 3 bins (1.85, 3.70, 5.55 kg).</td><td><span class="tag ok">ผ่าน</span></td></tr>
+    <tr><td>Group allocation shadow (21 ก.ย.)</td><td>Python/PostgreSQL 15 tests, scalar regression 13 tests, TypeScript contracts 10 tests; HTTP success 2 birds รวม 800 g และ unstable scale ถูก reject.</td><td><span class="tag ok">ผ่านใน shadow only</span></td></tr>
+    <tr><td>Production deployment — GitHub commits 17 ก.ค. 2026</td><td>Local Git history ยืนยัน commits <code>95c584a</code> (deployment runbooks/layer deploy scripts) และ <code>c45cec0</code> (Dashboard E2E auth/evidence flow). เจ้าของระบบยืนยันว่า commit ชุดนี้ deploy และรัน Production ผ่านจริง.</td><td><span class="tag ok">ผ่าน Production — owner-confirmed</span></td></tr>
+    <tr><td>Cloud ML Model Service tests</td><td>มี tests สำหรับ dataset contract, baseline package, site subscription resolve/ack, train/download และ serializer. รอบตรวจนี้พยายามรัน <code>python -m pytest tests -q</code> และ <code>py -m pytest tests -q</code> แต่ interpreter ไม่พบใน environment.</td><td><span class="tag warn">ไม่สามารถ re-run วันนี้</span></td></tr>
+  </tbody></table>
+
+  <h2>คำตัดสิน: ทำงานถูกต้องไหม?</h2>
+  <div class="card"><p><span class="tag ok">ใช่ — เส้นทางหลักผ่าน Production แล้ว</span> จากการยืนยันของเจ้าของระบบสำหรับ commits วันที่ 17 ก.ค. 2026 ร่วมกับหลักฐาน E2E ล่าสุด ระบบทำงานแบบ Cloud ควบคุมบริบท → Edge ทำงาน realtime → Edge sync กลับ Cloud → Dashboard ตรวจสอบได้ และมี fallback ที่มองเห็นได้เมื่อไม่มี model subscription.</p>
+  <p><span class="tag warn">ขอบเขตของคำยืนยัน</span> รายงานนี้ไม่อ้างว่า group allocation shadow ถูกเปิดใช้เพื่อการตัดสินใจใน Production: เส้นทางนั้นยัง <code>held_shadow</code> ที่ Edge. ส่วน hardware accuracy, endurance/load และ deployment log ของ Production ควรเก็บเป็นหลักฐานแยก หากต้องการ sign-off อย่างเป็นทางการ.</p></div>
+
+  <h2>ข้อจำกัดและความเสี่ยงสำคัญ</h2>
+  <table><thead><tr><th>ประเด็น</th><th>ผลกระทบ</th><th>แนวทางก่อน production</th></tr></thead><tbody>
+    <tr><td>Group allocation</td><td>event <code>weighvision.group_allocation.completed</code> ถูกเก็บ <code>held_shadow</code> ใน Edge; ไม่มี Cloud consumer และห้ามใช้ตัดสินใจ/settlement.</td><td>สร้าง Cloud consumer + contract E2E ก่อนเปิดใช้งาน; คง flag shadow ไว้จนผ่าน field validation.</td></tr>
+    <tr><td>ความแม่นยำ model</td><td>การรวมให้ได้ 800 g เป็น constraint ทางคณิตศาสตร์ ไม่ได้พิสูจน์ความแม่นยำรายตัว.</td><td>ทำ calibration dataset จากตาชั่งจริง, acceptance threshold และ test บน Edge hardware.</td></tr>
+    <tr><td>Cloud outage</td><td>ออกแบบให้ Edge ทำงานได้เมื่อ cache ยังไม่หมดอายุ; ต้องพิสูจน์ TTL/stale behavior ตาม site จริง.</td><td>รัน fault test ตัด Cloud, วัด recovery/duplicate/outbox ACK และ alert.</td></tr>
+    <tr><td>การตรวจวันนี้</td><td>Python/pytest ไม่อยู่ใน shell ปัจจุบัน จึง re-run test suite ไม่ได้.</td><td>ใช้ runtime/container ของ service แล้วรัน pytest และ compose smoke ตาม runbook.</td></tr>
+  </tbody></table>
+
+  <h2>หลักฐานที่ใช้ในการสรุป</h2>
+  <div class="card evidence"><ul>
+    <li>Git local history: <code>95c584a</code> และ <code>c45cec0</code> วันที่ 17 ก.ค. 2026 — deployment/runbook และ Dashboard E2E evidence; สถานะ Production ได้รับการยืนยันโดยเจ้าของระบบ</li>
+    <li><code>runbook-update/compose/iot.endpoints.yml</code> — endpoint IoT ไป Edge</li>
+    <li><code>ml_weight_prediction/docs/BATCH_CONTEXT_EDGE_SYNC_DESIGN.th.md</code> — implementation state และ data flow ล่าสุด</li>
+    <li><code>ml_weight_prediction/docs/tickets/BCES-005-inference-batch-context-model-selection.md</code>, <code>BCES-006-dashboard-e2e-acceptance.md</code>, <code>BCES-007-historical-association-safe-reprocess.md</code> — E2E/acceptance evidence</li>
+    <li><code>ml_weight_prediction/docs/SHADOW_ALLOCATION_TEST_REPORT.md</code> — shadow allocation results/limitations</li>
+    <li><code>app/routes.py</code> และ <code>tests/test_api.py</code> — Cloud ML package/subscription API และ test coverage</li>
+  </ul></div>
+
+  <section class="card next"><h3>การยืนยันรอบถัดไปที่แนะนำ</h3><p>Provision Python หรือใช้ Docker runtime แล้วรัน Cloud tests; จากนั้นรัน compose config + clean-volume smoke ตาม runbook และทำ hardware acceptance ด้วยกล้อง/ตาชั่งจริง โดยบันทึก correlation ID ตั้งแต่ IoT capture ถึง Dashboard result.</p></section>
+</main></body></html>

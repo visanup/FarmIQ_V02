@@ -146,7 +146,11 @@ export function createWeighVisionServiceClient(): WeighVisionServiceClient {
       if (!result.ok || !result.data) {
         throw new Error(`Failed to fetch analytics: ${result.status}`)
       }
-      return result.data
+      // cloud-weighvision-readmodel returns the common { data: analytics }
+      // envelope. The BFF contract exposes the analytics object itself, as
+      // consumed by the Dashboard hook, so do not leak a nested envelope.
+      const payload = result.data as Record<string, unknown>
+      return payload.data ?? payload
     },
 
     async getWeightAggregates(params) {

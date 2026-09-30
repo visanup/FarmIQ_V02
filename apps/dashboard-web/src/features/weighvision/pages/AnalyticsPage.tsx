@@ -32,8 +32,6 @@ export const AnalyticsPage: React.FC = () => {
       if (!tenantId) return;
       setLoading(true);
       try {
-        const startDate = timeRange.start.toISOString().split('T')[0];
-        const endDate = timeRange.end.toISOString().split('T')[0];
         const resolvedFilters = await resolveWeighvisionContextFilters({
           tenantId,
           farmId,
@@ -42,10 +40,12 @@ export const AnalyticsPage: React.FC = () => {
         
         const response = await api.weighvisionAnalytics({
           tenantId: tenantId,
-          farm_id: resolvedFilters.farmId,
-          barn_id: resolvedFilters.barnId,
-          start_date: startDate,
-          end_date: endDate,
+          farmId: resolvedFilters.farmId,
+          barnId: resolvedFilters.barnId,
+          // Keep the full UTC instants.  Date-only end_date is interpreted as
+          // midnight and excluded the sessions captured later on that day.
+          from: timeRange.start.toISOString(),
+          to: timeRange.end.toISOString(),
         });
         
         // Handle response format: { data: {...} } or direct data

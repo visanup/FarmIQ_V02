@@ -6,7 +6,9 @@ services:
       - "5110:3000"
     environment:
       VISION_INFERENCE_URL: http://edge-vision-inference:8000
-      AUTO_SUBMIT_ENABLED: "true"
+      # Keep the existing periodic Dev behaviour by default. Set false for a
+      # single, traceable capture in an integration test.
+      AUTO_SUBMIT_ENABLED: "${AUTO_SUBMIT_ENABLED:-true}"
       MOCK_INTERVAL_SECONDS: "60"
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: minioadmin

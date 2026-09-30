@@ -95,7 +95,11 @@ export const useWeighVisionAnalytics = () => {
           to: timeRange.end,
         },
       });
-      return response.data as WeighVisionAnalytics;
+      // The BFF uses the standard { data: ... } envelope while a direct
+      // read-model call returns the analytics object itself. Support both so
+      // the Analytics and Distribution pages consume the same contract.
+      const payload = response.data as WeighVisionAnalytics | { data?: WeighVisionAnalytics };
+      return ('data' in payload && payload.data ? payload.data : payload) as WeighVisionAnalytics;
     },
     enabled: !!barnId && !!tenantId,
     staleTime: 300000, // 5 minutes
