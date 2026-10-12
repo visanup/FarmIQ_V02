@@ -180,3 +180,6 @@ cloud-layer/cloud-ml-model-service/ml_weight_prediction/artifacts/
 cloud-layer/cloud-ml-model-service/ml_weight_prediction/data/processed/*.csv
 cloud-layer/cloud-ml-model-service/ml_weight_prediction/reports/*.csv
 edge-layer/edge-vision-inference/runtime-models/
+
+# Local Docker release bundles for transfer to PoC hosts
+poc-release/
