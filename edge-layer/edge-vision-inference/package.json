@@ -1,7 +1,7 @@
 {
   "name": "vision-inference-service",
   "version": "1.0.0",
-  "description": "Vision Inference Service with Prisma database management",
+  "description": "Edge weight-inference service using normalized detection metadata and model packages",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -24,9 +24,8 @@
   "keywords": [
     "vision",
     "inference",
-    "microplate",
-    "ai",
-    "yolo",
+    "weight",
+    "metadata",
     "prisma"
   ],
   "author": "Microplate AI Team",

@@ -29,7 +29,6 @@ class Config:
     )
     
     # Model Configuration
-    MODEL_PATH: str = os.getenv("MODEL_PATH", "")
     MODEL_VERSION: str = os.getenv("MODEL_VERSION", "v1.0.0")
     MODEL_MANIFEST_PATH: str = os.getenv("MODEL_MANIFEST_PATH", "")
     FALLBACK_MODEL_MANIFEST_PATH: str = os.getenv("FALLBACK_MODEL_MANIFEST_PATH", "")
@@ -40,6 +39,14 @@ class Config:
     CONFIDENCE_THRESHOLD: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
     NMS_THRESHOLD: float = float(os.getenv("NMS_THRESHOLD", "0.4"))
     MODEL_SYNC_ENABLED: bool = os.getenv("MODEL_SYNC_ENABLED", "true").lower() == "true"
+
+    # Disabled by default: the existing inference route remains untouched until a
+    # site explicitly enables the local 75% Standard + 25% Visual trial.
+    HYBRID_TRIAL_ENABLED: bool = os.getenv("HYBRID_TRIAL_ENABLED", "false").lower() == "true"
+    HYBRID_TRIAL_MODEL_DIR: str = os.getenv(
+        "HYBRID_TRIAL_MODEL_DIR",
+        str(Path(__file__).parent.parent / "runtime-models" / "hybrid-trial-75s25v-v1-edge"),
+    )
 
     # Local policy-sync and Cloud control-plane access
     POLICY_SYNC_URL: str = os.getenv(

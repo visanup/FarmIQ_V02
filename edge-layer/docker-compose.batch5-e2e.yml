@@ -18,6 +18,11 @@ services:
 
   edge-vision-inference:
     environment:
+      # Active local model: 75% Standard + 25% Visual Standard Proxy.
+      # Batch context is mandatory so breed, sex, and age are immutable.
+      - HYBRID_TRIAL_ENABLED=true
+      - HYBRID_TRIAL_MODEL_DIR=/app/runtime-models/hybrid-trial-75s25v-v1-edge
+      - BATCH_CONTEXT_INFERENCE_ENABLED=true
       - MODEL_SYNC_ENABLED=true
       - POLICY_SYNC_URL=http://edge-policy-sync:3000/api/v1/edge-config
       - EDGE_TENANT_ID=tenant-batch5-e2e

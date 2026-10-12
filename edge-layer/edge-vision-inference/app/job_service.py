@@ -515,10 +515,12 @@ class JobService:
         except Exception:
             logger.exception("Shadow allocation failed; legacy job remains completed", extra={"job_id": job["job_id"]})
 
-    def _build_shadow_features(self, capture_metadata: Dict[str, Any]) -> Dict[str, float]:
+    @staticmethod
+    def _build_shadow_features(capture_metadata: Dict[str, Any]) -> Dict[str, float]:
         normalized = capture_metadata.get("normalizedFeatures") or {}
         raw_metadata = capture_metadata.get("rawMetadata") or {}
         height_estimation = raw_metadata.get("height_estimation") or {}
+        detections = raw_metadata.get("detections") or []
 
         def _to_float(value: Any) -> Optional[float]:
             if isinstance(value, (int, float)):
@@ -536,9 +538,12 @@ class JobService:
             "selected_depth_mm": normalized.get("distance_mm")
             or normalized.get("average_depth_mm")
             or normalized.get("median_depth_mm"),
-            "selected_height_mm": normalized.get("object_height_mm"),
-            "selected_width_mm": normalized.get("object_width_mm"),
-            "selected_length_mm": normalized.get("object_length_mm"),
+            # The canonical capture contract uses height_mm / width_mm /
+            # length_mm.  Preserve the older object_* aliases for captured
+            # sessions produced before that contract was standardized.
+            "selected_height_mm": normalized.get("height_mm") or normalized.get("object_height_mm"),
+            "selected_width_mm": normalized.get("width_mm") or normalized.get("object_width_mm"),
+            "selected_length_mm": normalized.get("length_mm") or normalized.get("object_length_mm"),
             "floor_depth_mm": height_estimation.get("floor_depth_mm"),
             "roi_count": normalized.get("roi_count"),
             "detection_count": normalized.get("detection_count"),
@@ -549,6 +554,40 @@ class JobService:
             parsed = _to_float(value)
             if parsed is not None:
                 result[key] = parsed
+
+        # Hybrid Trial uses a visual proxy trained with image-geometry fields.
+        # A capture-level scalar cannot be safely matched to one bird if there
+        # are multiple detections, so only derive these fields for one object.
+        if isinstance(detections, list) and len(detections) == 1 and isinstance(detections[0], dict):
+            detection = detections[0]
+            bbox = detection.get("bbox") or detection.get("bbox_xyxy") or normalized.get("bbox") or {}
+            if isinstance(bbox, dict):
+                x1, y1 = _to_float(bbox.get("x1")), _to_float(bbox.get("y1"))
+                x2, y2 = _to_float(bbox.get("x2")), _to_float(bbox.get("y2"))
+            elif isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+                x1, y1, x2, y2 = (_to_float(value) for value in bbox)
+            else:
+                x1 = y1 = x2 = y2 = None
+            if None not in (x1, y1, x2, y2):
+                bbox_width = x2 - x1
+                bbox_height = y2 - y1
+                bbox_area = bbox_width * bbox_height
+                if bbox_width > 0 and bbox_height > 0:
+                    result["bbox_area_px"] = bbox_area
+                    result["bbox_aspect_ratio"] = bbox_width / bbox_height
+                    # The capture contract can store the mask area at the
+                    # normalized capture level for a single detection.
+                    mask_area = _to_float(detection.get("mask_area_px2"))
+                    if mask_area is None:
+                        mask_area = _to_float(normalized.get("mask_area_px2"))
+                    if mask_area is not None and mask_area > 0:
+                        result["mask_fill_ratio"] = mask_area / bbox_area
+            height = result.get("selected_height_mm")
+            if height is not None:
+                # No calibrated upper/lower height bounds are configured on
+                # Edge yet. Non-positive height is the only hard geometry
+                # rejection rule, and prevents Hybrid Trial selection.
+                result["is_height_outlier"] = 0.0 if height > 0 else 1.0
         return result
 
     async def _attach_to_session(self, job: Dict[str, Any], inference_result_id: str) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,13 @@ def _context_value(document: dict[str, Any], detection: dict[str, Any], field: s
         value = source.get(field)
         if value is not None and value != "":
             return value
+    if field == "age_days" and defaults.get("age_start_date") and defaults.get("age_days_at_start") is not None:
+        try:
+            captured_on = date.fromisoformat(str(document["timestamp"])[:10])
+            start_on = date.fromisoformat(str(defaults["age_start_date"]))
+            return int(defaults["age_days_at_start"]) + (captured_on - start_on).days
+        except (KeyError, TypeError, ValueError):
+            return None
     return None
 
 
@@ -55,6 +63,8 @@ def _derive_row(
     session: dict[str, Any],
     performance_standard: PerformanceStandard,
     context_defaults: dict[str, Any],
+    reject_weight_error: bool,
+    reject_nonpositive_height: bool,
 ) -> dict[str, Any]:
     bbox = detection.get("bbox_xyxy") or [None] * 4
     try:
@@ -66,12 +76,15 @@ def _derive_row(
     roi = (document.get("roi") or {}).get("xyxy")
     contained = _inside_roi(detection.get("mask_xy"), roi)
     scale = document.get("scale") or {}
+    raw_weight_error = scale.get("weight_error")
+    weight_error = str(raw_weight_error).strip() if raw_weight_error not in (None, "") else None
     group_weight_kg = _num(scale.get("weight_kg") or document.get("group_weight_kg"))
     row: dict[str, Any] = {
         "session_id": session["session_id"], "captured_at": session["captured_at"],
         "detection_index": detection.get("detection_index"), "record_id": detection.get("record_id"),
         "group_total_weight_g": group_weight_kg * 1000 if group_weight_kg is not None else None,
         "weight_stable": scale.get("weight_stable") is True,
+        "weight_error": weight_error,
         "weight_label_type": "group_total", "camera_id": _context_value(document, detection, "camera_id", context_defaults),
         "batch_id": _context_value(document, detection, "batch_id", context_defaults),
         "age_days": _context_value(document, detection, "age_days", context_defaults),
@@ -86,9 +99,13 @@ def _derive_row(
         "is_mask_clipped": contained is False,
         "centroid_x_norm": None, "centroid_y_norm": None,
     }
-    for field in ("area_mm2", "length_mm", "width_mm", "height_mm", "depth_mm", "confidence"):
+    for field in ("area_mm2", "length_mm", "width_mm", "depth_mm", "confidence"):
         if row[field] is None or row[field] <= 0:
             row.setdefault("quality_reasons", []).append(f"invalid_{field}")
+    if row["height_mm"] is None:
+        row.setdefault("quality_reasons", []).append("missing_height_mm")
+    elif reject_nonpositive_height and row["height_mm"] <= 0:
+        row.setdefault("quality_reasons", []).append("height_mm_nonpositive")
     if row["confidence"] is not None and row["confidence"] < 0.80:
         row.setdefault("quality_reasons", []).append("confidence_below_0_80")
     if row["is_mask_clipped"]:
@@ -111,6 +128,9 @@ def _derive_row(
     if not row["weight_stable"]:
         row["quality_reasons"] = ";".join(filter(None, [row["quality_reasons"], "scale_not_stable"]))
         row["quality_pass"] = False
+    if reject_weight_error and row["weight_error"] is not None:
+        row["quality_reasons"] = ";".join(filter(None, [row["quality_reasons"], "scale_weight_error"]))
+        row["quality_pass"] = False
     return row
 
 
@@ -118,6 +138,8 @@ def build_weak_dataset(
     capture_csv: Path,
     performance_standard: PerformanceStandard,
     context_defaults: dict[str, Any] | None = None,
+    reject_weight_error: bool = False,
+    reject_nonpositive_height: bool = False,
 ) -> pd.DataFrame:
     """Build weak-label rows, optionally enriching legacy capture metadata.
 
@@ -131,7 +153,15 @@ def build_weak_dataset(
             document = json.loads(source["raw_metadata"])
             session = {"session_id": source["session_id"], "captured_at": source["occurred_at"]}
             session_rows = [
-                _derive_row(document, detection, session, performance_standard, context_defaults)
+                _derive_row(
+                    document,
+                    detection,
+                    session,
+                    performance_standard,
+                    context_defaults,
+                    reject_weight_error,
+                    reject_nonpositive_height,
+                )
                 for detection in document.get("detections", [])
             ]
             eligible = [row for row in session_rows if row["quality_pass"]]
@@ -152,6 +182,8 @@ def build_weak_dataset(
                     row["quality_reasons"] = ";".join(filter(None, [row["quality_reasons"], session_reason]))
             rows.extend(session_rows)
     frame = pd.DataFrame(rows)
+    if "weight_error" not in frame:
+        frame["weight_error"] = None
     for feature in FEATURE_COLUMNS:
         if feature not in frame:
             frame[feature] = float("nan")

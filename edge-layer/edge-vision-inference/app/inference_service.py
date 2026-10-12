@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.config import Config
+from app.hybrid_trial_runtime import HybridTrialRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,13 @@ class InferenceService:
         self.active_model_payload: Optional[Dict[str, Any]] = None
         self.activation_source = "env"
         self.fallback_engaged = False
+        self.hybrid_trial: Optional[HybridTrialRuntime] = None
+        if config.HYBRID_TRIAL_ENABLED:
+            try:
+                self.hybrid_trial = HybridTrialRuntime(config.HYBRID_TRIAL_MODEL_DIR)
+                logger.info("Hybrid Trial 75Sx25V enabled")
+            except Exception as exc:
+                logger.warning("Hybrid Trial could not be loaded; legacy runtime remains active: %s", exc)
 
         self._load_runtime_from_current_manifests()
 
@@ -381,6 +389,29 @@ class InferenceService:
             raise FileNotFoundError(f"Image not found: {image_path}")
 
         features = self._extract_features(metadata or {})
+        if self.hybrid_trial:
+            hybrid = self.hybrid_trial.predict(metadata or {})
+            if hybrid and hybrid.get("prediction_status") == "ACCEPTED":
+                runtime_metadata = self._runtime_metadata(image_file, metadata or {})
+                runtime_metadata.update(
+                    {
+                        "stub_mode": False,
+                        "prediction_mode": "hybrid_trial_75s25v",
+                        "standard_weight_g": hybrid["standard_weight_g"],
+                        "visual_standard_proxy_g": hybrid["visual_standard_proxy_g"],
+                        "hybrid_predicted_weight_g": hybrid["predicted_weight_g"],
+                        "hybrid_weights": {"standard": 0.75, "visual": 0.25},
+                    }
+                )
+                return self._apply_batch_context_provenance(
+                    {
+                        "predicted_weight_kg": round(float(hybrid["predicted_weight_g"]) / 1000.0, 4),
+                        "confidence": float(features.get("selected_confidence", features.get("confidence", 0.0))),
+                        "model_version": str(hybrid["model_version"]),
+                        "metadata": runtime_metadata,
+                    },
+                    metadata or {},
+                )
         if self.active_model_payload and features:
             try:
                 result = self._run_shadow_model_inference(image_file, features, metadata or {})
@@ -407,6 +438,20 @@ class InferenceService:
             }
         selection = self._resolve_cached_model_policy(context.get("model_policy"))
         runtime_metadata = result.setdefault("metadata", {})
+        is_local_hybrid_trial = runtime_metadata.get("prediction_mode") == "hybrid_trial_75s25v"
+        if is_local_hybrid_trial:
+            # A deliberately enabled local trial does not consume the legacy
+            # model-subscription policy.  Its result must not be labelled as a
+            # fallback merely because that separate policy has no package yet.
+            selection = {
+                "mode": "local_trial",
+                "requested_package_id": None,
+                "requested_package_version": None,
+                "selected_package_id": "hybrid-trial-75s25v-v1-edge",
+                "selected_package_version": result.get("model_version"),
+                "fallback_engaged": False,
+                "fallback_reason": None,
+            }
         runtime_metadata.update(
             {
                 "batch_id": context.get("batch_id"),
@@ -420,10 +465,10 @@ class InferenceService:
                 "age_days": context.get("age_days"),
                 "model_policy": context.get("model_policy") or {},
                 "model_selection": selection,
-                "fallback_engaged": bool(runtime_metadata.get("fallback_engaged"))
+                "fallback_engaged": False if is_local_hybrid_trial else (bool(runtime_metadata.get("fallback_engaged"))
                 or bool(context.get("fallback_engaged"))
-                or bool(selection["fallback_engaged"]),
-                "fallback_reason": context.get("fallback_reason") or selection["fallback_reason"],
+                or bool(selection["fallback_engaged"])),
+                "fallback_reason": None if is_local_hybrid_trial else (context.get("fallback_reason") or selection["fallback_reason"]),
             }
         )
         return result
@@ -571,7 +616,7 @@ class InferenceService:
         fallback_manifest = self.fallback_manifest or {}
         return {
             "model_version": self.model_version,
-            "model_path": self.config.MODEL_PATH or "shadow_baseline_or_stub",
+            "model_path": "model_package_or_stub",
             "confidence_threshold": self.config.CONFIDENCE_THRESHOLD,
             "nms_threshold": self.config.NMS_THRESHOLD,
             "status": "ready" if self.active_model_payload else "stub_mode",

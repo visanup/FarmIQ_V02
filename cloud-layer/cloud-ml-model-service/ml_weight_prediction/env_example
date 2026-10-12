@@ -1,0 +1,15 @@
+# FarmIQ weak-allocation training configuration.
+# This file contains no credentials. Run from the ml_weight_prediction directory:
+#   python scripts/run_weak_training_pipeline.py
+
+WEAK_TRAIN_CAPTURES=data/processed/sampled_export_20260918_20260930/sampled_session_capture_metadata.csv
+WEAK_TRAIN_OUTPUT_DIR=data/processed/sampled_export_20260918_20260930/weak_training
+WEAK_TRAIN_PERFORMANCE_STANDARD=docs/performance_standards/arbor_acres_plus/approved/Arbor_Acres_Plus_Male_Performance_Standard.xlsx
+WEAK_TRAIN_BREED=Arbor Acres Plus
+WEAK_TRAIN_SEX=male
+WEAK_TRAIN_AGE_START_DATE=2026-09-18
+WEAK_TRAIN_AGE_DAYS_AT_START=10
+WEAK_TRAIN_MIN_ELIGIBLE_SESSIONS=100
+
+# Keep false while reviewing the audit. Change to true only after the quality gate passes.
+WEAK_TRAIN_RUN_TRAIN=false

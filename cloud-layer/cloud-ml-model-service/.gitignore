@@ -7,3 +7,7 @@ __pycache__/
 
 .npm-shadow-cache/
 .vendor/
+
+# Local ML training environment and downloaded source data
+ml_weight_prediction/.venv-training/
+ml_weight_prediction/data/raw/

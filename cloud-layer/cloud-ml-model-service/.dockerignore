@@ -1,6 +1,14 @@
 .git
 .npm-shadow-cache
-ml_weight_prediction
+ml_weight_prediction/.venv-training
+ml_weight_prediction/.vendor
+ml_weight_prediction/data
+ml_weight_prediction/docs
+ml_weight_prediction/reports
+ml_weight_prediction/scripts
+ml_weight_prediction/shadow-integration
+ml_weight_prediction/artifacts/*
+!ml_weight_prediction/artifacts/hybrid-trial-75s25v-v1-edge
 runbook-update
 tests
 __pycache__

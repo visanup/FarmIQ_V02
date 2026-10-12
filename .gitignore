@@ -170,3 +170,13 @@ apps/dashboard-web/apps/
 # Local credentials and overrides for the Vision input mock
 cloud-layer/cloud-ml-model-service/vision-input-mock/.env*
 !cloud-layer/cloud-ml-model-service/vision-input-mock/.env.example
+
+# Hybrid model development: local credentials and generated release artifacts
+cloud-layer/cloud-ml-model-service/.poc-ssh-*
+cloud-layer/cloud-ml-model-service/deployment/*.tar
+cloud-layer/cloud-ml-model-service/deployment/*.zip
+cloud-layer/cloud-ml-model-service/deployment/*.sha256
+cloud-layer/cloud-ml-model-service/ml_weight_prediction/artifacts/
+cloud-layer/cloud-ml-model-service/ml_weight_prediction/data/processed/*.csv
+cloud-layer/cloud-ml-model-service/ml_weight_prediction/reports/*.csv
+edge-layer/edge-vision-inference/runtime-models/

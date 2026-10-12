@@ -1,0 +1,26 @@
+# Add after the normal Edge compose files on both dev and PoC.
+# EDGE_CONTEXTS is a JSON array with tenantId, farmId, barnId, and siteId.
+# EDGE_CLOUD_TOKEN must be a valid scoped edge_service JWT for that site.
+services:
+  edge-policy-sync:
+    environment:
+      BFF_BASE_URL: ${EDGE_BFF_BASE_URL:?Set the reachable Cloud BFF URL}
+      EDGE_CLOUD_TOKEN: ${EDGE_CLOUD_TOKEN:?Set a scoped edge_service JWT}
+      EDGE_CONTEXTS: ${EDGE_CONTEXTS:?Set JSON tenant/farm/barn/site contexts}
+      BATCH_CONTEXT_CACHE_ENABLED: "true"
+
+  edge-weighvision-session:
+    environment:
+      BATCH_CONTEXT_AUTO_BIND_ENABLED: "true"
+
+  # IoT creates the job after persisting capture geometry. A job started at
+  # media completion races the session/metadata and produces a stub result.
+  edge-media-store:
+    environment:
+      TRIGGER_INFERENCE_ON_COMPLETE: "false"
+
+  edge-vision-inference:
+    environment:
+      HYBRID_TRIAL_ENABLED: "true"
+      HYBRID_TRIAL_MODEL_DIR: /app/runtime-models/hybrid-trial-75s25v-v1-edge
+      BATCH_CONTEXT_INFERENCE_ENABLED: "true"

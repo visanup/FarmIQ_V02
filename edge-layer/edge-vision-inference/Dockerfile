@@ -28,9 +28,6 @@ COPY . .
 # Run prisma generation if schema exists
 RUN if [ -f prisma/schema.prisma ]; then npx prisma generate; fi
 
-# Copy AI model directory (ensure the file best_yolov11x_microplate_final.pt is included)
-COPY app/best_model /app/models/yolo
-
 # Create necessary directories
 RUN mkdir -p /app/uploads /app/logs
 

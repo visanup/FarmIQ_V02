@@ -1,70 +1,56 @@
-# Vision Inference Service
+# Edge Vision Inference
 
-AI-powered microplate image analysis service using YOLO. This service now has a single responsibility: run inference and send outputs to external services.
+Python/FastAPI service that creates weight-inference jobs and records their
+results. It does not run YOLO or perform image-pixel classification.
 
-## Architecture (current)
+## Runtime flow
 
 ```
-image → vision-inference-service (Python/FastAPI) →
-  • prediction-db-service (HTTP) → PostgreSQL
-  • image-ingesion-service (HTTP) → shared-storage
+media event → inference job → download media for linkage/provenance
+            → load session/capture metadata → normalized geometry features
+            → active weight-model package (or controlled fallback)
+            → inference result + outbox event
 ```
 
-Outputs
-- prediction_result → prediction-db-service
-- raw image → image-ingesion-service → shared-storage/raw-images/original
-- annotated image → image-ingesion-service → shared-storage/raw-images/processed
+The image is retained as a linked media artifact. Model inputs are normalized
+detection metadata, such as area, dimensions, depth and confidence. The
+service can activate a subscribed JSON model package; when none is active, its
+explicit fallback behavior remains available for compatibility.
 
-## Quick Start
+## Hybrid Trial 75Sx25V
+
+The Hybrid Trial path is disabled by default and does not alter legacy
+inference. To opt in on a test Edge site, set:
+
+```bash
+HYBRID_TRIAL_ENABLED=true
+HYBRID_TRIAL_MODEL_DIR=/app/runtime-models/hybrid-trial-75s25v-v1-edge
+```
+
+It calculates `0.75 × approved growth standard + 0.25 × Visual Standard Proxy`
+from normalized geometry plus batch breed, sex and age. If these inputs are
+not available, the existing inference path is used unchanged.
+
+## Quick start
 
 ```bash
 pip install -r requirements.txt
 cp env.example .env
-python -m uvicorn app.main:app --host 0.0.0.0 --port 6403 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## API Endpoints
+## API
 
-- POST `/api/v1/inference/predict` – run inference on uploaded image
-- GET `/api/v1/inference/models` – available models
-- GET `/api/v1/inference/status/{run_id}` – run status
-- GET `/api/v1/inference/images/{run_id}/annotated` – annotated image
-- GET `/api/v1/inference/health` – health
+- `POST /api/v1/inference/jobs` — create an inference job
+- `GET /api/v1/inference/jobs/{job_id}` — retrieve job state
+- `GET /api/v1/inference/results?sessionId=...` — retrieve results
+- `GET /api/v1/inference/models` — active model/runtime information
+- `POST /api/v1/inference/models/refresh` — refresh subscribed package
+- `GET /api/health` — health check
 
-## Configuration (.env)
-
-```bash
-# Server
-PORT=6403
-HOST=0.0.0.0
-
-# Service URLs
-PREDICTION_DB_SERVICE_URL=http://prediction-db-service:6404
-IMAGE_SERVICE_URL=http://image-ingestion-service:6402
-
-# Message Queue (RabbitMQ - optional for async tasks)
-CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
-
-# Logging (via Winston/Python logging → Datadog)
-DD_SERVICE=vision-inference-service
-DD_LOGS_INJECTION=true
-
-# AI Model
-MODEL_PATH=/app/models/yolo/best.pt
-MODEL_VERSION=v1.2.0
-CONFIDENCE_THRESHOLD=0.5
-NMS_THRESHOLD=0.4
-UPLOAD_DIR=/app/uploads
-```
-
-## Notes
-- No direct database access. All persistence via `prediction-db-service` (HTTP).
-- Images are sent via multipart form-data to `image-ingesion-service`.
-- Progress and errors are logged to Redis.
-
-## Docker (example)
+## Docker
 
 ```bash
-docker build -t vision-inference-service .
-docker run -p 6403:6403 --env-file .env vision-inference-service
+docker build -t edge-vision-inference .
+docker run -p 8000:8000 --env-file .env edge-vision-inference
 ```

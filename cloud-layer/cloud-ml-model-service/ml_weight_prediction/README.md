@@ -30,6 +30,18 @@ e945fe65-69b4-5fd2-af23-02a59258645b,250,true,individual,stereo-01,B20260917,Arb
 
 ห้ามสร้างค่า `actual_weight_g` ด้วยการนำน้ำหนักรวมของกลุ่มไปหารจำนวนไก่
 
+### ความละเอียดตาชั่งและการประเมินผล
+
+ตาชั่งฟาร์มแสดงผลละเอียด `100 g` ดังนั้นค่า `300 g` เป็นค่าที่ตาชั่งแสดง
+ไม่ใช่น้ำหนักจริงที่แม่นยำถึงทศนิยม ให้เก็บ `scale_resolution_g=100` กับ
+ทุก test capture และรายงานทั้ง error เทียบค่าที่แสดง และอัตราที่ error ไม่เกิน
+`100 g` (หนึ่ง step ของตาชั่ง)
+
+ใช้ค่าน้ำหนักตาชั่งเป็น label รายตัวได้เมื่อดูภาพจริงแล้วมีไก่เพียง 1 ตัวบน
+แท่นชั่ง/ROI เท่านั้น `detection_count=1` ไม่เพียงพอ เพราะ detector อาจพลาดไก่
+ตัวอื่นได้ ไก่ที่อยู่นอก ROI ไม่กระทบ label นี้ รายละเอียดสูตรและขั้นตอนทดสอบ
+อยู่ใน [runbook การฝึกจาก farm export](docs/FARM_EXPORT_TRAINING_RUNBOOK.md).
+
 ## เงื่อนไขมาตรฐานการเจริญเติบโต
 
 ก่อน train และก่อนทำนาย ระบบจะจับคู่ `breed`, `sex` และ `age_days` กับตาราง Aviagen Arbor Acres Plus ทุกวันอายุ 1–56 วัน แล้วเพิ่ม `standard_weight_g`, `standard_adg_g_per_day` และ `standard_fcr` เป็น feature ไฟล์มาตรฐานแยกตามเพศอยู่ที่ `docs/performance_standards/arbor_acres_plus/`.
@@ -60,6 +72,18 @@ python scripts/build_weak_dataset.py --captures docs/sample_data/session_capture
 python scripts/train_weak_xgboost.py --dataset data/processed/weak_group_features.csv --output-dir artifacts/weak-candidate --allow-within-day-holdout
 python scripts/package_model.py --artifact-dir artifacts/weak-candidate --output-dir artifacts/weak-edge
 python scripts/edge_allocate.py --package-dir artifacts/weak-edge --event group_event.json
+```
+
+### Standard-growth baseline รายตัว
+
+เมื่อยังไม่มี label น้ำหนักจริงรายตัว สามารถสร้าง package ที่คืนค่าน้ำหนัก
+มาตรฐานตาม `breed`, `sex` และ `age_days` ได้ ค่านี้เป็น baseline ไม่ใช่โมเดล
+ที่เรียนรู้จากภาพ และผล inference จะมีสถานะ `STANDARD_BASELINE`:
+
+```powershell
+python scripts/train_standard_baseline.py --performance-standard docs/performance_standards/Broiler_Performance_Standard_Approved.xlsx --output-dir artifacts/standard-baseline-candidate
+python scripts/package_model.py --artifact-dir artifacts/standard-baseline-candidate --output-dir artifacts/standard-baseline-edge --version standard-baseline-v1 --performance-standard docs/performance_standards/Broiler_Performance_Standard_Approved.xlsx
+python scripts/edge_predict.py --package-dir artifacts/standard-baseline-edge --event standard_baseline_event.json
 ```
 
 `<approved-min>` และ `<approved-max>` คือช่วงความสูงที่ผ่านการอนุมัติสำหรับกล้อง/ฟาร์ม ใช้เพื่อควบคุมคุณภาพของข้อมูล ค่าทั้งสองต้องมาจากประชากรข้อมูลที่มี label แล้ว ตัวอย่างปัจจุบันยังไม่เพียงพอสำหรับกำหนดค่าเอง
@@ -97,6 +121,21 @@ python scripts/train_weak_xgboost.py `
 อ่าน [แผนการส่งมอบโมเดล](docs/MODEL_DELIVERY_PLAN.md) เพื่อดู acceptance gate, การประเมินแบบ shadow, การ rollback และข้อมูลที่ยังต้องขอจากฟาร์ม
 
 สำหรับ capture ที่มีไก่หลายตัวอยู่บนเครื่องชั่งเดียวกัน ให้ดู [แผน weak supervision สำหรับน้ำหนักกลุ่ม](docs/WEAKLY_SUPERVISED_GROUP_SCALE_XGBOOST_PLAN.md) รายการแก้ไขที่จำเป็นของ edge services อยู่ใน [integration contract ของ edge layer](docs/EDGE_LAYER_GROUP_ALLOCATION_INTEGRATION.md)
+
+### โมเดลภาพรายตัวโดยใช้ Standard เป็น target
+
+คำสั่งนี้ใช้ Standard ที่อนุมัติแล้วสร้าง target จากวันถ่ายภาพเฉพาะใน
+ขั้นตอน train/test แต่ตัว estimator รับเฉพาะ geometry จาก `inference_results`
+ของไก่แต่ละตัวเท่านั้น จึงไม่มีวัน เวลา อายุ สายพันธุ์ เพศ หรือ
+`standard_weight_g` ใน feature ที่ใช้ predict.
+
+```powershell
+python scripts/run_visual_standard_training.py
+```
+
+ตั้งค่าด้วย `VISUAL_TRAIN_*` ใน `.env` โดย runner แยก session ทั้งก้อน และ
+กระจาย session ของทุกวันไปยัง train/validation/test. ค่า metric เป็นความ
+คลาดเคลื่อนเทียบ Standard proxy ไม่ใช่น้ำหนักชั่งจริงรายตัว.
 # Shadow integration
 
 For the observation-only Arbor Acres candidate integration, see

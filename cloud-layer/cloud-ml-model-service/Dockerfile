@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir --timeout=300 -r requirements.txt
 
 COPY . .
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/ml_weight_prediction/src
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

@@ -1,0 +1,7 @@
+# Add after the existing IoT compose files. These must be the canonical IDs
+# selected in the dashboard-web Batch binding, not display serials.
+services:
+  weight-vision-service:
+    environment:
+      DEVICE_ID: ${WEB_BATCH_DEVICE_ID:?Set the device ID bound in dashboard-web}
+      STATION_ID: ${WEB_BATCH_STATION_ID:?Set the station ID bound in dashboard-web}

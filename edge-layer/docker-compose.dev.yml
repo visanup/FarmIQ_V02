@@ -224,6 +224,10 @@ services:
       - MODEL_CONTROL_TIMEOUT_SECONDS=${MODEL_CONTROL_TIMEOUT_SECONDS:-15}
       - MODEL_SYNC_ENABLED=${MODEL_SYNC_ENABLED:-true}
       - BATCH_CONTEXT_INFERENCE_ENABLED=${BATCH_CONTEXT_INFERENCE_ENABLED:-false}
+      # Disabled by default in the shared dev compose. Deployment profiles
+      # explicitly opt in after validating the local Hybrid package.
+      - HYBRID_TRIAL_ENABLED=${HYBRID_TRIAL_ENABLED:-false}
+      - HYBRID_TRIAL_MODEL_DIR=${HYBRID_TRIAL_MODEL_DIR:-/app/runtime-models/hybrid-trial-75s25v-v1-edge}
       - WEIGHVISION_SESSION_URL=http://edge-weighvision-session:3000
     networks:
       - farmiq-net

@@ -6,6 +6,12 @@ pydantic-settings==2.2.1
 python-json-logger==2.0.7
 asyncpg==0.29.0
 ddtrace==2.12.3
+pandas>=2.2,<3
+numpy>=1.26,<3
+scikit-learn>=1.5,<2
+xgboost>=2.1,<4
+joblib>=1.4,<2
+openpyxl>=3.1,<4
 
 # RabbitMQ
 aio-pika==9.4.3

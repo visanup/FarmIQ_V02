@@ -295,7 +295,9 @@ export const bindMedia = async (sessionId: string, data: BindMediaParams) => {
   return await prisma.$transaction(async (tx) => {
     // Create media binding
     const binding = await tx.sessionMediaBinding.upsert({
-      where: { tenantId_eventId: { tenantId, eventId } },
+      // Direct IoT binding and the MQTT replay can use different event IDs
+      // for the same media. The session/media pair is the durable identity.
+      where: { sessionId_mediaObjectId: { sessionId, mediaObjectId } },
       create: {
         sessionId,
         tenantId,

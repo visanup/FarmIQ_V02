@@ -18,13 +18,21 @@ def main() -> None:
     parser.add_argument("--default-breed", help="Explicit fallback breed for legacy capture metadata, e.g. 'Arbor Acres Plus'.")
     parser.add_argument("--default-sex", help="Explicit fallback sex for legacy capture metadata: male, female, or as_hatched.")
     parser.add_argument("--default-age-days", type=int, help="Explicit fallback flock age in days for legacy capture metadata.")
+    parser.add_argument("--age-start-date", help="Flock date (YYYY-MM-DD) corresponding to --age-days-at-start; derives age from each capture date.")
+    parser.add_argument("--age-days-at-start", type=int, help="Flock age in days on --age-start-date.")
     args = parser.parse_args()
+    if (args.age_start_date is None) != (args.age_days_at_start is None):
+        parser.error("--age-start-date and --age-days-at-start must be supplied together")
+    if args.default_age_days is not None and args.age_start_date is not None:
+        parser.error("use either --default-age-days or the date-based age arguments, not both")
     context_defaults = {
         field: value
         for field, value in {
             "breed": args.default_breed,
             "sex": args.default_sex,
             "age_days": args.default_age_days,
+            "age_start_date": args.age_start_date,
+            "age_days_at_start": args.age_days_at_start,
         }.items()
         if value is not None
     }

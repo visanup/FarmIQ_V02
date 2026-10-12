@@ -16,6 +16,7 @@ from app.config import Settings
 from app.db import InMemoryMlModelDb, MlModelDb
 from app.logging_ import configure_logging, request_id_ctx, tenant_id_ctx, trace_id_ctx
 from app.routes import router as ml_router
+from app.hybrid_trial import router as hybrid_trial_router
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             code = "NOT_FOUND"
         elif exc.status_code == 409:
             code = "CONFLICT"
+        elif exc.status_code == 422:
+            code = "PREDICTION_REJECTED"
 
         return JSONResponse(
             status_code=exc.status_code,
@@ -155,6 +158,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ready", "db": True}
 
     app.include_router(ml_router, prefix="/api/v1/ml", tags=["ML Models"])
+    app.include_router(hybrid_trial_router)
     return app
 
 
