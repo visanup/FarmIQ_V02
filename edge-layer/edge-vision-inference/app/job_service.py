@@ -1,17 +1,15 @@
 """Job service for managing inference jobs."""
 import logging
-import math
 import uuid
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import os
 import tempfile
 import json
 import urllib.request
 import urllib.parse
 import asyncio
-import time
-from PIL import Image
 from app.db import InferenceDb
 from app.inference_service import InferenceService
 from app.config import Config
@@ -30,6 +28,14 @@ class JobService:
         self.db = db
         self.inference_service = inference_service
         self.jobs: Dict[str, Dict[str, Any]] = {}  # In-memory job store (MVP)
+        from app.allocation_shadow import AllocationShadow
+        self.allocation_shadow = AllocationShadow()
+        self.shadow_tasks = set()
+        self.shadow_lock = asyncio.Lock()
+        self.historical_semaphore = asyncio.Semaphore(
+            max(1, Config.HISTORICAL_REPROCESS_CONCURRENCY)
+        )
+        self.active_realtime_jobs = 0
     
     async def create_job(
         self,
@@ -42,9 +48,10 @@ class JobService:
         object_key: Optional[str] = None,
         session_id: Optional[str] = None,
         trace_id: Optional[str] = None,
-        per_chicken_records: Optional[list[Dict[str, Any]]] = None,
-        session_aggregate: Optional[Dict[str, Any]] = None,
-        filtering_summary: Optional[Dict[str, Any]] = None,
+        job_type: str = "inference",
+        historical_job_id: Optional[str] = None,
+        revision_of: Optional[str] = None,
+        historical_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Create a new inference job."""
         if not media_id and not object_key:
@@ -62,10 +69,11 @@ class JobService:
             "object_key": object_key,
             "session_id": session_id,
             "trace_id": trace_id or Config.new_id(),
-            "per_chicken_records": per_chicken_records or [],
-            "session_aggregate": session_aggregate,
-            "filtering_summary": filtering_summary,
-            "status": "pending",
+            "job_type": job_type,
+            "historical_job_id": historical_job_id,
+            "revision_of": revision_of,
+            "historical_context": historical_context,
+            "status": "queued" if job_type == "historical-reprocess" else "pending",
             "created_at": _utc_now_iso_z(),
             "updated_at": _utc_now_iso_z()
         }
@@ -83,49 +91,54 @@ class JobService:
         if not job:
             logger.error(f"Job {job_id} not found")
             return
-        
+        is_historical = job.get("job_type") == "historical-reprocess"
+        acquired_historical_slot = False
+        if is_historical:
+            # Historical work waits whenever realtime is active, then takes a
+            # dedicated low-concurrency slot. It never queues ahead of live
+            # capture processing.
+            while True:
+                if job.get("status") == "cancelled":
+                    return
+                if self.active_realtime_jobs >= Config.HISTORICAL_PAUSE_REALTIME_ACTIVE:
+                    job["status"] = "paused"
+                    job["pause_reason"] = "realtime_capacity"
+                    job["updated_at"] = _utc_now_iso_z()
+                    await asyncio.sleep(0.25)
+                    continue
+                await self.historical_semaphore.acquire()
+                acquired_historical_slot = True
+                if self.active_realtime_jobs < Config.HISTORICAL_PAUSE_REALTIME_ACTIVE:
+                    break
+                self.historical_semaphore.release()
+                acquired_historical_slot = False
+        else:
+            self.active_realtime_jobs += 1
         try:
+            if job.get("status") == "cancelled":
+                return
             job["status"] = "processing"
             job["updated_at"] = _utc_now_iso_z()
-            session_features = None
-            if not job.get("per_chicken_records"):
-                session_features = await self._fetch_session_features(job)
+            if Config.TEST_PROCESSING_DELAY_MS > 0:
+                await asyncio.sleep(Config.TEST_PROCESSING_DELAY_MS / 1000)
+            session_features = await self._fetch_session_features(job)
 
             tmp_path = None
             try:
                 tmp_path = await self._fetch_media_to_tmp(job)
 
-                contexts = self._build_record_contexts(job) if job.get("per_chicken_records") else session_features.pop("detection_contexts", None)
-                if contexts is None:
-                    contexts = [session_features]  # Legacy jobs without capture detections.
-                results = []
-                for context in contexts:
-                    inference_path = tmp_path
-                    crop_path = None
-                    processing_started = time.perf_counter()
-                    try:
-                        if context.get("record_id"):
-                            crop_path = self._crop_media_to_tmp(tmp_path, context["bbox_xyxy"])
-                            inference_path = crop_path
-                        result = await self.inference_service.run_inference(
-                            inference_path,
-                            metadata={
-                                "job_id": job_id,
-                                "media_id": job.get("media_id"),
-                                "session_id": job.get("session_id"),
-                                **context,
-                            },
-                        )
-                    finally:
-                        if crop_path and os.path.exists(crop_path):
-                            os.unlink(crop_path)
-                    # Keep object identity even when an inference implementation omits it.
-                    result["metadata"] = {**context, **(result.get("metadata") or {})}
-                    result["metadata"]["processed_at"] = _utc_now_iso_z()
-                    result["metadata"]["processing_duration_ms"] = round(
-                        (time.perf_counter() - processing_started) * 1000, 3
-                    )
-                    results.append(result)
+                inference_result = await self.inference_service.run_inference(
+                    tmp_path,
+                    metadata={
+                        "job_id": job_id,
+                        "media_id": job.get("media_id"),
+                        "session_id": job.get("session_id"),
+                        "inference_kind": job.get("job_type", "inference"),
+                        "historical_job_id": job.get("historical_job_id"),
+                        "revision_of": job.get("revision_of"),
+                        **{key: value for key, value in session_features.items() if key != "allocation_capture"},
+                    }
+                )
             finally:
                 if tmp_path and os.path.exists(tmp_path):
                     try:
@@ -133,94 +146,110 @@ class JobService:
                     except Exception:
                         pass
             
-            result_ids = []
-            for inference_result in results:
-                result_key = self._detection_result_id(job, inference_result)
-                # Save inference result to database
-                result_id = await self.db.create_inference_result(
-                    result_id=result_key,
-                    tenant_id=job["tenant_id"],
-                    farm_id=job["farm_id"],
-                    barn_id=job["barn_id"],
-                    device_id=job["device_id"],
-                    session_id=job.get("session_id"),
-                    record_id=inference_result.get("metadata", {}).get("record_id"),
-                    media_id=job.get("media_id") or None,
-                    predicted_weight_kg=inference_result["predicted_weight_kg"],
-                    confidence=inference_result["confidence"],
-                    model_version=inference_result["model_version"],
-                    metadata=inference_result.get("metadata")
+            # Save inference result to database
+            result_id = await self.db.create_inference_result(
+                result_id=job_id,
+                tenant_id=job["tenant_id"],
+                farm_id=job["farm_id"],
+                barn_id=job["barn_id"],
+                device_id=job["device_id"],
+                session_id=job.get("session_id"),
+                media_id=job.get("media_id") or None,
+                predicted_weight_kg=inference_result["predicted_weight_kg"],
+                confidence=inference_result["confidence"],
+                model_version=inference_result["model_version"],
+                metadata=inference_result.get("metadata")
+            )
+            
+            # Create outbox event
+            occurred_at = _utc_now_iso_z()
+            provenance = inference_result.get("metadata", {}).get("batch_context_provenance")
+            provenance_context = provenance.get("context") if isinstance(provenance, dict) else None
+            station_id = job.get("station_id") or (
+                provenance_context.get("stationId") if isinstance(provenance_context, dict) else None
+            )
+            await self.db.create_outbox_event(
+                event_id=job_id,
+                tenant_id=job["tenant_id"],
+                farm_id=job["farm_id"],
+                barn_id=job["barn_id"],
+                device_id=job["device_id"],
+                session_id=job.get("session_id"),
+                event_type="inference.completed",
+                payload={
+                    "inference_result_id": result_id,
+                    "media_id": job.get("media_id") or None,
+                    "session_id": job.get("session_id"),
+                    "predicted_weight_kg": inference_result["predicted_weight_kg"],
+                    "confidence": inference_result["confidence"],
+                    "model_version": inference_result["model_version"],
+                    "package_id": inference_result.get("metadata", {}).get("package_id"),
+                    "package_version": inference_result.get("metadata", {}).get("package_version"),
+                    "feature_schema_version": inference_result.get("metadata", {}).get("feature_schema_version"),
+                    "activation_source": inference_result.get("metadata", {}).get("activation_source"),
+                    "fallback_engaged": inference_result.get("metadata", {}).get("fallback_engaged"),
+                    "fallback_reason": inference_result.get("metadata", {}).get("fallback_reason"),
+                    "prediction_mode": inference_result.get("metadata", {}).get("prediction_mode"),
+                    "features_used": inference_result.get("metadata", {}).get("features_used"),
+                    "batch_id": inference_result.get("metadata", {}).get("batch_id"),
+                    "batch_context_revision": inference_result.get("metadata", {}).get("batch_context_revision"),
+                    "batch_context_resolution": inference_result.get("metadata", {}).get("batch_context_resolution"),
+                    "batch_context_reason": inference_result.get("metadata", {}).get("batch_context_reason"),
+                    "batch_context_provenance": inference_result.get("metadata", {}).get("batch_context_provenance"),
+                    # Media completion does not carry a station field.  When a
+                    # job is session-scoped, forward the immutable session
+                    # provenance so Cloud can materialize the same station scope.
+                    "station_id": station_id,
+                    "species": inference_result.get("metadata", {}).get("species"),
+                    "breed_code": inference_result.get("metadata", {}).get("breed_code"),
+                    "sex": inference_result.get("metadata", {}).get("sex"),
+                    "age_days": inference_result.get("metadata", {}).get("age_days"),
+                    "model_selection": inference_result.get("metadata", {}).get("model_selection"),
+                    "inference_kind": job.get("job_type", "inference"),
+                    "historical_job_id": job.get("historical_job_id"),
+                    "revision_of": job.get("revision_of"),
+                    "occurred_at": occurred_at,
+                    "tenant_id": job["tenant_id"] or None,
+                    "farm_id": job.get("farm_id") or None,
+                    "barn_id": job.get("barn_id") or None,
+                    "device_id": job.get("device_id") or None,
+                },
+                trace_id=job["trace_id"]
+            )
+
+            # Best-effort session attach (does not emit outbox).
+            if job.get("session_id"):
+                await self._attach_to_session(job, result_id)
+                await self._publish_prediction_outcome_to_session(
+                    job=job,
+                    inference_result_id=result_id,
+                    inference_result=inference_result,
+                    occurred_at=occurred_at,
                 )
             
-                # Create outbox event
-                occurred_at = _utc_now_iso_z()
-                await self.db.create_outbox_event(
-                    event_id=result_key,
-                    tenant_id=job["tenant_id"],
-                    farm_id=job["farm_id"],
-                    barn_id=job["barn_id"],
-                    device_id=job["device_id"],
-                    session_id=job.get("session_id"),
-                    event_type="inference.completed",
-                    payload={
-                        "inference_result_id": result_id,
-                        "capture_metadata_id": inference_result.get("metadata", {}).get("capture_metadata_id"),
-                        "detection_index": inference_result.get("metadata", {}).get("detection_index"),
-                        "detection_count": inference_result.get("metadata", {}).get("detection_count"),
-                        "record_id": inference_result.get("metadata", {}).get("record_id"),
-                        "chicken_index": inference_result.get("metadata", {}).get("chicken_index"),
-                        "chicken_count": inference_result.get("metadata", {}).get("chicken_count"),
-                        "quality": inference_result.get("metadata", {}).get("quality"),
-                        "processed_at": inference_result.get("metadata", {}).get("processed_at"),
-                        "processing_duration_ms": inference_result.get("metadata", {}).get("processing_duration_ms"),
-                        "detection": inference_result.get("metadata", {}).get("detection"),
-                        "media_id": job.get("media_id") or None,
-                        "session_id": job.get("session_id"),
-                        "predicted_weight_kg": inference_result["predicted_weight_kg"],
-                        "confidence": inference_result["confidence"],
-                        "model_version": inference_result["model_version"],
-                        "package_id": inference_result.get("metadata", {}).get("package_id"),
-                        "package_version": inference_result.get("metadata", {}).get("package_version"),
-                        "feature_schema_version": inference_result.get("metadata", {}).get("feature_schema_version"),
-                        "activation_source": inference_result.get("metadata", {}).get("activation_source"),
-                        "fallback_engaged": inference_result.get("metadata", {}).get("fallback_engaged"),
-                        "prediction_mode": inference_result.get("metadata", {}).get("prediction_mode"),
-                        "features_used": inference_result.get("metadata", {}).get("features_used"),
-                        "occurred_at": occurred_at,
-                        "tenant_id": job["tenant_id"] or None,
-                        "farm_id": job.get("farm_id") or None,
-                        "barn_id": job.get("barn_id") or None,
-                        "device_id": job.get("device_id") or None,
-                    },
-                    trace_id=job["trace_id"]
-                )
-
-                # Best-effort session attach (does not emit outbox).
-                if job.get("session_id"):
-                    await self._attach_to_session(job, result_id)
-                    await self._publish_prediction_outcome_to_session(
-                        job=job,
-                        inference_result_id=result_id,
-                        inference_result=inference_result,
-                        occurred_at=occurred_at,
-                    )
-            
-                result_ids.append(result_id)
-
             # Update job status
             job["status"] = "completed"
-            job["result_id"] = result_ids[-1] if result_ids else None
-            job["result_ids"] = result_ids
-            job["detection_count"] = len(result_ids)
+            job["result_id"] = result_id
             job["updated_at"] = _utc_now_iso_z()
+            if self.allocation_shadow.enabled and len(self.shadow_tasks) < 8:
+                task = asyncio.create_task(self._run_allocation_shadow(job, session_features))
+                self.shadow_tasks.add(task)
+                task.add_done_callback(self.shadow_tasks.discard)
+            elif self.allocation_shadow.enabled:
+                logger.warning("Shadow allocation skipped: bounded queue full", extra={"job_id": job_id})
             
-            logger.info("Job completed", extra={"job_id": job_id, "result_ids": result_ids, "trace_id": job.get("trace_id")})
+            logger.info("Job completed", extra={"job_id": job_id, "result_id": result_id, "trace_id": job.get("trace_id")})
             
         except Exception as e:
             logger.error("Job failed", extra={"job_id": job_id, "error": str(e)}, exc_info=True)
             job["status"] = "failed"
             job["error"] = str(e)
             job["updated_at"] = _utc_now_iso_z()
+        finally:
+            if acquired_historical_slot:
+                self.historical_semaphore.release()
+            if not is_historical:
+                self.active_realtime_jobs = max(0, self.active_realtime_jobs - 1)
 
     async def _fetch_media_to_tmp(self, job: Dict[str, Any]) -> str:
         tenant_id = job.get("tenant_id")
@@ -272,152 +301,226 @@ class JobService:
                 payload = json.loads(response.read().decode("utf-8"))
 
             capture_metadata = payload.get("captureMetadata") or []
-            if not capture_metadata:
-                raise ValueError("Capture metadata is not available yet")
-
-            if job.get("media_id"):
-                capture_metadata = [capture for capture in capture_metadata
-                                    if job["media_id"] in (capture.get("mediaIds") or [])]
-                if not capture_metadata:
-                    raise ValueError("No capture metadata matches this media_id")
-            latest_capture = capture_metadata[-1]
-            return {"detection_contexts": self._build_detection_contexts(latest_capture)}
-
-        # Upload completion can trigger inference before MQTT metadata reaches Edge.
-        last_error = None
-        for attempt in range(10):
-            try:
-                return await asyncio.to_thread(_load)
-            except Exception as exc:
-                last_error = exc
-                if attempt < 9:
-                    await asyncio.sleep(1)
-        raise ValueError(f"Unable to load capture metadata: {last_error}") from last_error
-
-    @staticmethod
-    def _detection_result_id(job: Dict[str, Any], result: Dict[str, Any]) -> str:
-        metadata = result.get("metadata") or {}
-        if metadata.get("record_id"):
-            identity = json.dumps([
-                job["tenant_id"], job.get("session_id"), metadata["record_id"],
-            ], separators=(",", ":"))
-            return str(uuid.uuid5(uuid.NAMESPACE_URL, identity))
-        if metadata.get("detection_index") is None:
-            return job["job_id"]
-        # Multiple uploaded views and retried jobs must not duplicate an object result.
-        identity = json.dumps([
-            job["tenant_id"], job.get("session_id"),
-            metadata["capture_metadata_id"], metadata["detection_index"],
-            result["model_version"], metadata.get("package_id"),
-            metadata.get("package_version"),
-        ], separators=(",", ":"))
-        return str(uuid.uuid5(uuid.NAMESPACE_URL, identity))
-
-    def _build_record_contexts(self, job: Dict[str, Any]) -> list[Dict[str, Any]]:
-        records = job.get("per_chicken_records") or []
-        contexts = []
-        for record in records:
-            bbox = record.get("bbox_xyxy")
-            if not isinstance(bbox, list) or len(bbox) != 4:
-                raise ValueError("Each perChickenRecords entry requires bbox_xyxy with four values")
-            try:
-                x1, y1, x2, y2 = [float(value) for value in bbox]
-            except (TypeError, ValueError) as exc:
-                raise ValueError("perChickenRecords bbox_xyxy must be numeric") from exc
-            if not all(math.isfinite(value) for value in (x1, y1, x2, y2)) or x2 <= x1 or y2 <= y1:
-                raise ValueError("perChickenRecords bbox_xyxy must have positive finite area")
-            confidence = record.get("confidence_score")
-            features = {
-                "selected_area_mm2": (x2 - x1) * (y2 - y1),
-                "selected_confidence": confidence,
-                "detection_count": len(records),
-            }
-            contexts.append({
-                "record_id": record["record_id"],
-                "chicken_index": record.get("chicken_index"),
-                "chicken_count": record.get("chicken_count"),
-                "bbox_xyxy": [x1, y1, x2, y2],
-                "detection": {"bbox_xyxy": [x1, y1, x2, y2]},
-                "quality": {"detection_confidence": confidence},
-                "weight_label_type": record.get("weight_label_type"),
-                "features": {key: value for key, value in features.items() if value is not None},
-                "detection_count": len(records),
-                "require_model": True,
-                "session_aggregate": job.get("session_aggregate"),
-                "filtering_summary": job.get("filtering_summary"),
-            })
-        return contexts
-
-    @staticmethod
-    def _crop_media_to_tmp(media_path: str, bbox: list[float]) -> str:
-        """Crop the downloaded media locally; never dereference capture-side mask_path."""
-        with Image.open(media_path) as image:
-            width, height = image.size
-            left = max(0, min(width, math.floor(bbox[0])))
-            top = max(0, min(height, math.floor(bbox[1])))
-            right = max(0, min(width, math.ceil(bbox[2])))
-            bottom = max(0, min(height, math.ceil(bbox[3])))
-            if right <= left or bottom <= top:
-                raise ValueError("perChickenRecords bbox_xyxy is outside media bounds")
-            suffix = ".png" if image.format == "PNG" else ".jpg"
-            fd, crop_path = tempfile.mkstemp(prefix="farmiq-infer-crop-", suffix=suffix)
-            os.close(fd)
-            try:
-                image.crop((left, top, right, bottom)).save(crop_path)
-            except Exception:
-                os.unlink(crop_path)
-                raise
-            return crop_path
-
-    def _build_detection_contexts(self, capture: Dict[str, Any]) -> list:
-        raw = capture.get("rawMetadata") or {}
-        detections = raw.get("detections")
-        if not isinstance(detections, list):
-            raise ValueError("Capture metadata must contain a detections array")
-        if not all(isinstance(detection, dict) for detection in detections):
-            raise ValueError("Each detection must be an object")
-        declared = capture.get("detectionCount")
-        if declared is not None and declared != len(detections):
-            raise ValueError("detection_count does not match the detections array")
-        capture_id = capture.get("captureId") or raw.get("capture_id") or raw.get("image_id")
-        if not capture_id:
-            raise ValueError("Capture identity is required for per-object inference")
-        contexts = []
-        for index, detection in enumerate(detections):
-            depth_stats = detection.get("depth_statistics") or {}
-            depth = next((value for value in [
-                detection.get("distance_mm"), detection.get("average_depth_mm"),
-                depth_stats.get("average_mm"), detection.get("median_depth_mm"),
-                depth_stats.get("median_mm"), detection.get("depth_mm"),
-            ] if value is not None), None)
-            features = self._build_shadow_features({
-                "rawMetadata": raw,
-                "normalizedFeatures": {
-                    "area_mm2": detection.get("area_xy_mm2"),
-                    "confidence_score": detection.get("confidence"),
-                    "distance_mm": depth,
-                    "object_height_mm": detection.get("height_mm"),
-                    "object_width_mm": detection.get("width_mm"),
-                    "object_length_mm": detection.get("length_mm"),
-                    "roi_count": raw.get("roi_count"),
-                    "detection_count": len(detections),
+            latest_capture = capture_metadata[-1] if capture_metadata else None
+            normalized_features = self._build_shadow_features(latest_capture) if latest_capture else {}
+            return {
+                "features": normalized_features,
+                "feature_schema_version": latest_capture.get("featureSchemaVersion") if latest_capture else None,
+                "capture_metadata_id": latest_capture.get("captureId") if latest_capture else None,
+                "allocation_capture": self._select_allocation_capture(capture_metadata, job),
+                # A session without optional capture metadata still has immutable
+                # batch provenance.  Its start time is the best available event
+                # timestamp for deriving age at inference time.
+                "session_started_at": payload.get("startAt") or payload.get("start_at"),
+                "batch_id": payload.get("batchId") or payload.get("batch_id"),
+                "session_batch_context": {
+                    "revision": payload.get("batchContextRevision") or payload.get("batch_context_revision"),
+                    "resolution": payload.get("batchContextResolution") or payload.get("batch_context_resolution"),
+                    "reason": payload.get("batchContextReason") or payload.get("batch_context_reason"),
+                    "provenance": payload.get("batchContextProvenance") or payload.get("batch_context_provenance"),
                 },
-            })
-            contexts.append({
-                "features": features,
-                "feature_schema_version": capture.get("featureSchemaVersion"),
-                "capture_metadata_id": capture_id,
-                "detection_index": index,
-                "detection_count": len(detections),
-                "detection": detection,
-                "require_model": True,
-            })
-        return contexts
+            }
 
-    def _build_shadow_features(self, capture_metadata: Dict[str, Any]) -> Dict[str, float]:
+        try:
+            features = await asyncio.to_thread(_load)
+            snapshot = job.get("historical_context")
+            if job.get("job_type") == "historical-reprocess" and isinstance(snapshot, dict):
+                features["batch_id"] = snapshot.get("batchId")
+                features["session_batch_context"] = {
+                    "revision": snapshot.get("revision"),
+                    "resolution": "resolved",
+                    "reason": None,
+                    "provenance": {"source": "cloud-historical-dispatcher", "context": snapshot},
+                }
+            allocation_capture = features.get("allocation_capture") or {}
+            if Config().BATCH_CONTEXT_INFERENCE_ENABLED:
+                batch_context = self._batch_context_from_session(
+                    features.get("batch_id"),
+                    features.get("session_batch_context") or {},
+                    job,
+                    allocation_capture.get("captured_at") or features.get("session_started_at"),
+                )
+            else:
+                # Legacy path retained behind the feature flag for rollback only.
+                batch_context = await self._fetch_batch_context(
+                    job,
+                    features.get("batch_id"),
+                    allocation_capture.get("captured_at") or features.get("session_started_at"),
+                )
+            if batch_context:
+                features["batch_context"] = batch_context
+                raw_metadata = dict(allocation_capture.get("raw_metadata") or {})
+                # Batch master data is authoritative at inference time. Detection-level
+                # values, when explicitly present, retain their documented override role.
+                raw_metadata.update(batch_context)
+                features["allocation_capture"] = {**allocation_capture, "raw_metadata": raw_metadata}
+            return features
+        except Exception as exc:
+            logger.warning("Unable to fetch session features for shadow inference: %s", exc)
+            return {}
+
+    @staticmethod
+    def _batch_context_from_session(
+        batch_id: Optional[str],
+        session_context: Dict[str, Any],
+        job: Dict[str, Any],
+        captured_at: Optional[str],
+    ) -> Dict[str, Any]:
+        """Use immutable local session provenance; do not call Cloud from inference."""
+        resolution = session_context.get("resolution")
+        reason = session_context.get("reason")
+        provenance = session_context.get("provenance")
+        if not isinstance(provenance, dict):
+            provenance = {}
+        context = provenance.get("context")
+        if not isinstance(context, dict):
+            context = {}
+
+        base = {
+            "batch_id": batch_id,
+            "batch_context_revision": session_context.get("revision"),
+            "batch_context_resolution": resolution or "unassigned",
+            "batch_context_reason": reason,
+            "batch_context_provenance": provenance,
+            "model_policy": context.get("modelPolicy") or {},
+            "fallback_engaged": False,
+            "fallback_reason": None,
+        }
+        if resolution != "resolved" or not batch_id:
+            return {
+                **base,
+                "fallback_engaged": True,
+                "fallback_reason": reason or "BATCH_CONTEXT_UNASSIGNED",
+            }
+
+        if (
+            context.get("tenantId") != job.get("tenant_id")
+            or context.get("farmId") != job.get("farm_id")
+            or context.get("barnId") != job.get("barn_id")
+            or context.get("batchId") != batch_id
+        ):
+            return {**base, "fallback_engaged": True, "fallback_reason": "BATCH_CONTEXT_SCOPE_MISMATCH"}
+
+        breed = context.get("breedCode")
+        sex = context.get("sex")
+        start_date = context.get("startDate")
+        if not breed or not sex or not start_date or not captured_at:
+            return {**base, "fallback_engaged": True, "fallback_reason": "BATCH_ML_CONTEXT_INCOMPLETE"}
+
+        try:
+            farm_timezone = ZoneInfo(Config.FARM_TIMEZONE)
+            start = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).astimezone(farm_timezone).date()
+            captured = datetime.fromisoformat(str(captured_at).replace("Z", "+00:00")).astimezone(farm_timezone).date()
+            age_days = (captured - start).days
+        except (TypeError, ValueError):
+            return {**base, "fallback_engaged": True, "fallback_reason": "BATCH_CONTEXT_DATE_INVALID"}
+        if age_days < 0:
+            return {**base, "fallback_engaged": True, "fallback_reason": "BATCH_START_AFTER_CAPTURE"}
+
+        model_policy = base["model_policy"]
+        fallback_reason = model_policy.get("fallbackReason") if isinstance(model_policy, dict) else None
+        fallback_only = bool(model_policy.get("fallbackOnly")) if isinstance(model_policy, dict) else True
+        return {
+            **base,
+            "species": context.get("species"),
+            "breed_code": breed,
+            "breed": breed,
+            "sex": sex,
+            "age_days": age_days,
+            "fallback_engaged": fallback_only,
+            "fallback_reason": fallback_reason if fallback_only else None,
+        }
+
+    async def _fetch_batch_context(
+        self,
+        job: Dict[str, Any],
+        batch_id: Optional[str],
+        captured_at: Optional[str],
+    ) -> Dict[str, Any]:
+        """Resolve ML context from the cloud batch record without persisting a copy on edge."""
+        config = Config()
+        tenant_id = job.get("tenant_id")
+        if not batch_id or not tenant_id or not config.MODEL_CONTROL_BFF_URL:
+            return {}
+
+        url = (
+            f"{config.MODEL_CONTROL_BFF_URL.rstrip('/')}"
+            f"/api/v1/batches/{urllib.parse.quote(str(batch_id))}?"
+            f"{urllib.parse.urlencode({'tenantId': tenant_id})}"
+        )
+        headers = {
+            "x-tenant-id": tenant_id,
+            "x-request-id": job.get("job_id", Config.new_id()),
+            "x-trace-id": job.get("trace_id", Config.new_id()),
+        }
+        if config.MODEL_CONTROL_TOKEN:
+            headers["Authorization"] = f"Bearer {config.MODEL_CONTROL_TOKEN}"
+
+        def _load() -> Dict[str, Any]:
+            request = urllib.request.Request(url, headers=headers, method="GET")
+            with urllib.request.urlopen(request, timeout=config.MODEL_CONTROL_TIMEOUT_SECONDS) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            batch = payload.get("data", payload) if isinstance(payload, dict) else {}
+            return self._batch_context_from_record(batch, job, captured_at)
+
+        try:
+            return await asyncio.to_thread(_load)
+        except Exception as exc:
+            logger.warning("Unable to resolve batch ML context for %s: %s", batch_id, exc)
+            return {}
+
+    @staticmethod
+    def _batch_context_from_record(batch: Dict[str, Any], job: Dict[str, Any], captured_at: Optional[str]) -> Dict[str, Any]:
+        if (
+            batch.get("tenantId") != job.get("tenant_id")
+            or batch.get("farmId") != job.get("farm_id")
+            or batch.get("barnId") != job.get("barn_id")
+        ):
+            raise ValueError("batch_scope_mismatch")
+        breed = batch.get("breedCode") or batch.get("breed_code")
+        sex = batch.get("sex")
+        start_date = batch.get("startDate") or batch.get("start_date")
+        if not breed or not sex or not start_date or not captured_at:
+            raise ValueError("batch_ml_context_incomplete")
+        farm_timezone = ZoneInfo(Config.FARM_TIMEZONE)
+        start = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).astimezone(farm_timezone).date()
+        captured = datetime.fromisoformat(str(captured_at).replace("Z", "+00:00")).astimezone(farm_timezone).date()
+        age_days = (captured - start).days
+        if age_days < 1:
+            raise ValueError("batch_start_date_not_before_capture")
+        return {
+            "batch_id": batch.get("id"),
+            "species": batch.get("species"),
+            "breed": breed,
+            "sex": sex,
+            "age_days": age_days,
+        }
+
+    @staticmethod
+    def _select_allocation_capture(captures, job):
+        # Media-to-capture linkage is mandatory. Never use an arbitrary latest capture.
+        matches = [c for c in captures if job.get("media_id") and job["media_id"] in (c.get("mediaIds") or [])]
+        if len(matches) != 1:
+            return {"session_id": job.get("session_id"), "capture_id": None, "raw_metadata": {}}
+        capture = matches[0]
+        return {"session_id": job.get("session_id"), "capture_id": capture.get("captureId"),
+                "captured_at": capture.get("occurredAt"), "raw_metadata": capture.get("rawMetadata") or {}}
+
+    async def _run_allocation_shadow(self, job, session_features):
+        try:
+            event = session_features.get("allocation_capture") or {"session_id": job.get("session_id")}
+            async with self.shadow_lock:
+                result = await asyncio.to_thread(self.allocation_shadow.predict, event)
+                await self.db.save_shadow_allocation(job, result)
+        except Exception:
+            logger.exception("Shadow allocation failed; legacy job remains completed", extra={"job_id": job["job_id"]})
+
+    @staticmethod
+    def _build_shadow_features(capture_metadata: Dict[str, Any]) -> Dict[str, float]:
         normalized = capture_metadata.get("normalizedFeatures") or {}
         raw_metadata = capture_metadata.get("rawMetadata") or {}
         height_estimation = raw_metadata.get("height_estimation") or {}
+        detections = raw_metadata.get("detections") or []
 
         def _to_float(value: Any) -> Optional[float]:
             if isinstance(value, (int, float)):
@@ -432,12 +535,15 @@ class JobService:
         feature_map = {
             "selected_area_mm2": normalized.get("area_mm2"),
             "selected_confidence": normalized.get("confidence_score"),
-            "selected_depth_mm": next((normalized.get(key) for key in
-                                       ("distance_mm", "average_depth_mm", "median_depth_mm")
-                                       if normalized.get(key) is not None), None),
-            "selected_height_mm": normalized.get("object_height_mm"),
-            "selected_width_mm": normalized.get("object_width_mm"),
-            "selected_length_mm": normalized.get("object_length_mm"),
+            "selected_depth_mm": normalized.get("distance_mm")
+            or normalized.get("average_depth_mm")
+            or normalized.get("median_depth_mm"),
+            # The canonical capture contract uses height_mm / width_mm /
+            # length_mm.  Preserve the older object_* aliases for captured
+            # sessions produced before that contract was standardized.
+            "selected_height_mm": normalized.get("height_mm") or normalized.get("object_height_mm"),
+            "selected_width_mm": normalized.get("width_mm") or normalized.get("object_width_mm"),
+            "selected_length_mm": normalized.get("length_mm") or normalized.get("object_length_mm"),
             "floor_depth_mm": height_estimation.get("floor_depth_mm"),
             "roi_count": normalized.get("roi_count"),
             "detection_count": normalized.get("detection_count"),
@@ -446,8 +552,58 @@ class JobService:
         result: Dict[str, float] = {}
         for key, value in feature_map.items():
             parsed = _to_float(value)
-            if parsed is not None and math.isfinite(parsed):
+            if parsed is not None:
                 result[key] = parsed
+
+        # The normalized scalars describe one selected bird. In a group capture,
+        # use geometry only when the selected list index and its measurements
+        # agree with that bird; mixing birds would corrupt the visual proxy.
+        detection = None
+        if isinstance(detections, list) and detections:
+            selected_index = normalized.get("selected_detection_index")
+            if len(detections) == 1 and isinstance(detections[0], dict):
+                detection = detections[0]
+            elif isinstance(selected_index, int) and 0 <= selected_index < len(detections):
+                candidate = detections[selected_index]
+                if isinstance(candidate, dict):
+                    area = _to_float(candidate.get("area_xy_mm2"))
+                    confidence = _to_float(candidate.get("confidence"))
+                    selected_area = result.get("selected_area_mm2")
+                    selected_confidence = result.get("selected_confidence")
+                    if (area is not None and selected_area is not None
+                            and abs(area - selected_area) <= max(1.0, selected_area * 0.01)
+                            and confidence is not None and selected_confidence is not None
+                            and abs(confidence - selected_confidence) <= 0.01):
+                        detection = candidate
+        if detection is not None:
+            bbox = detection.get("bbox") or detection.get("bbox_xyxy") or normalized.get("bbox") or {}
+            if isinstance(bbox, dict):
+                x1, y1 = _to_float(bbox.get("x1")), _to_float(bbox.get("y1"))
+                x2, y2 = _to_float(bbox.get("x2")), _to_float(bbox.get("y2"))
+            elif isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+                x1, y1, x2, y2 = (_to_float(value) for value in bbox)
+            else:
+                x1 = y1 = x2 = y2 = None
+            if None not in (x1, y1, x2, y2):
+                bbox_width = x2 - x1
+                bbox_height = y2 - y1
+                bbox_area = bbox_width * bbox_height
+                if bbox_width > 0 and bbox_height > 0:
+                    result["bbox_area_px"] = bbox_area
+                    result["bbox_aspect_ratio"] = bbox_width / bbox_height
+                    # The capture contract can store the mask area at the
+                    # normalized capture level for a single detection.
+                    mask_area = _to_float(detection.get("mask_area_px2"))
+                    if mask_area is None:
+                        mask_area = _to_float(normalized.get("mask_area_px2"))
+                    if mask_area is not None and mask_area > 0:
+                        result["mask_fill_ratio"] = mask_area / bbox_area
+            height = result.get("selected_height_mm")
+            if height is not None:
+                # No calibrated upper/lower height bounds are configured on
+                # Edge yet. Non-positive height is the only hard geometry
+                # rejection rule, and prevents Hybrid Trial selection.
+                result["is_height_outlier"] = 0.0 if height > 0 else 1.0
         return result
 
     async def _attach_to_session(self, job: Dict[str, Any], inference_result_id: str) -> None:
@@ -501,20 +657,11 @@ class JobService:
             "barnId": job.get("barn_id"),
             "deviceId": job.get("device_id"),
             "stationId": job.get("station_id"),
-            "eventId": inference_result_id,
+            "eventId": job.get("job_id", Config.new_id()),
             "occurredAt": occurred_at,
             "inferenceResultId": inference_result_id,
             "mediaId": job.get("media_id"),
             "captureMetadataId": metadata.get("capture_metadata_id"),
-            "detectionIndex": metadata.get("detection_index"),
-            "detectionCount": metadata.get("detection_count"),
-            "detection": metadata.get("detection"),
-            "recordId": metadata.get("record_id"),
-            "chickenIndex": metadata.get("chicken_index"),
-            "chickenCount": metadata.get("chicken_count"),
-            "quality": metadata.get("quality"),
-            "processedAt": metadata.get("processed_at"),
-            "processingDurationMs": metadata.get("processing_duration_ms"),
             "predictedWeightKg": inference_result.get("predicted_weight_kg"),
             "confidence": inference_result.get("confidence"),
             "modelVersion": inference_result.get("model_version"),
@@ -523,8 +670,19 @@ class JobService:
             "featureSchemaVersion": metadata.get("feature_schema_version"),
             "activationSource": metadata.get("activation_source"),
             "fallbackEngaged": metadata.get("fallback_engaged"),
+            "fallbackReason": metadata.get("fallback_reason"),
             "predictionMode": metadata.get("prediction_mode"),
             "featuresUsed": metadata.get("features_used"),
+            "batchId": metadata.get("batch_id"),
+            "batchContextRevision": metadata.get("batch_context_revision"),
+            "batchContextResolution": metadata.get("batch_context_resolution"),
+            "batchContextReason": metadata.get("batch_context_reason"),
+            "batchContextProvenance": metadata.get("batch_context_provenance"),
+            "species": metadata.get("species"),
+            "breedCode": metadata.get("breed_code"),
+            "sex": metadata.get("sex"),
+            "ageDays": metadata.get("age_days"),
+            "modelSelection": metadata.get("model_selection"),
         }
         body = json.dumps(
             {
@@ -553,6 +711,35 @@ class JobService:
     async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job by ID."""
         return self.jobs.get(job_id)
+
+    async def cancel_job(self, job_id: str) -> bool:
+        job = self.jobs.get(job_id)
+        if not job or job.get("job_type") != "historical-reprocess":
+            return False
+        if job.get("status") not in {"queued", "paused"}:
+            return False
+        job["status"] = "cancelled"
+        job["updated_at"] = _utc_now_iso_z()
+        return True
+
+    async def resume_job(self, job_id: str) -> bool:
+        job = self.jobs.get(job_id)
+        if not job or job.get("job_type") != "historical-reprocess":
+            return False
+        if job.get("status") != "paused":
+            return False
+        job["status"] = "queued"
+        job.pop("pause_reason", None)
+        job["updated_at"] = _utc_now_iso_z()
+        return True
+
+    def scheduler_state(self) -> Dict[str, Any]:
+        return {
+            "realtime_active": self.active_realtime_jobs,
+            "historical_concurrency": Config.HISTORICAL_REPROCESS_CONCURRENCY,
+            "historical_pause_realtime_active": Config.HISTORICAL_PAUSE_REALTIME_ACTIVE,
+            "historical_enabled": Config.HISTORICAL_REPROCESS_ENABLED,
+        }
     
     async def get_results_by_session(
         self, session_id: str, limit: int = 100

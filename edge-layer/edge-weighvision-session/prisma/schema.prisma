@@ -23,6 +23,10 @@ model WeightSession {
   deviceId            String   @map("device_id")
   stationId           String   @map("station_id")
   batchId             String?  @map("batch_id")
+  batchContextRevision Int?    @map("batch_context_revision")
+  batchContextResolution String @default("unassigned") @map("batch_context_resolution")
+  batchContextReason   String?  @map("batch_context_reason")
+  batchContextProvenance Json?  @map("batch_context_provenance")
   status              String   // created | finalized | cancelled
   startAt             DateTime @map("start_at")
   endAt               DateTime? @map("end_at")

@@ -47,6 +47,9 @@ export function buildApp() {
         'x-tenant-id',
         'x-request-id',
         'x-trace-id',
+        'x-batch-context-override-token',
+        'x-batch-context-override-actor',
+        'x-batch-context-override-reason',
       ],
     })
   )
@@ -55,6 +58,12 @@ export function buildApp() {
 
   // Routes
   registerSessionRoutes(app, '/api')
+
+  app.get('/metrics', (_req, res) => {
+    // Loaded lazily to keep this lightweight service free of an extra metrics dependency.
+    const { renderBatchContextMetrics } = require('./utils/batchContextMetrics') as typeof import('./utils/batchContextMetrics')
+    res.type('text/plain').send(renderBatchContextMetrics())
+  })
 
   // Swagger
   setupSwagger(app)

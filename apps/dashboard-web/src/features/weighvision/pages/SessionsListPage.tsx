@@ -190,7 +190,7 @@ export const SessionsListPage: React.FC = () => {
     const { tenantId, farmId, barnId, batchId, timeRange } = useActiveContext();
     const navigate = useNavigate();
     const { data: sessions = [], isLoading: loading, error } = useQuery<SessionRow[]>({
-        queryKey: ['sessions', tenantId, farmId, barnId, batchId, timeRange.start, timeRange.end],
+        queryKey: ['sessions', tenantId, farmId, barnId, batchId, timeRange.preset],
         queryFn: async () => {
             if (!tenantId) return [];
             const from = timeRange.start.toISOString();
@@ -216,6 +216,7 @@ export const SessionsListPage: React.FC = () => {
             return [];
         },
         enabled: !!tenantId,
+        refetchInterval: 30_000,
         initialData: [],
     });
 

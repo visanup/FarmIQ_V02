@@ -14,6 +14,8 @@ export type PolicySyncConfig = {
   backoffCapSeconds: number
   requestTimeoutSeconds: number
   contexts: EdgeContext[]
+  batchContextCacheEnabled: boolean
+  batchContextTtlSeconds: number
 }
 
 function parseContextsFromEnv(): EdgeContext[] {
@@ -49,6 +51,8 @@ export function loadConfigFromEnv(): PolicySyncConfig {
   const backoffCapSeconds = Number(process.env.POLICY_SYNC_BACKOFF_CAP_SECONDS || 600)
   const requestTimeoutSeconds = Number(process.env.POLICY_SYNC_TIMEOUT_SECONDS || 10)
   const contexts = parseContextsFromEnv()
+  const batchContextCacheEnabled = process.env.BATCH_CONTEXT_CACHE_ENABLED === 'true'
+  const batchContextTtlSeconds = Number(process.env.BATCH_CONTEXT_CACHE_TTL_SECONDS || 300)
 
   return {
     appPort,
@@ -59,5 +63,7 @@ export function loadConfigFromEnv(): PolicySyncConfig {
     backoffCapSeconds,
     requestTimeoutSeconds,
     contexts,
+    batchContextCacheEnabled,
+    batchContextTtlSeconds,
   }
 }

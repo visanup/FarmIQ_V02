@@ -94,9 +94,6 @@ export type WeighVisionPredictionOutcomeSyncEnvelope = {
     inference_result_id?: string
     media_id?: string
     capture_metadata_id?: string
-    detection_index?: number
-    detection_count?: number
-    detection?: JsonRecord
     predicted_weight_kg?: number
     confidence?: number
     model_version: string
@@ -105,8 +102,19 @@ export type WeighVisionPredictionOutcomeSyncEnvelope = {
     feature_schema_version?: string
     activation_source?: string
     fallback_engaged?: boolean
+    fallback_reason?: string
     prediction_mode?: string
     features_used?: Record<string, unknown>
+    batch_id?: string
+    batch_context_revision?: number
+    batch_context_resolution?: string
+    batch_context_reason?: string
+    batch_context_provenance?: Record<string, unknown>
+    species?: string
+    breed_code?: string
+    sex?: string
+    age_days?: number
+    model_selection?: Record<string, unknown>
     source_event_type: string
   }
 }
@@ -341,9 +349,6 @@ export function buildWeighVisionPredictionOutcomeSyncEnvelope(params: {
   inferenceResultId?: string
   mediaId?: string
   captureMetadataId?: string
-  detectionIndex?: number
-  detectionCount?: number
-  detection?: JsonRecord
   predictedWeightKg?: number
   confidence?: number
   modelVersion: string
@@ -352,8 +357,19 @@ export function buildWeighVisionPredictionOutcomeSyncEnvelope(params: {
   featureSchemaVersion?: string
   activationSource?: string
   fallbackEngaged?: boolean
+  fallbackReason?: string
   predictionMode?: string
   featuresUsed?: Record<string, unknown>
+  batchId?: string
+  batchContextRevision?: number
+  batchContextResolution?: string
+  batchContextReason?: string
+  batchContextProvenance?: Record<string, unknown>
+  species?: string
+  breedCode?: string
+  sex?: string
+  ageDays?: number
+  modelSelection?: Record<string, unknown>
   sourceEventType?: string
 }): WeighVisionPredictionOutcomeSyncEnvelope {
   return {
@@ -373,9 +389,6 @@ export function buildWeighVisionPredictionOutcomeSyncEnvelope(params: {
       inference_result_id: params.inferenceResultId,
       media_id: params.mediaId,
       capture_metadata_id: params.captureMetadataId,
-      detection_index: params.detectionIndex,
-      detection_count: params.detectionCount,
-      detection: params.detection,
       predicted_weight_kg: params.predictedWeightKg,
       confidence: params.confidence,
       model_version: params.modelVersion,
@@ -384,8 +397,19 @@ export function buildWeighVisionPredictionOutcomeSyncEnvelope(params: {
       feature_schema_version: params.featureSchemaVersion,
       activation_source: params.activationSource,
       fallback_engaged: params.fallbackEngaged,
+      fallback_reason: params.fallbackReason,
       prediction_mode: params.predictionMode,
       features_used: params.featuresUsed,
+      batch_id: params.batchId,
+      batch_context_revision: params.batchContextRevision,
+      batch_context_resolution: params.batchContextResolution,
+      batch_context_reason: params.batchContextReason,
+      batch_context_provenance: params.batchContextProvenance,
+      species: params.species,
+      breed_code: params.breedCode,
+      sex: params.sex,
+      age_days: params.ageDays,
+      model_selection: params.modelSelection,
       source_event_type:
         params.sourceEventType ?? 'edge.shadow_prediction.completed',
     },

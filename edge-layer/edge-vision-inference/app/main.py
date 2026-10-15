@@ -59,6 +59,9 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
+    if job_service.shadow_tasks:
+        import asyncio
+        await asyncio.gather(*job_service.shadow_tasks, return_exceptions=True)
     await db.close()
     logger.info("Application shutdown")
 

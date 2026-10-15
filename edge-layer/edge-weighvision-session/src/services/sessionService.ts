@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { logger } from '../utils/logger'
 import {
   buildWeighVisionInferenceSyncEnvelope,
@@ -6,6 +6,12 @@ import {
   normalizeWeighVisionMetadata,
 } from '../utils/weighvisionMetadata'
 import { ensureWeighVisionSchema } from '../db/ensureSchema'
+import {
+  createControlledOverride,
+  resolveBatchContext,
+  type BatchContextResolution,
+} from './batchContextResolver'
+import { recordBatchContextResolution } from '../utils/batchContextMetrics'
 
 const prisma = new PrismaClient()
 let schemaEnsurePromise: Promise<void> | null = null
@@ -18,7 +24,11 @@ type CreateSessionParams = {
   barnId: string
   deviceId: string
   stationId: string
-  batchId?: string
+  batchContextOverride?: {
+    batchId: string
+    actor: string
+    reason: string
+  }
   startAt: string
   traceId: string
 }
@@ -59,6 +69,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function asRecord(value: Prisma.JsonValue | null): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
 function toJsonString(value: unknown): string {
   return JSON.stringify(value ?? null)
 }
@@ -94,10 +110,15 @@ export const createSession = async (data: CreateSessionParams) => {
     barnId,
     deviceId,
     stationId,
-    batchId,
+    batchContextOverride,
     startAt,
     traceId,
   } = data
+
+  const batchContext: BatchContextResolution = batchContextOverride
+    ? createControlledOverride(batchContextOverride.batchId, batchContextOverride.actor, batchContextOverride.reason)
+    : await resolveBatchContext({ tenantId, deviceId, stationId })
+  recordBatchContextResolution(batchContext.resolution)
 
   const session = await prisma.$transaction(async (tx) => {
     // Idempotent upsert
@@ -110,7 +131,11 @@ export const createSession = async (data: CreateSessionParams) => {
         barnId,
         deviceId,
         stationId,
-        batchId,
+        batchId: batchContext.batchId ?? undefined,
+        batchContextRevision: batchContext.revision ?? undefined,
+        batchContextResolution: batchContext.resolution,
+        batchContextReason: batchContext.reason ?? undefined,
+        batchContextProvenance: JSON.parse(JSON.stringify(batchContext.provenance)) as Prisma.InputJsonValue,
         status: 'created',
         startAt: new Date(startAt),
       },
@@ -187,7 +212,11 @@ export const createSession = async (data: CreateSessionParams) => {
         barn_id: barnId,
         device_id: deviceId,
         station_id: stationId,
-        batch_id: batchId,
+        batch_id: session.batchId,
+        batch_context_revision: session.batchContextRevision,
+        batch_context_resolution: session.batchContextResolution,
+        batch_context_reason: session.batchContextReason,
+        batch_context_provenance: session.batchContextProvenance,
         start_at: startAt,
       })
     )
@@ -266,7 +295,9 @@ export const bindMedia = async (sessionId: string, data: BindMediaParams) => {
   return await prisma.$transaction(async (tx) => {
     // Create media binding
     const binding = await tx.sessionMediaBinding.upsert({
-      where: { tenantId_eventId: { tenantId, eventId } },
+      // Direct IoT binding and the MQTT replay can use different event IDs
+      // for the same media. The session/media pair is the durable identity.
+      where: { sessionId_mediaObjectId: { sessionId, mediaObjectId } },
       create: {
         sessionId,
         tenantId,
@@ -369,6 +400,11 @@ export const finalizeSession = async (
         final_weight_kg: updatedSession.finalWeightKg,
         image_count: updatedSession.imageCount,
         end_at: updatedSession.endAt?.toISOString(),
+        batch_id: updatedSession.batchId,
+        batch_context_revision: updatedSession.batchContextRevision,
+        batch_context_resolution: updatedSession.batchContextResolution,
+        batch_context_reason: updatedSession.batchContextReason,
+        batch_context_provenance: updatedSession.batchContextProvenance,
         payload: data.payload ?? undefined,
       })
     )
@@ -705,9 +741,6 @@ export const publishInferenceOutcome = async (
     inferenceResultId?: string
     mediaId?: string
     captureMetadataId?: string
-    detectionIndex?: number
-    detectionCount?: number
-    detection?: Record<string, unknown>
     predictedWeightKg?: number
     confidence?: number
     modelVersion: string
@@ -716,8 +749,19 @@ export const publishInferenceOutcome = async (
     featureSchemaVersion?: string
     activationSource?: string
     fallbackEngaged?: boolean
+    fallbackReason?: string
     predictionMode?: string
     featuresUsed?: Record<string, unknown>
+    batchId?: string
+    batchContextRevision?: number
+    batchContextResolution?: 'resolved' | 'unassigned' | 'override'
+    batchContextReason?: string
+    batchContextProvenance?: Record<string, unknown>
+    species?: string
+    breedCode?: string
+    sex?: string
+    ageDays?: number
+    modelSelection?: Record<string, unknown>
     eventSchemaVersion?: string
     sourceEventType?: string
   }
@@ -752,9 +796,6 @@ export const publishInferenceOutcome = async (
     inferenceResultId: data.inferenceResultId,
     mediaId: data.mediaId,
     captureMetadataId: data.captureMetadataId,
-    detectionIndex: data.detectionIndex,
-    detectionCount: data.detectionCount,
-    detection: data.detection,
     predictedWeightKg: data.predictedWeightKg,
     confidence: data.confidence,
     modelVersion: data.modelVersion,
@@ -763,8 +804,20 @@ export const publishInferenceOutcome = async (
     featureSchemaVersion: data.featureSchemaVersion,
     activationSource: data.activationSource,
     fallbackEngaged: data.fallbackEngaged,
+    fallbackReason: data.fallbackReason,
     predictionMode: data.predictionMode,
     featuresUsed: data.featuresUsed,
+    // The session owns immutable batch provenance. Do not let inference replace it.
+    batchId: session.batchId ?? data.batchId,
+    batchContextRevision: session.batchContextRevision ?? data.batchContextRevision,
+    batchContextResolution: session.batchContextResolution ?? data.batchContextResolution,
+    batchContextReason: session.batchContextReason ?? data.batchContextReason,
+    batchContextProvenance: asRecord(session.batchContextProvenance) ?? data.batchContextProvenance,
+    species: data.species,
+    breedCode: data.breedCode,
+    sex: data.sex,
+    ageDays: data.ageDays,
+    modelSelection: data.modelSelection,
     sourceEventType: data.sourceEventType,
   })
 

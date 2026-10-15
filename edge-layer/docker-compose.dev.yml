@@ -201,6 +201,11 @@ services:
       - farmiq-net
 
   edge-vision-inference:
+    restart: unless-stopped
+    command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
     build:
       context: ./edge-vision-inference
       dockerfile: Dockerfile.dev

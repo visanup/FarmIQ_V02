@@ -16,6 +16,10 @@ async function main() {
       device_id TEXT NOT NULL,
       station_id TEXT NOT NULL,
       batch_id TEXT NULL,
+      batch_context_revision INTEGER NULL,
+      batch_context_resolution TEXT NOT NULL DEFAULT 'unassigned',
+      batch_context_reason TEXT NULL,
+      batch_context_provenance JSONB NULL,
       status TEXT NOT NULL,
       start_at TIMESTAMPTZ NOT NULL,
       end_at TIMESTAMPTZ NULL,
@@ -26,6 +30,13 @@ async function main() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `)
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE weight_sessions
+      ADD COLUMN IF NOT EXISTS batch_context_revision INTEGER NULL,
+      ADD COLUMN IF NOT EXISTS batch_context_resolution TEXT NOT NULL DEFAULT 'unassigned',
+      ADD COLUMN IF NOT EXISTS batch_context_reason TEXT NULL,
+      ADD COLUMN IF NOT EXISTS batch_context_provenance JSONB NULL;
   `)
   await prisma.$executeRawUnsafe(`
     CREATE INDEX IF NOT EXISTS weight_sessions_tenant_session_idx

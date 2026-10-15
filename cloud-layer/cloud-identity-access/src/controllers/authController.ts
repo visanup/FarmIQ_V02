@@ -113,7 +113,11 @@ export const refresh = async (req: Request, res: Response) => {
             tenant_id: user.tenantId,
         };
 
-        const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as SignOptions);
+        const accessToken = jwt.sign(payload, JWT_SECRET, {
+            expiresIn: JWT_EXPIRES_IN,
+            issuer: 'farmiq',
+            audience: 'farmiq-api'
+        } as SignOptions);
 
         return res.status(200).json({
             access_token: accessToken,

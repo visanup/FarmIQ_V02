@@ -10,6 +10,9 @@ export class SyncScheduler {
   private readonly failureCounter: Counter<string>
   private readonly lagGauge: Gauge<string>
   private readonly cacheEntriesGauge: Gauge<string>
+  private readonly batchCacheEntriesGauge: Gauge<string>
+  private readonly batchCacheAgeGauge: Gauge<string>
+  private readonly resolutionCounter: Counter<'outcome'>
   private timer?: NodeJS.Timeout
 
   constructor(service: PolicySyncService, config: PolicySyncConfig, registry: Registry) {
@@ -37,6 +40,23 @@ export class SyncScheduler {
       help: 'Number of cached contexts',
       registers: [registry],
     })
+    this.batchCacheEntriesGauge = new Gauge({
+      name: 'edge_batch_context_cache_entries',
+      help: 'Number of active cached Batch contexts',
+      registers: [registry],
+    })
+    this.batchCacheAgeGauge = new Gauge({
+      name: 'edge_batch_context_cache_oldest_age_seconds',
+      help: 'Age of the oldest active Batch context cache entry',
+      registers: [registry],
+    })
+    this.resolutionCounter = new Counter({
+      name: 'edge_batch_context_resolution_total',
+      help: 'Batch context lookup outcomes',
+      labelNames: ['outcome'],
+      registers: [registry],
+    })
+    this.service.setResolutionObserver((outcome) => this.resolutionCounter.inc({ outcome }))
   }
 
   start(): void {
@@ -69,6 +89,12 @@ export class SyncScheduler {
     }
 
     this.cacheEntriesGauge.set(state.cacheEntries)
+    this.batchCacheEntriesGauge.set(state.batchCacheEntries)
+    if (state.batchCacheOldestAgeSeconds !== null) {
+      this.batchCacheAgeGauge.set(Number(state.batchCacheOldestAgeSeconds))
+    } else {
+      this.batchCacheAgeGauge.set(0)
+    }
 
     if (result.ok) {
       this.successCounter.inc()

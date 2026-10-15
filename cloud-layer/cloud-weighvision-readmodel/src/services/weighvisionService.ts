@@ -73,19 +73,17 @@ export async function getSessions(params: {
           )
         )
       ) as final_weight_kg,
-      COALESCE(
-        (SELECT json_agg(m ORDER BY m.ts DESC) 
-         FROM (SELECT * FROM weighvision_measurement WHERE "sessionDbId" = s.id ORDER BY ts DESC LIMIT 10) m),
-        '[]'::json
-      ) as measurements,
-      COALESCE(
-        (SELECT json_agg(med ORDER BY med.ts DESC)
-         FROM (SELECT * FROM weighvision_media WHERE "sessionDbId" = s.id ORDER BY ts DESC LIMIT 5) med),
-        '[]'::json
-      ) as media,
+      '[]'::json as measurements,
+      '[]'::json as media,
       COALESCE(
         (SELECT json_agg(inf ORDER BY inf.ts DESC)
-         FROM (SELECT * FROM weighvision_inference WHERE "sessionDbId" = s.id ORDER BY ts DESC LIMIT 5) inf),
+         FROM (
+           SELECT id, "tenantId", "sessionId", "sessionDbId", "modelVersion", ts, "resultJson"
+           FROM weighvision_inference
+           WHERE "sessionDbId" = s.id
+           ORDER BY ts DESC
+           LIMIT 1
+         ) inf),
         '[]'::json
       ) as inferences
     FROM weighvision_session s
@@ -160,7 +158,7 @@ export async function getSessions(params: {
     updatedAt: row.updatedAt,
     measurements: row.measurements || [],
     media: row.media || [],
-    inferences: normalizeInferenceRows(row.inferences),
+    inferences: summarizeInferenceRows(row.inferences),
   }))
 
   const hasNext = sessions.length > limit
@@ -329,6 +327,25 @@ function normalizeInferenceRows(value: unknown): Array<Record<string, unknown>> 
       getStringValue(parsedResult.source_event_type, parsedResult.sourceEventType) ?? null
     return record
   })
+}
+
+function summarizeInferenceRows(value: unknown): Array<Record<string, unknown>> {
+  return normalizeInferenceRows(value).map((row) => ({
+    id: row.id,
+    tenantId: row.tenantId,
+    sessionId: row.sessionId,
+    sessionDbId: row.sessionDbId,
+    modelVersion: row.modelVersion,
+    ts: row.ts,
+    predicted_weight_kg: row.predicted_weight_kg,
+    confidence: row.confidence,
+    prediction_mode: row.prediction_mode,
+    package_id: row.package_id,
+    package_version: row.package_version,
+    feature_schema_version: row.feature_schema_version,
+    activation_source: row.activation_source,
+    source_event_type: row.source_event_type,
+  }))
 }
 
 function getSessionIdFromEvent(event: WeighVisionEvent): string | undefined {

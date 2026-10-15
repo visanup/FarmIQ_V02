@@ -6,7 +6,6 @@ import hashlib
 import io
 import json
 import logging
-import math
 import shutil
 import tarfile
 import urllib.error
@@ -16,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from app.config import Config
+from app.hybrid_trial_runtime import HybridTrialRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,13 @@ class InferenceService:
         self.active_model_payload: Optional[Dict[str, Any]] = None
         self.activation_source = "env"
         self.fallback_engaged = False
+        self.hybrid_trial: Optional[HybridTrialRuntime] = None
+        if config.HYBRID_TRIAL_ENABLED:
+            try:
+                self.hybrid_trial = HybridTrialRuntime(config.HYBRID_TRIAL_MODEL_DIR)
+                logger.info("Hybrid Trial 75Sx25V enabled")
+            except Exception as exc:
+                logger.warning("Hybrid Trial could not be loaded; legacy runtime remains active: %s", exc)
 
         self._load_runtime_from_current_manifests()
 
@@ -371,64 +378,141 @@ class InferenceService:
         """
         Run inference on an image.
         """
+        # BCES-005: realtime selection reads the immutable session/cache policy.
+        # The legacy subscription refresh can download or acknowledge through Cloud,
+        # so it is deliberately kept out of this enabled hot path.
+        if not self.config.BATCH_CONTEXT_INFERENCE_ENABLED:
+            await self.ensure_subscription_activation()
+
         image_file = Path(image_path)
         if not image_file.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
 
-        if self.config.SIMULATED_MODEL_ENABLED:
-            return self._run_simulated_object_inference(image_file, metadata or {})
-        await self.ensure_subscription_activation()
         features = self._extract_features(metadata or {})
+        if self.hybrid_trial:
+            hybrid = self.hybrid_trial.predict(metadata or {})
+            if hybrid and hybrid.get("prediction_status") == "ACCEPTED":
+                runtime_metadata = self._runtime_metadata(image_file, metadata or {})
+                runtime_metadata.update(
+                    {
+                        "stub_mode": False,
+                        "prediction_mode": "hybrid_trial_75s25v",
+                        "standard_weight_g": hybrid["standard_weight_g"],
+                        "visual_standard_proxy_g": hybrid["visual_standard_proxy_g"],
+                        "hybrid_predicted_weight_g": hybrid["predicted_weight_g"],
+                        "hybrid_weights": {"standard": 0.75, "visual": 0.25},
+                    }
+                )
+                return self._apply_batch_context_provenance(
+                    {
+                        "predicted_weight_kg": round(float(hybrid["predicted_weight_g"]) / 1000.0, 4),
+                        "confidence": float(features.get("selected_confidence", features.get("confidence", 0.0))),
+                        "model_version": str(hybrid["model_version"]),
+                        "metadata": runtime_metadata,
+                    },
+                    metadata or {},
+                )
         if self.active_model_payload and features:
             try:
-                return self._run_shadow_model_inference(image_file, features, metadata or {})
+                result = self._run_shadow_model_inference(image_file, features, metadata or {})
+                return self._apply_batch_context_provenance(result, metadata or {})
             except Exception as exc:
-                if (metadata or {}).get("require_model"):
-                    raise ValueError(f"Per-object model inference failed: {exc}") from exc
                 logger.warning("Shadow model inference failed, falling back to stub mode: %s", exc)
 
-        if (metadata or {}).get("require_model"):
-            raise ValueError("Per-object inference requires an active model and valid object features")
-        return self._run_stub_inference(image_file, metadata or {})
+        result = self._run_stub_inference(image_file, metadata or {})
+        return self._apply_batch_context_provenance(result, metadata or {})
 
-    def _run_simulated_object_inference(
-        self, image_file: Path, metadata: Dict[str, Any]
+    def _apply_batch_context_provenance(
+        self,
+        result: Dict[str, Any],
+        metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Deterministic test weights from each object's area; not a trained model."""
-        features = self._extract_features(metadata)
-        area = features.get("selected_area_mm2")
-        feature_name = "selected_area_mm2"
-        if area is None or not math.isfinite(area) or area <= 0:
-            bbox = (metadata.get("detection") or {}).get("bbox_xyxy")
-            if not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
-                raise ValueError("Simulated model requires a positive object area or valid bbox")
-            try:
-                x1, y1, x2, y2 = map(float, bbox)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("Simulated model requires a numeric bbox") from exc
-            if not all(math.isfinite(v) for v in (x1, y1, x2, y2)) or x2 <= x1 or y2 <= y1:
-                raise ValueError("Simulated model requires a finite, positive bbox")
-            area = (x2 - x1) * (y2 - y1)
-            feature_name = "bbox_area_px2"
-        # Arbitrary scaling for pipeline testing only; never calibrated animal weight.
-        weight = round(min(999.0, max(0.01, area / 10000.0)), 4)
-        return {
-            "predicted_weight_kg": weight,
-            "confidence": 0.0,
-            "model_version": "simulated-geometry-v1",
-            "metadata": {
-                **self._runtime_metadata(image_file, metadata),
-                "package_id": None,
-                "package_version": None,
-                "activation_source": "explicit_simulation",
+        if not self.config.BATCH_CONTEXT_INFERENCE_ENABLED:
+            return result
+        context = metadata.get("batch_context")
+        if not isinstance(context, dict):
+            context = {
+                "batch_context_resolution": "unassigned",
+                "fallback_engaged": True,
+                "fallback_reason": "BATCH_CONTEXT_UNASSIGNED",
+            }
+        selection = self._resolve_cached_model_policy(context.get("model_policy"))
+        runtime_metadata = result.setdefault("metadata", {})
+        is_local_hybrid_trial = runtime_metadata.get("prediction_mode") == "hybrid_trial_75s25v"
+        if is_local_hybrid_trial:
+            # A deliberately enabled local trial does not consume the legacy
+            # model-subscription policy.  Its result must not be labelled as a
+            # fallback merely because that separate policy has no package yet.
+            selection = {
+                "mode": "local_trial",
+                "requested_package_id": None,
+                "requested_package_version": None,
+                "selected_package_id": "hybrid-trial-75s25v-v1-edge",
+                "selected_package_version": result.get("model_version"),
                 "fallback_engaged": False,
-                "stub_mode": True,
-                "prediction_mode": "simulated_per_object",
-                "simulated": True,
-                "weight_accuracy_validated": False,
-                "simulation_formula": "clamp(object_area / 10000, 0.01, 999) kg; arbitrary test scaling",
-                "features_used": {feature_name: area},
-            },
+                "fallback_reason": None,
+            }
+        runtime_metadata.update(
+            {
+                "batch_id": context.get("batch_id"),
+                "batch_context_revision": context.get("batch_context_revision"),
+                "batch_context_resolution": context.get("batch_context_resolution"),
+                "batch_context_reason": context.get("batch_context_reason"),
+                "batch_context_provenance": context.get("batch_context_provenance"),
+                "species": context.get("species"),
+                "breed_code": context.get("breed_code"),
+                "sex": context.get("sex"),
+                "age_days": context.get("age_days"),
+                "model_policy": context.get("model_policy") or {},
+                "model_selection": selection,
+                "fallback_engaged": False if is_local_hybrid_trial else (bool(runtime_metadata.get("fallback_engaged"))
+                or bool(context.get("fallback_engaged"))
+                or bool(selection["fallback_engaged"])),
+                "fallback_reason": None if is_local_hybrid_trial else (context.get("fallback_reason") or selection["fallback_reason"]),
+            }
+        )
+        return result
+
+    def _resolve_cached_model_policy(self, policy: Any) -> Dict[str, Any]:
+        """Select only from a model package already resident on this Edge."""
+        policy = policy if isinstance(policy, dict) else {}
+        active = policy.get("activePackage") if isinstance(policy.get("activePackage"), dict) else {}
+        requested_id = active.get("id")
+        requested_version = active.get("packageVersion") or active.get("version")
+        runtime_id = (self.active_manifest or {}).get("id")
+        runtime_version = (self.active_manifest or {}).get("packageVersion")
+        fallback_only = bool(policy.get("fallbackOnly"))
+
+        if fallback_only or not requested_id:
+            return {
+                "mode": "fallback",
+                "requested_package_id": None,
+                "requested_package_version": None,
+                "selected_package_id": runtime_id,
+                "selected_package_version": runtime_version,
+                "fallback_engaged": True,
+                "fallback_reason": policy.get("fallbackReason") or "NO_SITE_SUBSCRIPTION",
+            }
+        if requested_id == runtime_id and (
+            not requested_version or requested_version == runtime_version
+        ):
+            return {
+                "mode": "cached_policy_match",
+                "requested_package_id": requested_id,
+                "requested_package_version": requested_version,
+                "selected_package_id": runtime_id,
+                "selected_package_version": runtime_version,
+                "fallback_engaged": False,
+                "fallback_reason": None,
+            }
+        return {
+            "mode": "fallback",
+            "requested_package_id": requested_id,
+            "requested_package_version": requested_version,
+            "selected_package_id": runtime_id,
+            "selected_package_version": runtime_version,
+            "fallback_engaged": True,
+            "fallback_reason": "MODEL_PACKAGE_NOT_READY",
         }
 
     def _run_shadow_model_inference(
@@ -457,8 +541,6 @@ class InferenceService:
             float(coefficients[index]) * scaled_values[index]
             for index in range(len(coefficients))
         )
-        if not math.isfinite(predicted_weight):
-            raise ValueError("Model produced a non-finite weight")
         predicted_weight = max(0.0, round(predicted_weight, 4))
         confidence = round(min(0.99, 0.7 + (1.0 / max(1, len(feature_order)))), 4)
 
@@ -530,24 +612,11 @@ class InferenceService:
         return features
 
     def get_model_info(self) -> Dict[str, Any]:
-        if self.config.SIMULATED_MODEL_ENABLED:
-            return {
-                "model_version": "simulated-geometry-v1",
-                "model_path": "builtin:simulated-object-area",
-                "status": "simulated",
-                "prediction_mode": "simulated_per_object",
-                "simulated": True,
-                "activation_source": "explicit_simulation",
-                "package_id": None,
-                "package_version": None,
-                "active_model_path": None,
-                "weight_accuracy_validated": False,
-            }
         active_manifest = self.active_manifest or {}
         fallback_manifest = self.fallback_manifest or {}
         return {
             "model_version": self.model_version,
-            "model_path": self.config.MODEL_PATH or "shadow_baseline_or_stub",
+            "model_path": "model_package_or_stub",
             "confidence_threshold": self.config.CONFIDENCE_THRESHOLD,
             "nms_threshold": self.config.NMS_THRESHOLD,
             "status": "ready" if self.active_model_payload else "stub_mode",

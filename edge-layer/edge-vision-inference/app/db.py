@@ -1,4 +1,5 @@
 """Database connection and schema management."""
+import asyncio
 import logging
 from typing import Optional, List, Dict, Any
 from app.config import Config
@@ -38,17 +39,24 @@ class InferenceDb:
         """Create connection pool."""
         if asyncpg is None:
             raise RuntimeError("asyncpg is required to connect to the inference database")
-        try:
-            self.pool = await asyncpg.create_pool(
-                self.database_url,
-                min_size=1,
-                max_size=10,
-                command_timeout=60
-            )
-            logger.info("Database connection pool created")
-        except Exception as e:
-            logger.error(f"Failed to create database pool: {e}")
-            raise
+        for attempt in range(1, 9):
+            try:
+                self.pool = await asyncpg.create_pool(
+                    self.database_url,
+                    min_size=1,
+                    max_size=10,
+                    timeout=10,
+                    command_timeout=60,
+                )
+                logger.info("Database connection pool created")
+                return
+            except (OSError, asyncio.TimeoutError, asyncpg.exceptions.CannotConnectNowError) as error:
+                if attempt == 8:
+                    logger.error("Database unavailable after %s attempts: %s", attempt, error)
+                    raise
+                delay = min(2 ** (attempt - 1), 10)
+                logger.warning("Database connection attempt %s/8 failed: %s; retrying in %ss", attempt, error, delay)
+                await asyncio.sleep(delay)
     
     async def close(self):
         """Close connection pool."""
@@ -71,7 +79,6 @@ class InferenceDb:
                     barn_id VARCHAR(255) NOT NULL,
                     device_id VARCHAR(255) NOT NULL,
                     session_id VARCHAR(255),
-                    record_id VARCHAR(255),
                     media_id VARCHAR(255),
                     predicted_weight_kg DECIMAL(10, 2),
                     predicted_size VARCHAR(255),
@@ -90,11 +97,6 @@ class InferenceDb:
             """)
 
             await conn.execute("""
-                ALTER TABLE inference_results
-                ADD COLUMN IF NOT EXISTS record_id VARCHAR(255)
-            """)
-
-            await conn.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_inference_results_tenant_event
                 ON inference_results(tenant_id, event_id)
             """)
@@ -103,12 +105,6 @@ class InferenceDb:
             await conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_inference_results_tenant_session 
                 ON inference_results(tenant_id, session_id)
-            """)
-
-            await conn.execute("""
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_inference_results_tenant_session_record
-                ON inference_results(tenant_id, session_id, record_id)
-                WHERE record_id IS NOT NULL
             """)
             
             await conn.execute("""
@@ -168,6 +164,34 @@ class InferenceDb:
             """)
             
             logger.info("Database schema ensured")
+            from pathlib import Path
+            await conn.execute(Path(__file__).with_name("allocation_shadow.sql").read_text())
+
+    async def save_shadow_allocation(self, job, result):
+        """Atomically persist a session outcome, bird rows and a held local event."""
+        import uuid
+        event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"allocation:{job['tenant_id']}:{job['job_id']}:{result['model_version']}"))
+        payload = {**result, "event_id": event_id, "tenant_id": job["tenant_id"],
+                   "farm_id": job.get("farm_id"), "barn_id": job.get("barn_id"),
+                   "device_id": job.get("device_id"), "trace_id": job.get("trace_id")}
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                inserted = await conn.fetchval("""
+                    INSERT INTO allocation_shadow_events (event_id, tenant_id, session_id, capture_id, model_version, payload_json)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb)
+                    ON CONFLICT (event_id) DO NOTHING RETURNING event_id
+                """, event_id, job["tenant_id"], job.get("session_id"), result.get("capture_id"),
+                    result["model_version"], json.dumps(payload, allow_nan=False))
+                if inserted is None:
+                    return event_id
+                for row in result["allocations"]:
+                    await conn.execute("""
+                        INSERT INTO session_bird_allocations
+                        (event_id, tenant_id, session_id, capture_id, detection_index, model_version, raw_score_g, allocated_weight_g)
+                        VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8)
+                    """, event_id, job["tenant_id"], job["session_id"], result["capture_id"],
+                        row["detection_index"], result["model_version"], row["raw_score_g"], row["allocated_weight_g"])
+        return event_id
     
     async def ping(self) -> bool:
         """Check database connectivity."""
@@ -191,7 +215,6 @@ class InferenceDb:
         predicted_weight_kg: Optional[float],
         confidence: Optional[float],
         model_version: str,
-        record_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """Create inference result and return ID."""
@@ -199,12 +222,12 @@ class InferenceDb:
         async with self.pool.acquire() as conn:
             inserted = await conn.fetchval("""
                 INSERT INTO inference_results (
-                    id, event_id, tenant_id, farm_id, barn_id, device_id, session_id, record_id, media_id,
+                    id, event_id, tenant_id, farm_id, barn_id, device_id, session_id, media_id,
                     predicted_weight_kg, confidence, model_version, metadata
-                ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+                ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
                 ON CONFLICT (id) DO NOTHING
                 RETURNING id
-            """, result_id, result_id, tenant_id, farm_id, barn_id, device_id, session_id, record_id, media_id,
+            """, result_id, result_id, tenant_id, farm_id, barn_id, device_id, session_id, media_id,
                 predicted_weight_kg, confidence, model_version, metadata_json)
             if inserted:
                 return str(inserted)
